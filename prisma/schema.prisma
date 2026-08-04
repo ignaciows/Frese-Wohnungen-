@@ -1,0 +1,650 @@
+// Frese Wohnung — internal housing-search workbench.
+//
+// Modelling rules that matter here:
+//  * A Listing exists independently of any candidate.
+//  * Candidate-specific score/status lives on CandidateListingMatch.
+//  * ContactAttempt is append-only history: who contacted what, when, with which exact message.
+//  * ListingFact keeps extraction evidence; manual overrides never erase it.
+//  * A SearchRun snapshots the profile and the source mappings it used.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- users
+
+enum Role {
+  ADMIN
+  COLLEAGUE
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(COLLEAGUE)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  candidateCases   CandidateCase[]
+  searchRuns       SearchRun[]
+  sourceChecksDone SourceCheck[]        @relation("SourceCheckCheckedBy")
+  sourceClaims     SourceCheck[]        @relation("SourceCheckClaimedBy")
+  listingsImported Listing[]
+  claims           ListingClaim[]
+  contactAttempts  ContactAttempt[]
+  systemTransfers  SystemTransfer[]
+  auditEvents      AuditEvent[]
+  corrections      ListingFact[]
+  settingsUpdated  AppSetting[]
+  messagesUpdated  ApplicationMessage[]
+}
+
+// ------------------------------------------------------- candidate case
+
+enum CaseStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model CandidateCase {
+  id          String     @id @default(cuid())
+  reference   String     @unique // internal, pseudonymous reference (e.g. "CAND-2026-014")
+  displayName String
+  notes       String?
+  status      CaseStatus @default(ACTIVE)
+  createdById String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  createdBy          User                    @relation(fields: [createdById], references: [id])
+  applicationMessage ApplicationMessage?
+  searchProfile      SearchProfile?
+  searchRuns         SearchRun[]
+  matches            CandidateListingMatch[]
+  contactAttempts    ContactAttempt[]
+  claims             ListingClaim[]
+  auditEvents        AuditEvent[]
+
+  @@index([status])
+}
+
+/// The personalised application message, pasted by a colleague. Never sent to an
+/// external service; snapshotted verbatim into every ContactAttempt.
+model ApplicationMessage {
+  id              String   @id @default(cuid())
+  candidateCaseId String   @unique
+  body            String   @default("")
+  revision        Int      @default(0)
+  updatedById     String?
+  updatedAt       DateTime @updatedAt
+
+  candidateCase CandidateCase @relation(fields: [candidateCaseId], references: [id], onDelete: Cascade)
+  updatedBy     User?         @relation(fields: [updatedById], references: [id])
+}
+
+enum FurnishedPreference {
+  REQUIRED
+  PREFERRED
+  EITHER
+}
+
+enum WbsStatus {
+  AVAILABLE
+  NOT_AVAILABLE
+  UNKNOWN
+}
+
+enum CommuteMode {
+  CAR
+  PUBLIC_TRANSPORT
+  BIKE
+  WALK
+}
+
+model SearchProfile {
+  id              String @id @default(cuid())
+  candidateCaseId String @unique
+
+  workplaceAddress    String
+  workplaceCity       String?
+  workplacePostalCode String?
+  workplaceLat        Float?
+  workplaceLon        Float?
+  geocodeStatus       String  @default("UNKNOWN") // UNKNOWN | RESOLVED | FAILED | MANUAL
+
+  maxWarmmieteCents Int       @default(90000)
+  moveInDate        DateTime?
+  adults            Int       @default(1)
+  children          Int       @default(0)
+  minRooms          Float     @default(1)
+  preferredRooms    Float     @default(2)
+
+  furnished         FurnishedPreference @default(PREFERRED)
+  maxCommuteMinutes Int?                @default(35)
+  radiusKm          Int?
+  commuteMode       CommuteMode         @default(CAR)
+  wbsStatus         WbsStatus           @default(UNKNOWN)
+  pets              String? // free text, optional ("Katze")
+  temporaryMode     Boolean             @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  candidateCase CandidateCase @relation(fields: [candidateCaseId], references: [id], onDelete: Cascade)
+}
+
+// ------------------------------------------------------- source registry
+
+enum IntegrationMode {
+  OFFICIAL_API
+  EMAIL_ALERT
+  SEARCH_LINK
+  MANUAL_IMPORT
+  BROWSER_ONLY
+  REGIONAL_DIRECTORY
+  CUSTOM_SOURCE
+}
+
+enum ConnectorStatus {
+  NONE
+  PLANNED
+  BLOCKED_BY_PERMISSION
+  AVAILABLE
+  UNHEALTHY
+}
+
+enum TermsReviewStatus {
+  NOT_REVIEWED
+  REVIEW_PENDING
+  MANUAL_ONLY
+  APPROVED_FOR_AUTOMATION
+}
+
+enum SourceCategory {
+  MARKETPLACE
+  GENERAL_PORTAL
+  FURNISHED
+  INSTITUTIONAL_LANDLORD
+  COOPERATIVE
+  MUNICIPAL
+  TEMPORARY
+  SOCIAL_LOCAL
+  DIRECTORY
+}
+
+model SourceFamily {
+  id      String   @id @default(cuid())
+  key     String   @unique
+  name    String
+  notes   String?
+  sources Source[]
+}
+
+model Source {
+  id         String         @id @default(cuid())
+  key        String         @unique
+  name       String
+  websiteUrl String
+  familyId   String?
+  category   SourceCategory
+  priority   Int            @default(100)
+  active     Boolean        @default(true)
+
+  integrationMode   IntegrationMode
+  requiresAuth      Boolean           @default(false)
+  connectorStatus   ConnectorStatus   @default(NONE)
+  termsReviewStatus TermsReviewStatus @default(NOT_REVIEWED)
+  termsReviewUrl    String?
+  termsReviewedAt   DateTime?
+
+  /// Only used when searchUrlValidated is true. Otherwise we open websiteUrl and
+  /// show the manual recipe instead of pretending the filters were applied.
+  searchUrlTemplate  String?
+  searchUrlValidated Boolean @default(false)
+
+  manualRecipe             String? // extra source-specific hints appended to the generated recipe
+  manualImportInstructions String?
+  notes                    String?
+
+  /// Housing types this source is relevant for; see domain/sources/housingTypes.ts
+  housingTypes  String[] @default([])
+  /// Only offered when the candidate's temporary/emergency mode is enabled.
+  temporaryOnly Boolean  @default(false)
+
+  family         SourceFamily?         @relation(fields: [familyId], references: [id])
+  aliases        SourceAlias[]
+  coverage       SourceCoverage[]
+  filterMappings SourceFilterMapping[]
+  sourceChecks   SourceCheck[]
+  listings       Listing[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, priority])
+}
+
+model SourceAlias {
+  id       String  @id @default(cuid())
+  sourceId String
+  name     String
+  note     String?
+  source   Source  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, name])
+}
+
+enum CoverageKind {
+  NATIONWIDE
+  STATE
+  CITY
+  POSTAL_PREFIX
+}
+
+model SourceCoverage {
+  id       String       @id @default(cuid())
+  sourceId String
+  kind     CoverageKind
+  /// Empty string for NATIONWIDE; otherwise state name, city name or PLZ prefix.
+  value    String       @default("")
+  source   Source       @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, kind, value])
+  @@index([kind, value])
+}
+
+enum MappingQuality {
+  EXACT
+  APPROXIMATE
+  MANUAL
+  UNSUPPORTED
+  UNKNOWN
+}
+
+model SourceFilterMapping {
+  id              String         @id @default(cuid())
+  sourceId        String
+  /// Canonical filter key — see domain/sources/canonicalFilters.ts
+  canonicalFilter String
+  quality         MappingQuality @default(UNKNOWN)
+  /// What the portal calls it, e.g. "Warmmiete bis" or "Umkreis".
+  portalLabel     String?
+  note            String?
+
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, canonicalFilter])
+}
+
+// ---------------------------------------------------------- search runs
+
+enum SearchRunStatus {
+  OPEN
+  COMPLETED
+}
+
+model SearchRun {
+  id              String          @id @default(cuid())
+  candidateCaseId String
+  createdById     String
+  label           String
+  status          SearchRunStatus @default(OPEN)
+  /// Frozen copy of the SearchProfile at planning time. History must not change
+  /// when the profile or a source mapping is edited later.
+  profileSnapshot Json
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  candidateCase CandidateCase @relation(fields: [candidateCaseId], references: [id], onDelete: Cascade)
+  createdBy     User          @relation(fields: [createdById], references: [id])
+  sourceChecks  SourceCheck[]
+
+  @@index([candidateCaseId, createdAt])
+}
+
+enum SourceCheckStatus {
+  PENDING
+  IN_PROGRESS
+  CHECKED_NO_RESULTS
+  CHECKED_RESULTS_IMPORTED
+  UNAVAILABLE
+  SKIPPED
+}
+
+/// One task per relevant source inside a search run. Manual tasks are first-class:
+/// a source without a connector still gets a task, a recipe and a progress state.
+model SourceCheck {
+  id          String            @id @default(cuid())
+  searchRunId String
+  sourceId    String
+  status      SourceCheckStatus @default(PENDING)
+
+  importedCount     Int       @default(0)
+  lastCheckedAt     DateTime?
+  checkedById       String?
+  claimedById       String?
+  claimedUntil      DateTime?
+  unavailableReason String?
+  note              String?
+
+  /// Snapshot of the filter mapping + generated recipe used for this run.
+  mappingSnapshot Json
+  recipeSnapshot  Json
+  /// Generated search URL, only present when the template was validated.
+  generatedUrl    String?
+  /// Why this source is in the plan (or, for excluded ones, why it was left out).
+  inclusionReason String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  searchRun SearchRun @relation(fields: [searchRunId], references: [id], onDelete: Cascade)
+  source    Source    @relation(fields: [sourceId], references: [id])
+  checkedBy User?     @relation("SourceCheckCheckedBy", fields: [checkedById], references: [id])
+  claimedBy User?     @relation("SourceCheckClaimedBy", fields: [claimedById], references: [id])
+
+  @@unique([searchRunId, sourceId])
+  @@index([searchRunId, status])
+}
+
+// -------------------------------------------------------------- listings
+
+enum Furnishing {
+  FULLY_FURNISHED
+  FURNISHED
+  PARTIALLY_FURNISHED
+  FURNITURE_TAKEOVER
+  UNFURNISHED
+  UNKNOWN
+}
+
+enum PropertyType {
+  APARTMENT
+  WG_ROOM
+  HOUSE
+  FOR_SALE
+  EXCHANGE
+  TEMPORARY
+  COMMERCIAL
+  PARKING
+  OTHER
+  UNKNOWN
+}
+
+enum TriState {
+  YES
+  NO
+  UNKNOWN
+}
+
+model Listing {
+  id              String  @id @default(cuid())
+  sourceId        String
+  /// Normalised URL used for exact duplicate detection.
+  canonicalUrl    String  @unique
+  rawUrl          String
+  /// Portal-side listing id when it can be derived from the URL.
+  sourceListingId String?
+
+  title          String
+  descriptionRaw String  @default("")
+  locationRaw    String  @default("")
+  locationCity   String?
+  locationPostal String?
+  lat            Float?
+  lon            Float?
+  imageUrl       String?
+  notes          String?
+
+  // ---- normalised, effective values (manual override wins over extraction) ----
+  propertyType PropertyType @default(UNKNOWN)
+  furnishing   Furnishing   @default(UNKNOWN)
+
+  warmMieteCents        Int?
+  kaltMieteCents        Int?
+  nebenkostenCents      Int?
+  heizkostenCents       Int?
+  otherMonthlyCents     Int?
+  depositCents          Int?
+  abloeseCents          Int?
+  provisionNote         String?
+  /// True when a real monthly total is known (Warmmiete given, or Kalt + NK + Heiz).
+  monthlyTotalComplete  Boolean @default(false)
+  /// Best known monthly total in cents (may be null when unknown).
+  effectiveMonthlyCents Int?
+
+  rooms          Float?
+  livingSpaceSqm Float?
+  availableFrom  DateTime?
+  availableNow   Boolean   @default(false)
+
+  wbsRequired       TriState @default(UNKNOWN)
+  exchangeRequired  TriState @default(UNKNOWN)
+  petsAllowed       TriState @default(UNKNOWN)
+  fittedKitchen     TriState @default(UNKNOWN)
+  anmeldungPossible TriState @default(UNKNOWN)
+  fixedTerm         TriState @default(UNKNOWN)
+  minDurationMonths Int?
+  maxDurationMonths Int?
+
+  /// Free-form warnings surfaced in the UI (schufa, income proof, restrictions...).
+  warnings String[] @default([])
+
+  extractorVersion String   @default("")
+  expired          Boolean  @default(false)
+  importedById     String
+  importedAt       DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  /// Optimistic-locking counter, guards against lost updates.
+  version          Int      @default(0)
+
+  source          Source                  @relation(fields: [sourceId], references: [id])
+  importedBy      User                    @relation(fields: [importedById], references: [id])
+  facts           ListingFact[]
+  matches         CandidateListingMatch[]
+  claims          ListingClaim[]
+  contactAttempts ContactAttempt[]
+  duplicateLinks  DuplicateMember[]
+
+  @@index([sourceId])
+  @@index([sourceListingId])
+}
+
+enum FactSource {
+  STRUCTURED_FIELD
+  DESCRIPTION
+  TITLE
+  DERIVED
+  MANUAL
+}
+
+/// One extracted (or manually corrected) fact, with its evidence. Manual
+/// corrections are added as new rows with isOverride = true; the original
+/// extraction row is kept for audit and for building test fixtures.
+model ListingFact {
+  id               String     @id @default(cuid())
+  listingId        String
+  key              String
+  valueJson        Json
+  origin           FactSource
+  evidence         String? // short snippet from the description
+  confidence       Float      @default(0.5)
+  extractorVersion String     @default("")
+  isOverride       Boolean    @default(false)
+  createdById      String?
+  createdAt        DateTime   @default(now())
+
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation(fields: [createdById], references: [id])
+
+  @@index([listingId, key])
+}
+
+// -------------------------------------------------- candidate <-> listing
+
+enum Compatibility {
+  COMPATIBLE
+  NEAR_MATCH
+  INCOMPATIBLE
+  INSUFFICIENT_DATA
+}
+
+enum MatchStatus {
+  NEW
+  FAVORITE
+  IN_PROGRESS
+  CONTACTED
+  REJECTED
+  EXPIRED
+}
+
+model CandidateListingMatch {
+  id              String        @id @default(cuid())
+  candidateCaseId String
+  listingId       String
+  compatibility   Compatibility @default(INSUFFICIENT_DATA)
+  score           Float         @default(0)
+  breakdown       Json
+  reasons         Json
+  blockers        Json
+  status          MatchStatus   @default(NEW)
+  rejectedReason  String?
+  rankVersion     String        @default("")
+  computedAt      DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  candidateCase CandidateCase @relation(fields: [candidateCaseId], references: [id], onDelete: Cascade)
+  listing       Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateCaseId, listingId])
+  @@index([candidateCaseId, status])
+  @@index([candidateCaseId, compatibility, score])
+}
+
+/// Short renewable "I am working on this" claim. Expires on its own so a closed
+/// browser never leaves a permanent lock.
+model ListingClaim {
+  id              String    @id @default(cuid())
+  listingId       String
+  candidateCaseId String
+  userId          String
+  claimedAt       DateTime  @default(now())
+  expiresAt       DateTime
+  releasedAt      DateTime?
+
+  listing       Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  candidateCase CandidateCase @relation(fields: [candidateCaseId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id])
+
+  @@index([listingId, expiresAt])
+}
+
+/// Append-only. One row = one deliberate, confirmed contact.
+model ContactAttempt {
+  id              String   @id @default(cuid())
+  listingId       String
+  candidateCaseId String
+  userId          String
+  contactedAt     DateTime @default(now())
+  /// Verbatim copy of the message that was actually used.
+  messageSnapshot String
+  channel         String   @default("PORTAL_FORM")
+  note            String?
+  /// Set when an admin-permitted duplicate contact was forced through.
+  overrideReason  String?
+
+  listing        Listing         @relation(fields: [listingId], references: [id])
+  candidateCase  CandidateCase   @relation(fields: [candidateCaseId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id])
+  systemTransfer SystemTransfer?
+
+  /// DB-level guarantee: one candidate can only be registered against a listing once.
+  @@unique([listingId, candidateCaseId])
+  @@index([listingId])
+}
+
+/// Tracks the manual copy of the three fields into the separate company system.
+/// There is deliberately no API integration with that system.
+model SystemTransfer {
+  id               String    @id @default(cuid())
+  contactAttemptId String    @unique
+  objectLabel      String
+  link             String
+  location         String
+  registeredAt     DateTime?
+  registeredById   String?
+  updatedAt        DateTime  @updatedAt
+
+  contactAttempt ContactAttempt @relation(fields: [contactAttemptId], references: [id], onDelete: Cascade)
+  registeredBy   User?          @relation(fields: [registeredById], references: [id])
+}
+
+// ------------------------------------------------------------- duplicates
+
+enum DuplicateStatus {
+  SUSPECTED
+  CONFIRMED
+  DISMISSED
+}
+
+model DuplicateGroup {
+  id        String            @id @default(cuid())
+  status    DuplicateStatus   @default(SUSPECTED)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  members   DuplicateMember[]
+}
+
+model DuplicateMember {
+  id         String @id @default(cuid())
+  groupId    String
+  listingId  String
+  confidence Float  @default(0)
+  reasons    Json
+
+  group   DuplicateGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  listing Listing        @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, listingId])
+  @@index([listingId])
+}
+
+// ----------------------------------------------------------------- audit
+
+model AuditEvent {
+  id              String   @id @default(cuid())
+  userId          String?
+  candidateCaseId String?
+  entityType      String
+  entityId        String
+  action          String
+  fromState       String?
+  toState         String?
+  reason          String?
+  meta            Json?
+  createdAt       DateTime @default(now())
+
+  user          User?          @relation(fields: [userId], references: [id])
+  candidateCase CandidateCase? @relation(fields: [candidateCaseId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([candidateCaseId, createdAt])
+}
+
+/// Small admin-editable key/value settings (copy format, ranking weights).
+model AppSetting {
+  key         String   @id
+  valueJson   Json
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  updatedBy User? @relation(fields: [updatedById], references: [id])
+}

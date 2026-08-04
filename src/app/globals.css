@@ -1,0 +1,186 @@
+@import 'tailwindcss';
+
+:root {
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --border: #e5e7eb;
+  --text: #0f172a;
+  --muted: #475569;
+  --accent: #1d4ed8;
+  --accent-fg: #ffffff;
+  --danger: #b91c1c;
+  --warning: #b45309;
+  --success: #047857;
+  --neutral: #64748b;
+  --yellow: #eab308;
+  --blue: #2563eb;
+  --green: #059669;
+  --gray: #94a3b8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1220;
+    --card: #111827;
+    --border: #1f2937;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #3b82f6;
+    --accent-fg: #ffffff;
+  }
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  cursor: pointer;
+  transition:
+    border-color 0.1s,
+    background 0.1s;
+}
+.btn:hover {
+  border-color: var(--accent);
+}
+.btn.primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+.btn.primary:hover {
+  background: color-mix(in oklab, var(--accent) 90%, black);
+}
+.btn.danger {
+  color: var(--danger);
+}
+.btn.small {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  background: color-mix(in oklab, currentColor 10%, transparent);
+  border: 1px solid currentColor;
+}
+
+.status-new {
+  color: var(--neutral);
+}
+.status-favorite {
+  color: var(--yellow);
+}
+.status-in-progress {
+  color: var(--blue);
+}
+.status-contacted {
+  color: var(--green);
+}
+.status-rejected {
+  color: var(--gray);
+}
+
+.input {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  width: 100%;
+}
+.textarea {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+}
+label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.muted {
+  color: var(--muted);
+}
+.chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: color-mix(in oklab, var(--muted) 15%, transparent);
+  color: var(--muted);
+  border: 1px solid transparent;
+}
+.chip.exact {
+  color: var(--success);
+  border-color: color-mix(in oklab, var(--success) 40%, transparent);
+}
+.chip.approximate {
+  color: var(--warning);
+  border-color: color-mix(in oklab, var(--warning) 40%, transparent);
+}
+.chip.manual {
+  color: var(--muted);
+  border-color: color-mix(in oklab, var(--muted) 40%, transparent);
+}
+.chip.unsupported {
+  color: var(--danger);
+  border-color: color-mix(in oklab, var(--danger) 40%, transparent);
+}
+.chip.unknown {
+  color: var(--neutral);
+}

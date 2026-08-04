@@ -1,0 +1,86 @@
+/**
+ * Sync the seed catalogue into the database. Safe to run repeatedly; existing
+ * sources keyed by `key` are updated in place, and admin-created sources are
+ * left untouched.
+ */
+
+import { prisma } from '@/lib/prisma';
+import { SEED_FAMILIES, SEED_SOURCES } from '@/domain/sources/catalog';
+
+export async function syncSeedCatalog(): Promise<{ createdSources: number; updatedSources: number }> {
+  const familyIdByKey = new Map<string, string>();
+  for (const f of SEED_FAMILIES) {
+    const family = await prisma.sourceFamily.upsert({
+      where: { key: f.key },
+      create: { key: f.key, name: f.name, notes: f.notes ?? null },
+      update: { name: f.name, notes: f.notes ?? null },
+    });
+    familyIdByKey.set(f.key, family.id);
+  }
+
+  let created = 0;
+  let updated = 0;
+  for (const s of SEED_SOURCES) {
+    const familyId = s.familyKey ? familyIdByKey.get(s.familyKey) ?? null : null;
+    const existing = await prisma.source.findUnique({ where: { key: s.key } });
+    const upserted = await prisma.source.upsert({
+      where: { key: s.key },
+      create: {
+        key: s.key,
+        name: s.name,
+        websiteUrl: s.websiteUrl,
+        familyId,
+        category: s.category,
+        priority: s.priority,
+        integrationMode: s.integrationMode,
+        termsReviewStatus: 'MANUAL_ONLY',
+        housingTypes: s.housingTypes,
+        temporaryOnly: s.temporaryOnly ?? false,
+        manualRecipe: s.manualRecipe ?? null,
+        notes: s.notes ?? null,
+      },
+      update: {
+        name: s.name,
+        websiteUrl: s.websiteUrl,
+        familyId,
+        category: s.category,
+        priority: s.priority,
+        integrationMode: s.integrationMode,
+        housingTypes: s.housingTypes,
+        temporaryOnly: s.temporaryOnly ?? false,
+        manualRecipe: s.manualRecipe ?? null,
+        notes: s.notes ?? null,
+      },
+    });
+    if (existing) updated++;
+    else created++;
+
+    // Replace coverage / mappings / aliases with the seed's authoritative view.
+    await prisma.sourceCoverage.deleteMany({ where: { sourceId: upserted.id } });
+    for (const c of s.coverage) {
+      await prisma.sourceCoverage.create({
+        data: { sourceId: upserted.id, kind: c.kind, value: c.value },
+      });
+    }
+    await prisma.sourceFilterMapping.deleteMany({ where: { sourceId: upserted.id } });
+    for (const m of s.filterMappings) {
+      await prisma.sourceFilterMapping.create({
+        data: {
+          sourceId: upserted.id,
+          canonicalFilter: m.canonicalFilter,
+          quality: m.quality,
+          portalLabel: m.portalLabel ?? null,
+          note: m.note ?? null,
+        },
+      });
+    }
+    await prisma.sourceAlias.deleteMany({ where: { sourceId: upserted.id } });
+    for (const alias of s.aliases ?? []) {
+      await prisma.sourceAlias.create({
+        data: { sourceId: upserted.id, name: alias },
+      });
+    }
+  }
+
+  return { createdSources: created, updatedSources: updated };
+}
