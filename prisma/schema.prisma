@@ -8,7 +8,10 @@
 //  * A SearchRun snapshots the profile and the source mappings it used.
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // Cover local dev (native) and both common Linux container flavours Railway
+  // / Fly / Render / Docker use in production.
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {

@@ -1,0 +1,17 @@
+# Nixpacks configuration for Railway / any Nixpacks-based builder.
+# Ensures Node 22 is used and dev dependencies are NOT pruned before the build,
+# because our build step needs `prisma` (which we already moved to
+# dependencies) and TypeScript to compile. At runtime we only need
+# `dependencies`, and Nixpacks handles that automatically.
+
+[phases.setup]
+nixPkgs = ["nodejs_22", "openssl"]
+
+[phases.install]
+cmds = ["npm ci --include=dev"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm run release"

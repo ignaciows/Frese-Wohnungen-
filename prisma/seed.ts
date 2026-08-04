@@ -161,8 +161,18 @@ async function main() {
   const { createdSources, updatedSources } = await syncSeedCatalog();
   console.log(`Quellenkatalog: ${createdSources} neu, ${updatedSources} aktualisiert.`);
 
-  // Wipe existing candidate so seeding is deterministic.
+  // Idempotency: if the demo candidate already exists, do NOT delete/recreate
+  // it. That would wipe any state the user built on top of it after a redeploy.
+  // Set SEED_FORCE_RESET=true to wipe and re-seed intentionally.
   const existing = await prisma.candidateCase.findUnique({ where: { reference: 'CAND-DEMO-01' } });
+  if (existing && process.env.SEED_FORCE_RESET !== 'true') {
+    console.log('Demo-Kandidat existiert bereits — Seed übersprungen (setze SEED_FORCE_RESET=true zum Erzwingen).');
+    console.log('\nDemo-Login:');
+    console.log(`  Admin:     ${DEMO_ADMIN_EMAIL} / ${adminPassword}`);
+    console.log(`  Kollegin:  ${DEMO_COLLEAGUE_EMAIL} / ${adminPassword}`);
+    void admin;
+    return;
+  }
   if (existing) {
     await prisma.candidateCase.delete({ where: { id: existing.id } });
   }
