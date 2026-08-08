@@ -58,7 +58,8 @@ export async function createCandidateAction(formData: FormData) {
     temporaryMode: parsed.temporaryMode,
   });
   await createSearchRun(candidate.id, user.id, 'Erster Suchlauf');
-  redirect(`/?case=${candidate.id}`);
+  // Send the colleague straight to the next step rather than back to a list.
+  redirect(`/kandidat/${candidate.id}/anschreiben`);
 }
 
 const MessageInput = z.object({
@@ -74,7 +75,7 @@ export async function saveMessageAction(formData: FormData) {
     body: parsed.body,
     userId: user.id,
   });
-  revalidatePath('/');
+  revalidatePath('/', 'layout');
 }
 
 const ProfileInput = z.object({
@@ -110,7 +111,7 @@ export async function saveProfileAction(formData: FormData) {
     },
     userId: user.id,
   });
-  revalidatePath('/');
+  revalidatePath('/', 'layout');
 }
 
 const ImportInput = z.object({
@@ -136,14 +137,14 @@ export async function importListingAction(formData: FormData) {
     locationPostal: parsed.locationPostal || null,
     importedById: user.id,
   });
-  revalidatePath('/');
+  revalidatePath('/', 'layout');
 }
 
 export async function newSearchRunAction(formData: FormData) {
   const user = await requireUser();
   const candidateCaseId = String(formData.get('candidateCaseId'));
   await createSearchRun(candidateCaseId, user.id, 'Neuer Suchlauf');
-  revalidatePath('/');
+  revalidatePath('/', 'layout');
 }
 
 const SourceCheckInput = z.object({
@@ -168,7 +169,7 @@ export async function updateSourceCheckAction(formData: FormData) {
     status: parsed.status,
     note: parsed.note,
   });
-  revalidatePath('/');
+  revalidatePath('/', 'layout');
 }
 
 export async function claimListingAction(formData: FormData) {
@@ -176,7 +177,7 @@ export async function claimListingAction(formData: FormData) {
   const candidateCaseId = String(formData.get('candidateCaseId'));
   const listingId = String(formData.get('listingId'));
   await claimListing({ candidateCaseId, listingId, userId: user.id });
-  revalidatePath('/');
+  revalidatePath('/', 'layout');
 }
 
 export async function favoriteListingAction(formData: FormData) {
@@ -199,7 +200,7 @@ export async function favoriteListingAction(formData: FormData) {
       },
     }),
   ]);
-  revalidatePath('/');
+  revalidatePath('/', 'layout');
 }
 
 export async function rejectListingAction(formData: FormData) {
@@ -224,7 +225,7 @@ export async function rejectListingAction(formData: FormData) {
       },
     }),
   ]);
-  revalidatePath('/');
+  revalidatePath('/', 'layout');
 }
 
 const ConfirmContactInput = z.object({
@@ -244,20 +245,109 @@ export async function confirmContactAction(formData: FormData) {
   });
   if (!result.ok) {
     // Surface via query param — no error UI framework needed for the MVP.
-    redirect(`/?case=${parsed.candidateCaseId}&listing=${parsed.listingId}&error=${encodeURIComponent(result.reason)}`);
+    redirect(
+      `/kandidat/${parsed.candidateCaseId}/ergebnisse?listing=${parsed.listingId}&error=${encodeURIComponent(
+        result.reason,
+      )}`,
+    );
   }
-  revalidatePath('/');
+  revalidatePath('/', 'layout');
+  redirect(`/kandidat/${parsed.candidateCaseId}/kontakte#kontakt-${result.contactAttemptId}`);
+}
+
+/* ------------------------------------------------ reply tracking (chat) -- */
+
+const OutcomeInput = z.object({
+  contactAttemptId: z.string(),
+  outcome: z.enum(['AWAITING', 'POSITIVE', 'NEGATIVE', 'NEEDS_INFO']),
+  outcomeNote: z.string().max(1000).optional(),
+});
+
+export async function setContactOutcomeAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = OutcomeInput.parse(Object.fromEntries(formData));
+  const attempt = await prisma.contactAttempt.findUniqueOrThrow({
+    where: { id: parsed.contactAttemptId },
+    select: { outcome: true, candidateCaseId: true, listingId: true },
+  });
+  await prisma.$transaction([
+    prisma.contactAttempt.update({
+      where: { id: parsed.contactAttemptId },
+      data: {
+        outcome: parsed.outcome,
+        outcomeAt: parsed.outcome === 'AWAITING' ? null : new Date(),
+        outcomeById: parsed.outcome === 'AWAITING' ? null : user.id,
+        outcomeNote: parsed.outcomeNote || null,
+      },
+    }),
+    prisma.auditEvent.create({
+      data: {
+        userId: user.id,
+        candidateCaseId: attempt.candidateCaseId,
+        entityType: 'ContactAttempt',
+        entityId: parsed.contactAttemptId,
+        action: 'contact.outcome',
+        fromState: attempt.outcome,
+        toState: parsed.outcome,
+        reason: parsed.outcomeNote || null,
+      },
+    }),
+  ]);
+  revalidatePath('/', 'layout');
+}
+
+const ContactMessageInput = z.object({
+  contactAttemptId: z.string(),
+  direction: z.enum(['OUTGOING', 'INCOMING']),
+  body: z.string().min(1).max(10_000),
+});
+
+export async function addContactMessageAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = ContactMessageInput.parse(Object.fromEntries(formData));
+  await prisma.contactMessage.create({
+    data: {
+      contactAttemptId: parsed.contactAttemptId,
+      direction: parsed.direction,
+      body: parsed.body,
+      recordedById: user.id,
+    },
+  });
+  revalidatePath('/', 'layout');
+}
+
+export async function archiveCandidateAction(formData: FormData) {
+  const user = await requireUser();
+  const candidateCaseId = String(formData.get('candidateCaseId'));
+  const archive = String(formData.get('archive')) === 'true';
+  await prisma.$transaction([
+    prisma.candidateCase.update({
+      where: { id: candidateCaseId },
+      data: { status: archive ? 'ARCHIVED' : 'ACTIVE' },
+    }),
+    prisma.auditEvent.create({
+      data: {
+        userId: user.id,
+        candidateCaseId,
+        entityType: 'CandidateCase',
+        entityId: candidateCaseId,
+        action: archive ? 'case.archive' : 'case.reactivate',
+        toState: archive ? 'ARCHIVED' : 'ACTIVE',
+      },
+    }),
+  ]);
+  revalidatePath('/', 'layout');
 }
 
 export async function markRegisteredAction(formData: FormData) {
   const user = await requireUser();
   const contactAttemptId = String(formData.get('contactAttemptId'));
   await markSystemTransferRegistered({ contactAttemptId, userId: user.id });
-  revalidatePath('/');
+  revalidatePath('/', 'layout');
 }
 
 export async function syncCatalogAction() {
   await requireAdmin();
   await syncSeedCatalog();
-  revalidatePath('/');
+  revalidatePath('/', 'layout');
 }

@@ -1,0 +1,174 @@
+'use client';
+
+import { useState } from 'react';
+import { addContactMessageAction, setContactOutcomeAction, markRegisteredAction } from '@/app/actions';
+import { CopyFields } from './CopyFields';
+import { RESPONSE_OUTCOME, formatDateTime, formatDate } from '@/lib/labels';
+
+export interface ConversationData {
+  id: string;
+  listingTitle: string;
+  listingUrl: string;
+  sourceName: string;
+  location: string;
+  contactedAt: string;
+  contactedByName: string;
+  outcome: string;
+  outcomeAt: string | null;
+  outcomeByName: string | null;
+  outcomeNote: string | null;
+  messageSnapshot: string;
+  transfer: { id: string; objectLabel: string; link: string; location: string; registeredAt: string | null; registeredByName: string | null } | null;
+  messages: Array<{
+    id: string;
+    direction: string;
+    body: string;
+    occurredAt: string;
+    recordedByName: string;
+  }>;
+}
+
+const OUTCOMES = ['POSITIVE', 'NEEDS_INFO', 'NEGATIVE', 'AWAITING'] as const;
+
+export function ConversationCard({ c }: { c: ConversationData }) {
+  const [showThread, setShowThread] = useState(c.messages.length > 0 || c.outcome !== 'AWAITING');
+  const o = RESPONSE_OUTCOME[c.outcome] ?? RESPONSE_OUTCOME.AWAITING;
+
+  return (
+    <div className="card" id={`kontakt-${c.id}`}>
+      <div className="card-head">
+        <div className="grow stack-sm" style={{ minWidth: 0 }}>
+          <div className="row-wrap">
+            <h3 style={{ overflowWrap: 'anywhere' }}>{c.listingTitle}</h3>
+            <span className={`badge ${o.tone}`}>
+              {o.icon} {o.label}
+            </span>
+          </div>
+          <div className="small muted">
+            {c.sourceName} · {c.location} · kontaktiert {formatDate(c.contactedAt)} von {c.contactedByName}
+          </div>
+        </div>
+        <a href={c.listingUrl} target="_blank" rel="noopener noreferrer" className="btn sm">
+          Anzeige ↗
+        </a>
+      </div>
+
+      <div className="card-body stack">
+        {/* --- outcome selector -------------------------------------------- */}
+        <div>
+          <label>Rückmeldung des Vermieters</label>
+          <div className="row-wrap">
+            {OUTCOMES.map((key) => {
+              const cfg = RESPONSE_OUTCOME[key];
+              const active = c.outcome === key;
+              return (
+                <form key={key} action={setContactOutcomeAction}>
+                  <input type="hidden" name="contactAttemptId" value={c.id} />
+                  <input type="hidden" name="outcome" value={key} />
+                  <button
+                    type="submit"
+                    className={`btn sm ${active ? 'primary' : ''}`}
+                    aria-pressed={active}
+                  >
+                    {cfg.icon} {cfg.label}
+                  </button>
+                </form>
+              );
+            })}
+          </div>
+          {c.outcomeAt ? (
+            <p className="field-hint">
+              Zuletzt aktualisiert {formatDateTime(c.outcomeAt)}
+              {c.outcomeByName ? ` von ${c.outcomeByName}` : ''}
+            </p>
+          ) : null}
+        </div>
+
+        {/* --- conversation ------------------------------------------------ */}
+        <div>
+          <button
+            type="button"
+            className="btn ghost sm"
+            onClick={() => setShowThread((v) => !v)}
+            aria-expanded={showThread}
+          >
+            {showThread ? '− Verlauf ausblenden' : `+ Verlauf (${c.messages.length + 1})`}
+          </button>
+        </div>
+
+        {showThread ? (
+          <div className="stack">
+            <div className="thread">
+              <div className="bubble out">
+                {c.messageSnapshot}
+                <div className="bubble-meta">
+                  Anschreiben · {formatDateTime(c.contactedAt)} · {c.contactedByName}
+                </div>
+              </div>
+              {c.messages.map((m) => (
+                <div key={m.id} className={`bubble ${m.direction === 'OUTGOING' ? 'out' : 'in'}`}>
+                  {m.body}
+                  <div className="bubble-meta">
+                    {m.direction === 'OUTGOING' ? 'Von uns' : 'Vom Vermieter'} ·{' '}
+                    {formatDateTime(m.occurredAt)} · erfasst von {m.recordedByName}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <form action={addContactMessageAction} className="stack-sm">
+              <input type="hidden" name="contactAttemptId" value={c.id} />
+              <label htmlFor={`msg-${c.id}`}>Nachricht festhalten</label>
+              <textarea
+                id={`msg-${c.id}`}
+                name="body"
+                className="textarea"
+                style={{ minHeight: 70 }}
+                required
+                placeholder="Antwort des Vermieters hier einfügen oder zusammenfassen …"
+              />
+              <div className="row">
+                <select name="direction" className="select" style={{ width: 190 }} defaultValue="INCOMING">
+                  <option value="INCOMING">Antwort vom Vermieter</option>
+                  <option value="OUTGOING">Nachricht von uns</option>
+                </select>
+                <button type="submit" className="btn primary sm">
+                  Hinzufügen
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : null}
+
+        {/* --- company system transfer ------------------------------------- */}
+        {c.transfer ? (
+          <>
+            <CopyFields
+              objectLabel={c.transfer.objectLabel}
+              link={c.transfer.link}
+              location={c.transfer.location}
+            />
+            {c.transfer.registeredAt ? (
+              <div className="callout success">
+                <span className="callout-icon" aria-hidden>
+                  ✓
+                </span>
+                <div>
+                  Im Firmen-System eingetragen am {formatDateTime(c.transfer.registeredAt)}
+                  {c.transfer.registeredByName ? ` von ${c.transfer.registeredByName}` : ''}.
+                </div>
+              </div>
+            ) : (
+              <form action={markRegisteredAction}>
+                <input type="hidden" name="contactAttemptId" value={c.id} />
+                <button type="submit" className="btn block">
+                  Als im Firmen-System eingetragen markieren
+                </button>
+              </form>
+            )}
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}

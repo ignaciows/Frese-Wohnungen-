@@ -43,6 +43,8 @@ model User {
   listingsImported Listing[]
   claims           ListingClaim[]
   contactAttempts  ContactAttempt[]
+  contactOutcomes  ContactAttempt[]     @relation("ContactOutcomeBy")
+  contactMessages  ContactMessage[]
   systemTransfers  SystemTransfer[]
   auditEvents      AuditEvent[]
   corrections      ListingFact[]
@@ -550,6 +552,19 @@ model ListingClaim {
   @@index([listingId, expiresAt])
 }
 
+/// How the landlord/agency replied to a contact attempt.
+enum ResponseOutcome {
+  AWAITING
+  POSITIVE
+  NEGATIVE
+  NEEDS_INFO
+}
+
+enum MessageDirection {
+  OUTGOING
+  INCOMING
+}
+
 /// Append-only. One row = one deliberate, confirmed contact.
 model ContactAttempt {
   id              String   @id @default(cuid())
@@ -564,14 +579,40 @@ model ContactAttempt {
   /// Set when an admin-permitted duplicate contact was forced through.
   overrideReason  String?
 
-  listing        Listing         @relation(fields: [listingId], references: [id])
-  candidateCase  CandidateCase   @relation(fields: [candidateCaseId], references: [id], onDelete: Cascade)
-  user           User            @relation(fields: [userId], references: [id])
+  /// Reply tracking. AWAITING until a colleague records an answer.
+  outcome     ResponseOutcome @default(AWAITING)
+  outcomeAt   DateTime?
+  outcomeById String?
+  outcomeNote String?
+
+  listing        Listing          @relation(fields: [listingId], references: [id])
+  candidateCase  CandidateCase    @relation(fields: [candidateCaseId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id])
+  outcomeBy      User?            @relation("ContactOutcomeBy", fields: [outcomeById], references: [id])
   systemTransfer SystemTransfer?
+  messages       ContactMessage[]
 
   /// DB-level guarantee: one candidate can only be registered against a listing once.
   @@unique([listingId, candidateCaseId])
   @@index([listingId])
+}
+
+/// A logged message in the conversation with a landlord/agency. Colleagues
+/// paste what they sent and what came back, so the whole team can see the
+/// state of a conversation without opening five portal inboxes.
+model ContactMessage {
+  id               String           @id @default(cuid())
+  contactAttemptId String
+  direction        MessageDirection
+  body             String
+  occurredAt       DateTime         @default(now())
+  recordedById     String
+  createdAt        DateTime         @default(now())
+
+  contactAttempt ContactAttempt @relation(fields: [contactAttemptId], references: [id], onDelete: Cascade)
+  recordedBy     User           @relation(fields: [recordedById], references: [id])
+
+  @@index([contactAttemptId, occurredAt])
 }
 
 /// Tracks the manual copy of the three fields into the separate company system.

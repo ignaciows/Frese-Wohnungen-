@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { verifyPassword } from '@/lib/auth';
 import { getSession } from '@/lib/session';
 
+export const dynamic = 'force-dynamic';
+
 async function loginAction(formData: FormData) {
   'use server';
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
@@ -27,39 +29,48 @@ export default async function LoginPage({
 }) {
   const { error } = await searchParams;
   return (
-    <main style={{ maxWidth: 380, margin: '10vh auto', padding: 24 }}>
-      <h1 style={{ marginBottom: 8 }}>Frese Wohnung</h1>
-      <p className="muted" style={{ marginBottom: 24 }}>
-        Interne Wohnungssuche — Anmeldung erforderlich
-      </p>
-      {error ? (
-        <div
-          className="card"
-          style={{ padding: 12, marginBottom: 16, borderColor: 'var(--danger)', color: 'var(--danger)' }}
-        >
-          {error}
+    <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24 }}>
+      <div style={{ width: '100%', maxWidth: 380 }}>
+        <div className="row" style={{ justifyContent: 'center', marginBottom: 8 }}>
+          <span className="brand-dot" style={{ width: 30, height: 30, fontSize: 15 }} aria-hidden>
+            F
+          </span>
+          <h1>Frese Wohnung</h1>
         </div>
-      ) : null}
-      <form action={loginAction} className="card" style={{ padding: 20, display: 'grid', gap: 12 }}>
-        <div>
-          <label htmlFor="email">E-Mail</label>
-          <input id="email" name="email" type="email" required autoComplete="username" className="input" />
-        </div>
-        <div>
-          <label htmlFor="password">Passwort</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            required
-            autoComplete="current-password"
-            className="input"
-          />
-        </div>
-        <button type="submit" className="btn primary">
-          Anmelden
-        </button>
-      </form>
+        <p className="muted small" style={{ textAlign: 'center', marginBottom: 22 }}>
+          Interne Wohnungssuche — Anmeldung erforderlich
+        </p>
+
+        {error ? (
+          <div className="callout danger" style={{ marginBottom: 14 }}>
+            <span className="callout-icon" aria-hidden>
+              !
+            </span>
+            <div>{error}</div>
+          </div>
+        ) : null}
+
+        <form action={loginAction} className="card card-body stack">
+          <div>
+            <label htmlFor="email">E-Mail</label>
+            <input id="email" name="email" type="email" required autoComplete="username" className="input" />
+          </div>
+          <div>
+            <label htmlFor="password">Passwort</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              className="input"
+            />
+          </div>
+          <button type="submit" className="btn primary block">
+            Anmelden
+          </button>
+        </form>
+      </div>
     </main>
   );
 }

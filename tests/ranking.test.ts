@@ -150,3 +150,31 @@ describe('household → room suggestions', () => {
     expect(suggestedPreferredRooms(2, 3)).toBe(5);
   });
 });
+
+describe('ranking: unresolvable-but-harmless data', () => {
+  const geoProfile: RankingProfile = { ...baseProfile, workplaceLat: 49.2, workplaceLon: 9.1, maxCommuteMinutes: 35 };
+
+  it('unknown distance alone does NOT downgrade a good listing', () => {
+    const r = rank(
+      { ...baseListing, furnishing: 'FULLY_FURNISHED', distanceKm: null, commuteMinutes: null },
+      geoProfile,
+    );
+    expect(r.compatibility).toBe('COMPATIBLE');
+    // …but it is still surfaced to the user.
+    expect(r.reasons.some((x) => x.includes('Entfernung unbekannt'))).toBe(true);
+  });
+
+  it('a real review flag still downgrades to NEAR_MATCH', () => {
+    const r = rank(
+      {
+        ...baseListing,
+        furnishing: 'FULLY_FURNISHED',
+        distanceKm: null,
+        commuteMinutes: null,
+        monthlyTotalComplete: false,
+      },
+      geoProfile,
+    );
+    expect(r.compatibility).toBe('NEAR_MATCH');
+  });
+});

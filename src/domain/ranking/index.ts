@@ -138,6 +138,13 @@ export function classify(listing: RankingListing, profile: RankingProfile): {
 } {
   const blockers: string[] = [];
   const softFlags: string[] = [];
+  /**
+   * Purely informational flags. They are shown to the user but must NOT push a
+   * listing out of COMPATIBLE — otherwise a condition we can never resolve
+   * (e.g. no geocoder configured, so every distance is unknown) would mark the
+   * whole inbox as "needs review" and destroy the signal.
+   */
+  const infoFlags: string[] = [];
 
   // 1. Property type -- excluded types are hard failures.
   if (listing.propertyType === 'TEMPORARY' && !profile.temporaryMode) {
@@ -214,7 +221,7 @@ export function classify(listing: RankingListing, profile: RankingProfile): {
       softFlags.push('Entfernung über Zielwert');
     }
   } else if (profile.workplaceLat != null && profile.workplaceLon != null && listing.distanceKm == null) {
-    softFlags.push('Entfernung unbekannt');
+    infoFlags.push('Entfernung unbekannt');
   }
 
   // Insufficient-data escalation: type unknown + no rooms + no cost → we cannot
@@ -222,10 +229,12 @@ export function classify(listing: RankingListing, profile: RankingProfile): {
   const hasAnySignal =
     listing.rooms != null || listing.effectiveMonthlyCents != null || listing.propertyType !== 'UNKNOWN';
 
-  if (blockers.length > 0) return { compatibility: 'INCOMPATIBLE', blockers, softFlags };
-  if (!hasAnySignal) return { compatibility: 'INSUFFICIENT_DATA', blockers, softFlags };
-  if (softFlags.length > 0) return { compatibility: 'NEAR_MATCH', blockers, softFlags };
-  return { compatibility: 'COMPATIBLE', blockers, softFlags };
+  const allFlags = [...softFlags, ...infoFlags];
+  if (blockers.length > 0) return { compatibility: 'INCOMPATIBLE', blockers, softFlags: allFlags };
+  if (!hasAnySignal) return { compatibility: 'INSUFFICIENT_DATA', blockers, softFlags: allFlags };
+  // Only flags that genuinely need a human decision downgrade to NEAR_MATCH.
+  if (softFlags.length > 0) return { compatibility: 'NEAR_MATCH', blockers, softFlags: allFlags };
+  return { compatibility: 'COMPATIBLE', blockers, softFlags: allFlags };
 }
 
 // ------------------------------------------------------------------- score
