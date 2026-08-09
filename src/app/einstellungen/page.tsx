@@ -4,11 +4,15 @@ import {
   getSharingSettings,
   getSourceRecheckSettings,
   getSystemTransferSettings,
+  getFreshnessSettings,
+  getBridgingSettings,
 } from '@/server/settings';
 import {
   saveSharingSettingsAction,
   saveRecheckSettingsAction,
   saveTransferSettingsAction,
+  saveFreshnessSettingsAction,
+  saveBridgingSettingsAction,
 } from '@/app/actions';
 import { AppBar, Callout } from '@/app/_components/Shell';
 import { prisma } from '@/lib/prisma';
@@ -23,11 +27,13 @@ export default async function SettingsPage() {
   if (!user) redirect('/login');
   const isAdmin = user.role === 'ADMIN';
 
-  const [sharing, recheck, transfer, recentIngests] = await Promise.all([
+  const [sharing, recheck, transfer, recentIngests, freshness, bridging] = await Promise.all([
     getSharingSettings(),
     getSourceRecheckSettings(),
     getSystemTransferSettings(),
     prisma.emailIngestLog.findMany({ orderBy: { receivedAt: 'desc' }, take: 8 }),
+    getFreshnessSettings(),
+    getBridgingSettings(),
   ]);
   const mailConfigured = readMailConfig() != null;
 
@@ -189,6 +195,124 @@ export default async function SettingsPage() {
               <button type="submit" className="btn primary">
                 Speichern
               </button>
+            </div>
+          ) : null}
+        </form>
+
+        {/* ------------------------------------------------ freshness --- */}
+        <form action={saveFreshnessSettingsAction} className="card" style={{ marginTop: 18 }}>
+          <div className="card-head">
+            <h2>Aktualität der Anzeigen</h2>
+          </div>
+          <div className="card-body stack">
+            <div className="grid-2">
+              <div>
+                <label htmlFor="newWithinHours">„Neu“-Markierung bis (Stunden)</label>
+                <input
+                  id="newWithinHours"
+                  name="newWithinHours"
+                  type="number"
+                  min={1}
+                  max={168}
+                  className="input"
+                  defaultValue={freshness.newWithinHours}
+                  disabled={!isAdmin}
+                />
+              </div>
+              <div>
+                <label htmlFor="staleAfterDays">Als veraltet markieren nach (Tagen)</label>
+                <input
+                  id="staleAfterDays"
+                  name="staleAfterDays"
+                  type="number"
+                  min={1}
+                  max={120}
+                  className="input"
+                  defaultValue={freshness.staleAfterDays}
+                  disabled={!isAdmin}
+                />
+              </div>
+            </div>
+            <div className="checkline">
+              <input
+                id="hideExpired"
+                name="hideExpired"
+                type="checkbox"
+                value="true"
+                defaultChecked={freshness.hideExpired}
+                disabled={!isAdmin}
+              />
+              <label htmlFor="hideExpired">Abgelaufene Anzeigen aus der Arbeitsliste ausblenden</label>
+            </div>
+            <p className="field-hint">
+              Abgelaufene Anzeigen verschwinden nicht aus der Datenbank — sie stehen im eigenen Reiter
+              „Abgelaufen“, damit Kontakt- und Verlaufsdaten erhalten bleiben.
+            </p>
+          </div>
+          {isAdmin ? (
+            <div className="card-foot" style={{ textAlign: 'right' }}>
+              <button type="submit" className="btn primary">Speichern</button>
+            </div>
+          ) : null}
+        </form>
+
+        {/* ------------------------------------------------- bridging --- */}
+        <form action={saveBridgingSettingsAction} className="card" style={{ marginTop: 18 }}>
+          <div className="card-head">
+            <h2>Zwischenunterkunft (Überbrückung)</h2>
+          </div>
+          <div className="card-body stack">
+            <p className="small muted">
+              Wenn eine gute Wohnung erst nach der Ankunft frei wird, rechnet die App die Lücke in Euro um —
+              statt die Wohnung stillschweigend auszusortieren.
+            </p>
+            <div className="grid-3">
+              <div>
+                <label htmlFor="nightlyRateEuros">Preis pro Nacht (€)</label>
+                <input
+                  id="nightlyRateEuros"
+                  name="nightlyRateEuros"
+                  type="number"
+                  min={10}
+                  max={500}
+                  className="input"
+                  defaultValue={Math.round(bridging.nightlyRateCents / 100)}
+                  disabled={!isAdmin}
+                />
+                <p className="field-hint">Airbnb / Monteurzimmer</p>
+              </div>
+              <div>
+                <label htmlFor="maxBridgeNights">Maximal sinnvolle Nächte</label>
+                <input
+                  id="maxBridgeNights"
+                  name="maxBridgeNights"
+                  type="number"
+                  min={1}
+                  max={180}
+                  className="input"
+                  defaultValue={bridging.maxBridgeNights}
+                  disabled={!isAdmin}
+                />
+              </div>
+              <div>
+                <label htmlFor="idealLeadDays">Ideale Vorlaufzeit (Tage)</label>
+                <input
+                  id="idealLeadDays"
+                  name="idealLeadDays"
+                  type="number"
+                  min={0}
+                  max={90}
+                  className="input"
+                  defaultValue={bridging.idealLeadDays}
+                  disabled={!isAdmin}
+                />
+                <p className="field-hint">Frei vor Ankunft = ideal</p>
+              </div>
+            </div>
+          </div>
+          {isAdmin ? (
+            <div className="card-foot" style={{ textAlign: 'right' }}>
+              <button type="submit" className="btn primary">Speichern</button>
             </div>
           ) : null}
         </form>

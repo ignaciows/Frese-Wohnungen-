@@ -5,6 +5,15 @@ import { ContactFlow } from '@/app/_components/ContactFlow';
 import { favoriteListingAction, rejectListingAction } from '@/app/actions';
 import { formatEuroCents } from '@/lib/money';
 import { COMPATIBILITY, FURNISHING, MATCH_STATUS, formatDate } from '@/lib/labels';
+import {
+  evaluateFreshness,
+  evaluateMoveInTiming,
+  firstPeriodCostCents,
+  type BridgingSettings,
+  type FreshnessSettings,
+} from '@/domain/timing';
+import { getFreshnessSettings, getBridgingSettings } from '@/server/settings';
+import { markListingExpiredAction } from '@/app/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +24,7 @@ const TABS = [
   { key: 'in-arbeit', label: 'In Arbeit' },
   { key: 'kontaktiert', label: 'Kontaktiert' },
   { key: 'abgelehnt', label: 'Abgelehnt' },
+  { key: 'abgelaufen', label: 'Abgelaufen' },
 ] as const;
 
 type MatchStatusValue = 'NEW' | 'FAVORITE' | 'IN_PROGRESS' | 'CONTACTED' | 'REJECTED' | 'EXPIRED';
@@ -47,9 +57,14 @@ export default async function ErgebnissePage({
   const sp = await searchParams;
   const tab = sp.tab ?? 'alle';
 
-  const [matchList, counts, message] = await Promise.all([
+  const [matchList, counts, message, profile, freshnessSettings, bridging] = await Promise.all([
     prisma.candidateListingMatch.findMany({
-      where: { candidateCaseId: id, ...statusFilter(tab) },
+      where: {
+        candidateCaseId: id,
+        ...statusFilter(tab),
+        // Expired ads only show in their own tab, so the working list stays trustworthy.
+        listing: tab === 'abgelaufen' ? { expired: true } : { expired: false },
+      },
       orderBy: [{ compatibility: 'asc' }, { score: 'desc' }],
       include: { listing: { include: { source: { select: { name: true } } } } },
     }),
@@ -59,7 +74,14 @@ export default async function ErgebnissePage({
       _count: true,
     }),
     prisma.applicationMessage.findUnique({ where: { candidateCaseId: id } }),
+    prisma.searchProfile.findUnique({ where: { candidateCaseId: id } }),
+    getFreshnessSettings(),
+    getBridgingSettings(),
   ]);
+  const arrival = profile?.moveInDate ?? null;
+  const expiredCount = await prisma.candidateListingMatch.count({
+    where: { candidateCaseId: id, listing: { expired: true } },
+  });
 
   type MatchRow = (typeof matchList)[number];
   const matches: MatchRow[] = matchList;
@@ -79,6 +101,8 @@ export default async function ErgebnissePage({
         return byStatus.CONTACTED ?? 0;
       case 'abgelehnt':
         return (byStatus.REJECTED ?? 0) + (byStatus.EXPIRED ?? 0);
+      case 'abgelaufen':
+        return expiredCount;
       default:
         return 0;
     }
@@ -159,6 +183,16 @@ export default async function ErgebnissePage({
                       ? 'mid'
                       : '';
               const reasons = Array.isArray(m.reasons) ? (m.reasons as string[]) : [];
+              const fresh = evaluateFreshness(
+                { firstSeenAt: l.importedAt, lastSeenAt: l.lastSeenAt, expired: l.expired },
+                freshnessSettings,
+              );
+              const timing = evaluateMoveInTiming(
+                l.availableFrom,
+                arrival,
+                l.effectiveMonthlyCents,
+                bridging,
+              );
               return (
                 <Link
                   key={m.id}
@@ -183,6 +217,18 @@ export default async function ErgebnissePage({
                       </span>
                       <span className="chip">{l.rooms != null ? `${l.rooms} Zi.` : 'Zi. ?'}</span>
                       {l.locationCity ? <span className="chip">{l.locationCity}</span> : null}
+                      {fresh.state === 'NEW' ? (
+                        <span className="badge success">● Neu</span>
+                      ) : fresh.state === 'STALE' ? (
+                        <span className="badge warning">Älter — evtl. vergeben</span>
+                      ) : null}
+                      {timing.verdict === 'BRIDGE_NEEDED' || timing.verdict === 'BRIDGE_TOO_LONG' ? (
+                        <span className="badge warning">
+                          {timing.bridgeNights} Tage Lücke ≈ {formatEuroCents(timing.bridgeCostCents)}
+                        </span>
+                      ) : timing.verdict === 'READY_BEFORE_ARRIVAL' || timing.verdict === 'READY_ON_TIME' ? (
+                        <span className="badge success">Rechtzeitig frei</span>
+                      ) : null}
                     </span>
                     {reasons.length > 0 ? (
                       <span className="small muted truncate">{reasons.slice(0, 3).join(' · ')}</span>
@@ -195,6 +241,7 @@ export default async function ErgebnissePage({
                     {!l.monthlyTotalComplete ? (
                       <span className="small subtle">* Kosten unvollständig</span>
                     ) : null}
+                    <span className="small subtle">{fresh.label}</span>
                   </span>
                 </Link>
               );
@@ -202,7 +249,15 @@ export default async function ErgebnissePage({
           </div>
 
           {selected ? (
-            <DetailPane candidateId={id} match={selected} message={message?.body ?? ''} tab={tab} />
+            <DetailPane
+              candidateId={id}
+              match={selected}
+              message={message?.body ?? ''}
+              tab={tab}
+              arrival={arrival}
+              freshnessSettings={freshnessSettings}
+              bridging={bridging}
+            />
           ) : null}
         </div>
       )}
@@ -231,6 +286,9 @@ interface DetailMatch {
     monthlyTotalComplete: boolean;
     warnings: string[];
     availableFrom: Date | null;
+    importedAt: Date;
+    lastSeenAt: Date | null;
+    expired: boolean;
     source: { name: string };
   };
 }
@@ -240,11 +298,17 @@ async function DetailPane({
   match,
   message,
   tab,
+  arrival,
+  freshnessSettings,
+  bridging,
 }: {
   candidateId: string;
   match: DetailMatch;
   message: string;
   tab: string;
+  arrival: Date | null;
+  freshnessSettings: FreshnessSettings;
+  bridging: BridgingSettings;
 }) {
   const l = match.listing;
 
@@ -296,6 +360,13 @@ async function DetailPane({
               <div className="stat-label">Verfügbar ab</div>
             </div>
           </div>
+
+          <TimingBlock
+            listing={l}
+            arrival={arrival}
+            freshnessSettings={freshnessSettings}
+            bridging={bridging}
+          />
 
           {blockers.length > 0 ? (
             <div className="callout danger">
@@ -378,6 +449,14 @@ async function DetailPane({
           }
         />
 
+        <form action={markListingExpiredAction}>
+          <input type="hidden" name="listingId" value={l.id} />
+          <input type="hidden" name="expired" value={l.expired ? 'false' : 'true'} />
+          <button type="submit" className="btn sm block">
+            {l.expired ? 'Wieder als aktiv markieren' : 'Anzeige ist nicht mehr verfügbar'}
+          </button>
+        </form>
+
         {match.status !== 'CONTACTED' ? (
           <div className="row-wrap">
             {match.status !== 'FAVORITE' ? (
@@ -403,5 +482,88 @@ async function DetailPane({
         ) : null}
       </div>
     </aside>
+  );
+}
+
+
+/**
+ * Freshness plus the arrival-vs-availability maths, including what a bridge
+ * would cost. Shown for every listing so a great flat with a late start date
+ * is a priced decision rather than a silent rejection.
+ */
+function TimingBlock({
+  listing,
+  arrival,
+  freshnessSettings,
+  bridging,
+}: {
+  listing: DetailMatch['listing'];
+  arrival: Date | null;
+  freshnessSettings: FreshnessSettings;
+  bridging: BridgingSettings;
+}) {
+  const fresh = evaluateFreshness(
+    { firstSeenAt: listing.importedAt, lastSeenAt: listing.lastSeenAt, expired: listing.expired },
+    freshnessSettings,
+  );
+  const timing = evaluateMoveInTiming(
+    listing.availableFrom,
+    arrival,
+    listing.effectiveMonthlyCents,
+    bridging,
+  );
+  const firstPeriod = firstPeriodCostCents(timing, listing.effectiveMonthlyCents);
+  const needsBridge = timing.verdict === 'BRIDGE_NEEDED' || timing.verdict === 'BRIDGE_TOO_LONG';
+
+  return (
+    <div className="stack-sm">
+      <div className="row-wrap">
+        <span className={`badge ${fresh.state === 'NEW' ? 'success' : fresh.state === 'STALE' ? 'warning' : ''}`}>
+          Anzeige: {fresh.label}
+        </span>
+        {listing.expired ? <span className="badge danger">Abgelaufen</span> : null}
+      </div>
+
+      {arrival ? (
+        <div className={`callout ${needsBridge ? 'warning' : 'success'}`}>
+          <span className="callout-icon" aria-hidden>
+            {needsBridge ? '!' : '✓'}
+          </span>
+          <div className="stack-sm" style={{ gap: 4 }}>
+            <div>
+              <strong>
+                Frei ab {listing.availableFrom ? formatDate(listing.availableFrom) : 'unbekannt'}
+              </strong>{' '}
+              · Ankunft {formatDate(arrival)}
+            </div>
+            {needsBridge ? (
+              <>
+                <div className="small">
+                  {timing.bridgeNights} Nächte Zwischenunterkunft ×{' '}
+                  {formatEuroCents(bridging.nightlyRateCents)} ={' '}
+                  <strong>{formatEuroCents(timing.bridgeCostCents)}</strong>
+                </div>
+                {firstPeriod != null ? (
+                  <div className="small">
+                    Erste Periode gesamt: {formatEuroCents(firstPeriod)} (Überbrückung + erste Monatsmiete)
+                  </div>
+                ) : null}
+                {timing.verdict === 'BRIDGE_TOO_LONG' ? (
+                  <div className="small">
+                    Über {bridging.maxBridgeNights} Nächte — meist teurer als eine andere Wohnung.
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="small">{timing.label}</div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <p className="small subtle">
+          Kein Ankunftsdatum im Suchprofil — ohne das kann die App keine Terminlücke berechnen.
+        </p>
+      )}
+    </div>
   );
 }

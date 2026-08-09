@@ -547,3 +547,61 @@ export async function runMailIngestAction() {
   await ingestMailbox();
   revalidatePath('/', 'layout');
 }
+
+const FreshnessSettingsInput = z.object({
+  newWithinHours: z.coerce.number().int().min(1).max(168),
+  staleAfterDays: z.coerce.number().int().min(1).max(120),
+  hideExpired: z.coerce.boolean().default(false),
+});
+
+export async function saveFreshnessSettingsAction(formData: FormData) {
+  const user = await requireAdmin();
+  const parsed = FreshnessSettingsInput.parse(Object.fromEntries(formData));
+  const { writeSetting, SETTING_KEYS } = await import('@/server/settings');
+  await writeSetting(SETTING_KEYS.freshness, parsed, user.id);
+  revalidatePath('/', 'layout');
+}
+
+const BridgingSettingsInput = z.object({
+  nightlyRateEuros: z.coerce.number().int().min(10).max(500),
+  maxBridgeNights: z.coerce.number().int().min(1).max(180),
+  idealLeadDays: z.coerce.number().int().min(0).max(90),
+});
+
+export async function saveBridgingSettingsAction(formData: FormData) {
+  const user = await requireAdmin();
+  const parsed = BridgingSettingsInput.parse(Object.fromEntries(formData));
+  const { writeSetting, SETTING_KEYS } = await import('@/server/settings');
+  await writeSetting(
+    SETTING_KEYS.bridging,
+    {
+      nightlyRateCents: parsed.nightlyRateEuros * 100,
+      maxBridgeNights: parsed.maxBridgeNights,
+      idealLeadDays: parsed.idealLeadDays,
+    },
+    user.id,
+  );
+  revalidatePath('/', 'layout');
+}
+
+export async function markListingExpiredAction(formData: FormData) {
+  const user = await requireUser();
+  const listingId = String(formData.get('listingId'));
+  const expired = String(formData.get('expired')) === 'true';
+  await prisma.$transaction([
+    prisma.listing.update({
+      where: { id: listingId },
+      data: { expired, expiredAt: expired ? new Date() : null },
+    }),
+    prisma.auditEvent.create({
+      data: {
+        userId: user.id,
+        entityType: 'Listing',
+        entityId: listingId,
+        action: expired ? 'listing.expire' : 'listing.reactivate',
+        toState: expired ? 'EXPIRED' : 'ACTIVE',
+      },
+    }),
+  ]);
+  revalidatePath('/', 'layout');
+}

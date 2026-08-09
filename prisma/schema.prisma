@@ -467,13 +467,17 @@ model Listing {
   /// Free-form warnings surfaced in the UI (schufa, income proof, restrictions...).
   warnings String[] @default([])
 
-  extractorVersion String   @default("")
-  expired          Boolean  @default(false)
+  extractorVersion String    @default("")
+  /// Last time a source confirmed this ad still exists (e.g. it reappeared in
+  /// a search-agent mail). Drives the freshness badge.
+  lastSeenAt       DateTime?
+  expired          Boolean   @default(false)
+  expiredAt        DateTime?
   importedById     String
-  importedAt       DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  importedAt       DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
   /// Optimistic-locking counter, guards against lost updates.
-  version          Int      @default(0)
+  version          Int       @default(0)
 
   source          Source                  @relation(fields: [sourceId], references: [id])
   importedBy      User                    @relation(fields: [importedById], references: [id])

@@ -9,11 +9,19 @@
 
 import { prisma } from '@/lib/prisma';
 import { DEFAULT_SHARING_SETTINGS, type SharingSettings } from '@/domain/sharing';
+import {
+  DEFAULT_BRIDGING,
+  DEFAULT_FRESHNESS,
+  type BridgingSettings,
+  type FreshnessSettings,
+} from '@/domain/timing';
 
 export const SETTING_KEYS = {
   sharing: 'sharing',
   sourceRecheck: 'sourceRecheck',
   systemTransfer: 'systemTransfer',
+  freshness: 'freshness',
+  bridging: 'bridging',
 } as const;
 
 export interface SourceRecheckSettings {
@@ -62,6 +70,14 @@ export function getSourceRecheckSettings(): Promise<SourceRecheckSettings> {
 
 export function getSystemTransferSettings(): Promise<SystemTransferSettings> {
   return readSetting(SETTING_KEYS.systemTransfer, DEFAULT_SYSTEM_TRANSFER);
+}
+
+export function getFreshnessSettings(): Promise<FreshnessSettings> {
+  return readSetting(SETTING_KEYS.freshness, DEFAULT_FRESHNESS);
+}
+
+export function getBridgingSettings(): Promise<BridgingSettings> {
+  return readSetting(SETTING_KEYS.bridging, DEFAULT_BRIDGING);
 }
 
 export async function writeSetting(key: string, value: object, userId: string): Promise<void> {
