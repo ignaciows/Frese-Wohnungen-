@@ -69,6 +69,13 @@ model CandidateCase {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
+  /// When the employment contract was signed in the existing Frese system.
+  /// The housing search clock starts here, not when someone got around to
+  /// creating the case — that is what makes the waiting time honest.
+  contractSignedAt DateTime?
+  /// Set once a flat is secured; retires the case from the priority queue.
+  housingSecuredAt DateTime?
+
   createdBy          User                    @relation(fields: [createdById], references: [id])
   applicationMessage ApplicationMessage?
   searchProfile      SearchProfile?
@@ -681,6 +688,24 @@ model AuditEvent {
 
   @@index([entityType, entityId])
   @@index([candidateCaseId, createdAt])
+}
+
+/// Starting estimate of how hard a region's housing market is, per postal
+/// prefix (e.g. "749") or city. Only the SEED lives here — observed rates are
+/// derived live from our own contacts so the two can never drift apart.
+model MarketRegion {
+  id    String @id @default(cuid())
+  key   String @unique
+  label String
+
+  /// 0 = easy, 100 = brutal. An editable starting point, replaced by our own
+  /// measurements as soon as enough Anfragen exist for the region.
+  seededDifficulty Int     @default(50)
+  /// Why this seed was chosen — shown in the UI so nobody mistakes it for data.
+  seedNote         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 /// Small admin-editable key/value settings (copy format, ranking weights).

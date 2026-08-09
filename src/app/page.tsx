@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { currentUser } from '@/lib/auth';
-import { AppBar, Empty, Stat } from './_components/Shell';
-import { formatDate } from '@/lib/labels';
+import { loadCandidatePriorities } from '@/server/priority';
+import { AppBar, Empty, Stat, Callout } from './_components/Shell';
+import { formatDate, PRIORITY_TIER, difficultyLabel } from '@/lib/labels';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,26 +12,32 @@ export default async function DashboardPage() {
   const user = await currentUser();
   if (!user) redirect('/login');
 
-  const cases = await prisma.candidateCase.findMany({
-    where: { status: 'ACTIVE' },
-    orderBy: { updatedAt: 'desc' },
-    include: {
-      searchProfile: true,
-      applicationMessage: { select: { body: true } },
-      _count: { select: { searchRuns: true, contactAttempts: true } },
-      matches: { select: { status: true, compatibility: true } },
-      contactAttempts: { select: { outcome: true } },
-    },
-  });
+  const [cases, priorities, archivedCount] = await Promise.all([
+    prisma.candidateCase.findMany({
+      where: { status: 'ACTIVE' },
+      include: {
+        searchProfile: true,
+        applicationMessage: { select: { body: true } },
+        _count: { select: { searchRuns: true, contactAttempts: true } },
+        matches: { select: { status: true, compatibility: true } },
+        contactAttempts: { select: { outcome: true } },
+      },
+    }),
+    loadCandidatePriorities(),
+    prisma.candidateCase.count({ where: { status: 'ARCHIVED' } }),
+  ]);
 
-  const archivedCount = await prisma.candidateCase.count({ where: { status: 'ARCHIVED' } });
+  const byId = new Map(cases.map((c) => [c.id, c]));
+  // Priority order decides the work queue.
+  const ordered = priorities.map((p) => ({ p, c: byId.get(p.candidateCaseId)! })).filter((x) => x.c);
 
   const totals = {
     candidates: cases.length,
     contacted: cases.reduce((n, c) => n + c._count.contactAttempts, 0),
     positive: cases.reduce((n, c) => n + c.contactAttempts.filter((a) => a.outcome === 'POSITIVE').length, 0),
-    awaiting: cases.reduce((n, c) => n + c.contactAttempts.filter((a) => a.outcome === 'AWAITING').length, 0),
+    openAnfragen: priorities.reduce((n, p) => n + p.remainingContacts, 0),
   };
+  const critical = priorities.filter((p) => p.tier === 'CRITICAL').length;
 
   return (
     <>
@@ -40,7 +47,8 @@ export default async function DashboardPage() {
           <div className="page-title">
             <h1>Kandidaten</h1>
             <span className="sub">
-              Jeder Kandidat hat ein eigenes Suchprofil, eigene Quellen-Checkliste und eigene Kontakte.
+              Sortiert nach Dringlichkeit: Einzugstermin, Wartezeit seit Vertragsunterschrift und wie
+              schwierig der Zielmarkt ist.
             </span>
           </div>
           <Link href="/kandidat/neu" className="btn primary lg">
@@ -49,12 +57,24 @@ export default async function DashboardPage() {
         </div>
 
         {cases.length > 0 ? (
-          <div className="grid-4" style={{ marginBottom: 24 }}>
-            <Stat value={totals.candidates} label="Aktive Kandidaten" />
-            <Stat value={totals.contacted} label="Kontaktierte Wohnungen" />
-            <Stat value={totals.positive} label="Positive Rückmeldungen" accent />
-            <Stat value={totals.awaiting} label="Wartet auf Antwort" />
-          </div>
+          <>
+            <div className="grid-4" style={{ marginBottom: 16 }}>
+              <Stat value={totals.candidates} label="Aktive Kandidaten" />
+              <Stat value={totals.contacted} label="Anfragen gesendet" />
+              <Stat value={totals.positive} label="Positive Rückmeldungen" accent />
+              <Stat value={totals.openAnfragen} label="Offene Anfragen (Soll)" />
+            </div>
+            {critical > 0 ? (
+              <div style={{ marginBottom: 20 }}>
+                <Callout tone="danger">
+                  <strong>
+                    {critical} {critical === 1 ? 'Kandidat ist' : 'Kandidaten sind'} kritisch.
+                  </strong>{' '}
+                  Kurzer Einzugstermin oder schwieriger Markt bei zu wenigen Anfragen — zuerst hier arbeiten.
+                </Callout>
+              </div>
+            ) : null}
+          </>
         ) : null}
 
         {cases.length === 0 ? (
@@ -74,20 +94,19 @@ export default async function DashboardPage() {
           </div>
         ) : (
           <div className="stack">
-            {cases.map((c) => {
-              const contacted = c._count.contactAttempts;
+            {ordered.map(({ p, c }) => {
               const positive = c.contactAttempts.filter((a) => a.outcome === 'POSITIVE').length;
               const awaiting = c.contactAttempts.filter((a) => a.outcome === 'AWAITING').length;
               const good = c.matches.filter(
                 (m) => m.compatibility === 'COMPATIBLE' || m.compatibility === 'NEAR_MATCH',
               ).length;
-              const toContact = c.matches.filter(
-                (m) => m.status === 'NEW' || m.status === 'FAVORITE',
-              ).length;
+              const toContact = c.matches.filter((m) => m.status === 'NEW' || m.status === 'FAVORITE').length;
               const hasMessage = (c.applicationMessage?.body ?? '').trim().length > 0;
-              const p = c.searchProfile;
+              const tier = PRIORITY_TIER[p.tier];
+              const pct = p.targetContacts
+                ? Math.min(100, Math.round((p.contactsSent / p.targetContacts) * 100))
+                : 0;
 
-              // What should the colleague do next on this case?
               let next = { label: 'Ergebnisse ansehen', href: `/kandidat/${c.id}/ergebnisse` };
               if (!hasMessage) next = { label: 'Anschreiben einfügen', href: `/kandidat/${c.id}/anschreiben` };
               else if (c._count.searchRuns === 0) next = { label: 'Suchlauf starten', href: `/kandidat/${c.id}/quellen` };
@@ -100,42 +119,63 @@ export default async function DashboardPage() {
                   <div className="row-between" style={{ alignItems: 'flex-start' }}>
                     <div className="grow stack-sm">
                       <div className="row-wrap">
+                        <span className={`badge ${tier.tone}`}>
+                          {tier.icon} {tier.label} · {Math.round(p.score)}
+                        </span>
                         <h2>{c.displayName}</h2>
                         <span className="badge">{c.reference}</span>
-                        {positive > 0 ? (
-                          <span className="badge success">
-                            ✓ {positive} positiv
-                          </span>
-                        ) : null}
+                        {positive > 0 ? <span className="badge success">✓ {positive} positiv</span> : null}
                       </div>
+
                       <div className="row-wrap small muted">
-                        <span>{p?.workplaceCity || p?.workplaceAddress || 'Kein Arbeitsort'}</span>
+                        <span>{c.searchProfile?.workplaceCity || c.searchProfile?.workplaceAddress || '—'}</span>
                         <span aria-hidden>·</span>
                         <span>
-                          max. {p ? Math.round(p.maxWarmmieteCents / 100) : '—'} € warm
+                          Markt {difficultyLabel(p.market.difficulty)} ({Math.round(p.market.difficulty)}/100)
                         </span>
                         <span aria-hidden>·</span>
-                        <span>ab {p?.minRooms ?? '—'} Zimmer</span>
-                        <span aria-hidden>·</span>
-                        <span>zuletzt {formatDate(c.updatedAt)}</span>
+                        <span>seit {p.daysWaiting} Tagen in Suche</span>
+                        {p.daysUntilMoveIn != null ? (
+                          <>
+                            <span aria-hidden>·</span>
+                            <span>
+                              {p.daysUntilMoveIn <= 0
+                                ? 'Einzug überfällig'
+                                : `Einzug in ${p.daysUntilMoveIn} Tagen`}
+                            </span>
+                          </>
+                        ) : null}
                       </div>
+
+                      {/* Anfrage target derived from how hard this market is. */}
+                      <div style={{ maxWidth: 420, marginTop: 2 }}>
+                        <div className="progress" aria-label={`${p.contactsSent} von ${p.targetContacts}`}>
+                          <div className="progress-bar" style={{ width: `${pct}%` }} />
+                        </div>
+                        <div className="small muted" style={{ marginTop: 4 }}>
+                          <strong>{p.contactsSent}</strong> von <strong>{p.targetContacts}</strong> empfohlenen
+                          Anfragen
+                          {p.remainingContacts > 0 ? ` · noch ${p.remainingContacts} offen` : ' · Soll erreicht'}
+                        </div>
+                      </div>
+
                       <div className="row-wrap" style={{ marginTop: 4 }}>
-                        <span className="chip">
-                          <strong>{c._count.searchRuns}</strong> Suchläufe
-                        </span>
                         <span className="chip">
                           <strong>{good}</strong> passende Anzeigen
                         </span>
                         <span className="chip">
-                          <strong>{contacted}</strong> kontaktiert
+                          <strong>{c._count.contactAttempts}</strong> kontaktiert
                         </span>
-                        {awaiting > 0 ? (
-                          <span className="chip">
-                            <strong>{awaiting}</strong> Antwort offen
-                          </span>
-                        ) : null}
+                        <span className="chip">zuletzt {formatDate(c.updatedAt)}</span>
                       </div>
+
+                      {p.reasons.length > 0 ? (
+                        <div className="small subtle truncate" style={{ maxWidth: 620 }}>
+                          {p.reasons.slice(0, 2).join(' · ')}
+                        </div>
+                      ) : null}
                     </div>
+
                     <span className="btn soft nowrap">{next.label} →</span>
                   </div>
                 </Link>

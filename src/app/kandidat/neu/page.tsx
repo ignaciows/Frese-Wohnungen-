@@ -51,6 +51,21 @@ export default async function NewCandidatePage() {
               </div>
             </div>
 
+            <div className="grid-2">
+              <div>
+                <label htmlFor="contractSignedAt">Vertrag unterschrieben am</label>
+                <input id="contractSignedAt" name="contractSignedAt" type="date" className="input" />
+                <p className="field-hint">
+                  Datum aus dem Frese-System. Ab hier läuft die Suchuhr — bestimmt die Dringlichkeit.
+                </p>
+              </div>
+              <div>
+                <label htmlFor="moveInDate">Gewünschter Einzug</label>
+                <input id="moveInDate" name="moveInDate" type="date" className="input" />
+                <p className="field-hint">Wichtigster Faktor für die Priorisierung.</p>
+              </div>
+            </div>
+
             <hr className="divider" />
 
             <div>

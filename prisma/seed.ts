@@ -14,6 +14,7 @@ import 'dotenv/config';
 import { prisma } from '../src/lib/prisma';
 import { hashPassword } from '../src/lib/auth';
 import { syncSeedCatalog } from '../src/server/sources';
+import { syncRegionSeeds } from '../src/server/priority';
 import { createCandidateCase } from '../src/server/candidates';
 import { ingestListing } from '../src/server/listingIngest';
 import { createSearchRun, updateSourceCheckStatus } from '../src/server/searchRuns';
@@ -153,6 +154,9 @@ async function seedDemoListings(sourceKeyBy: Map<string, string>, importedById: 
   await recomputeAllForCandidate(candidateCaseId);
 }
 
+const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
+const daysAhead = (n: number) => new Date(Date.now() + n * 86_400_000);
+
 async function main() {
   const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'demo-admin-pw-2026';
   const admin = await upsertUser(DEMO_ADMIN_EMAIL, 'Demo-Admin', 'ADMIN', adminPassword);
@@ -160,6 +164,9 @@ async function main() {
 
   const { createdSources, updatedSources } = await syncSeedCatalog();
   console.log(`Quellenkatalog: ${createdSources} neu, ${updatedSources} aktualisiert.`);
+
+  const regions = await syncRegionSeeds();
+  console.log(`Markt-Startschätzungen: ${regions} Regionen.`);
 
   // Idempotency: if the demo candidate already exists, do NOT delete/recreate
   // it. That would wipe any state the user built on top of it after a redeploy.
@@ -181,6 +188,10 @@ async function main() {
     reference: 'CAND-DEMO-01',
     displayName: 'Pflegekraft Fürfeld (Demo)',
     createdById: colleague.id,
+    // Signed three weeks ago, moving in five weeks from now — a realistic,
+    // moderately urgent case for the demo.
+    contractSignedAt: daysAgo(24),
+    moveInDate: daysAhead(36),
     workplace: {
       address: 'Salinenstraße 2, 74906 Bad Rappenau-Fürfeld',
       city: 'Bad Rappenau',

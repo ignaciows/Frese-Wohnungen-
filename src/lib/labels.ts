@@ -64,6 +64,21 @@ export const RESPONSE_OUTCOME: Record<string, { label: string; tone: Tone; icon:
   NEEDS_INFO: { label: 'Unterlagen angefragt', tone: 'warning', icon: '!' },
 };
 
+export const PRIORITY_TIER: Record<string, { label: string; tone: Tone; icon: string }> = {
+  CRITICAL: { label: 'Kritisch', tone: 'danger', icon: '▲' },
+  HIGH: { label: 'Hoch', tone: 'warning', icon: '▲' },
+  NORMAL: { label: 'Normal', tone: 'info', icon: '■' },
+  LOW: { label: 'Niedrig', tone: 'neutral', icon: '▼' },
+};
+
+export function difficultyLabel(d: number): string {
+  if (d >= 80) return 'sehr schwer';
+  if (d >= 60) return 'schwer';
+  if (d >= 40) return 'mittel';
+  if (d >= 20) return 'einfach';
+  return 'sehr einfach';
+}
+
 export function formatDate(d: Date | string | null | undefined): string {
   if (!d) return '—';
   const date = typeof d === 'string' ? new Date(d) : d;

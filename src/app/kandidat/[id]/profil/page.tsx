@@ -86,6 +86,21 @@ export default async function ProfilPage({ params }: { params: Promise<{ id: str
             </div>
           </div>
 
+          <div>
+            <label htmlFor="moveInDate">Gewünschter Einzug</label>
+            <input
+              id="moveInDate"
+              name="moveInDate"
+              type="date"
+              className="input"
+              style={{ maxWidth: 220 }}
+              defaultValue={p.moveInDate ? p.moveInDate.toISOString().slice(0, 10) : ''}
+            />
+            <p className="field-hint">
+              Treibt die Priorität dieses Kandidaten in der Warteschlange — je näher, desto dringender.
+            </p>
+          </div>
+
           <div className="grid-2">
             <div>
               <label htmlFor="minRooms">Mindest-Zimmer</label>

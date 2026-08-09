@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { Stat, Callout } from '@/app/_components/Shell';
+import { PriorityCard } from '@/app/_components/PriorityCard';
+import { loadCandidatePriority } from '@/server/priority';
 import { formatDate, RESPONSE_OUTCOME } from '@/lib/labels';
 
 export const dynamic = 'force-dynamic';
@@ -27,6 +29,7 @@ export default async function CandidateOverview({ params }: { params: Promise<{ 
   });
   if (!candidate) notFound();
 
+  const priority = await loadCandidatePriority(id);
   const hasMessage = (candidate.applicationMessage?.body ?? '').trim().length > 0;
   const runs = candidate.searchRuns;
   const checksDone = runs.length
@@ -135,6 +138,8 @@ export default async function CandidateOverview({ params }: { params: Promise<{ 
         </section>
 
         <section className="stack">
+          {priority ? <PriorityCard p={priority} /> : null}
+
           <h2>Letzte Kontakte</h2>
           {candidate.contactAttempts.length === 0 ? (
             <div className="card card-pad">

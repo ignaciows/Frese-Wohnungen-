@@ -31,6 +31,8 @@ export interface CreateCandidateInput {
   temporaryMode?: boolean;
   moveInDate?: Date | null;
   pets?: string | null;
+  /// Contract signature date in the existing Frese system — starts the search clock.
+  contractSignedAt?: Date | null;
 }
 
 export async function createCandidateCase(input: CreateCandidateInput) {
@@ -38,6 +40,7 @@ export async function createCandidateCase(input: CreateCandidateInput) {
     const candidate = await tx.candidateCase.create({
       data: {
         reference: input.reference,
+        contractSignedAt: input.contractSignedAt ?? null,
         displayName: input.displayName,
         notes: input.notes,
         createdById: input.createdById,

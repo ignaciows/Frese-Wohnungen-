@@ -17,6 +17,13 @@ import { claimListing, confirmContact } from '@/server/contact';
 import { markSystemTransferRegistered } from '@/server/systemTransfer';
 import { syncSeedCatalog } from '@/server/sources';
 
+/** "" -> null, otherwise a Date. Empty date inputs post as empty strings. */
+const optionalDate = z
+  .string()
+  .optional()
+  .nullable()
+  .transform((v) => (v && v.trim() ? new Date(v) : null));
+
 const CandidateInput = z.object({
   reference: z.string().min(2).max(64),
   displayName: z.string().min(2).max(128),
@@ -32,6 +39,8 @@ const CandidateInput = z.object({
   furnished: z.enum(['REQUIRED', 'PREFERRED', 'EITHER']).default('PREFERRED'),
   wbsStatus: z.enum(['AVAILABLE', 'NOT_AVAILABLE', 'UNKNOWN']).default('UNKNOWN'),
   temporaryMode: z.coerce.boolean().default(false),
+  contractSignedAt: optionalDate,
+  moveInDate: optionalDate,
 });
 
 export async function createCandidateAction(formData: FormData) {
@@ -56,6 +65,8 @@ export async function createCandidateAction(formData: FormData) {
     furnished: parsed.furnished,
     wbsStatus: parsed.wbsStatus,
     temporaryMode: parsed.temporaryMode,
+    contractSignedAt: parsed.contractSignedAt,
+    moveInDate: parsed.moveInDate,
   });
   await createSearchRun(candidate.id, user.id, 'Erster Suchlauf');
   // Send the colleague straight to the next step rather than back to a list.
@@ -90,6 +101,7 @@ const ProfileInput = z.object({
   furnished: z.enum(['REQUIRED', 'PREFERRED', 'EITHER']),
   wbsStatus: z.enum(['AVAILABLE', 'NOT_AVAILABLE', 'UNKNOWN']),
   temporaryMode: z.coerce.boolean().default(false),
+  moveInDate: optionalDate,
 });
 
 export async function saveProfileAction(formData: FormData) {
@@ -108,6 +120,7 @@ export async function saveProfileAction(formData: FormData) {
       furnished: parsed.furnished,
       wbsStatus: parsed.wbsStatus,
       temporaryMode: parsed.temporaryMode,
+      moveInDate: parsed.moveInDate,
     },
     userId: user.id,
   });
