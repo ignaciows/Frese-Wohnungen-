@@ -101,6 +101,7 @@ model CandidateCase {
   appointments       Appointment[]
   sharedAsA          SharedHousingSuggestion[] @relation("SharedCaseA")
   sharedAsB          SharedHousingSuggestion[] @relation("SharedCaseB")
+  weeklySummaries    WeeklySummary[]
 
   @@index([status])
 }
@@ -810,6 +811,32 @@ model EmailIngestLog {
   createdAt       DateTime @default(now())
 
   @@index([createdAt])
+}
+
+/// Automatically generated activity snapshot for one candidate and one ISO
+/// week. Regenerated idempotently, so re-running the job never duplicates a
+/// week; the numbers are always derived from the underlying records.
+model WeeklySummary {
+  id              String   @id @default(cuid())
+  candidateCaseId String
+  /// Monday 00:00 UTC of the week this row covers.
+  weekStart       DateTime
+
+  anfragenSent      Int @default(0)
+  positiveReplies   Int @default(0)
+  negativeReplies   Int @default(0)
+  awaitingReplies   Int @default(0)
+  listingsImported  Int @default(0)
+  sourcesChecked    Int @default(0)
+  appointmentsHeld  Int @default(0)
+  appointmentsAhead Int @default(0)
+
+  generatedAt DateTime @default(now())
+
+  candidateCase CandidateCase @relation(fields: [candidateCaseId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateCaseId, weekStart])
+  @@index([weekStart])
 }
 
 /// Starting estimate of how hard a region's housing market is, per postal

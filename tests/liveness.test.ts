@@ -193,3 +193,39 @@ describe('SSRF guard', () => {
     await expect(assertPublicUrl('not a url')).rejects.toBeInstanceOf(BlockedUrlError);
   });
 });
+
+describe('real portal "gone" pages', () => {
+  // The exact wording ImmoScout24 serves — as a 200 page, so the text is the
+  // only signal there is.
+  it('recognises the ImmoScout24 "Angebot nicht gefunden" page', () => {
+    const r = check({
+      status: 200,
+      bodySnippet:
+        '<h1>Angebot nicht gefunden</h1><p>Entweder wurde die Anzeige bereits gelöscht oder bei der ' +
+        'Eingabe der Scout-ID ist etwas schiefgegangen.</p>',
+    });
+    expect(r.verdict).toBe('GONE');
+    expect(r.countsTowardsExpiry).toBe(true);
+  });
+
+  it('recognises a Kleinanzeigen deleted ad', () => {
+    expect(check({ bodySnippet: 'Diese Anzeige ist nicht mehr verfügbar.' }).verdict).toBe('GONE');
+  });
+
+  it('recognises a WG-Gesucht ended listing', () => {
+    expect(check({ bodySnippet: 'Dieses Inserat ist nicht mehr online.' }).verdict).toBe('GONE');
+  });
+
+  it('recognises an already-rented notice', () => {
+    expect(check({ bodySnippet: 'Die Wohnung wurde bereits vermietet.' }).verdict).toBe('GONE');
+  });
+
+  it('recognises an English "no longer available"', () => {
+    expect(check({ bodySnippet: 'This property is no longer available.' }).verdict).toBe('GONE');
+  });
+
+  it('does not fire on a healthy page that merely mentions availability', () => {
+    const r = check({ bodySnippet: 'Die Wohnung ist ab sofort verfügbar und frei beziehbar.' });
+    expect(r.verdict).toBe('ALIVE');
+  });
+});

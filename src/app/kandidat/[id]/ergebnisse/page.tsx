@@ -174,13 +174,16 @@ export default async function ErgebnissePage({
               const l = m.listing;
               const comp = COMPATIBILITY[m.compatibility] ?? COMPATIBILITY.INSUFFICIENT_DATA;
               const st = MATCH_STATUS[m.status] ?? MATCH_STATUS.NEW;
+              // Colour follows the compatibility verdict, never a raw score
+              // threshold — a green box next to an amber "Fast passend" badge
+              // is a contradiction the reader has to resolve.
               const scoreCls =
-                m.compatibility === 'INCOMPATIBLE'
-                  ? 'bad'
-                  : m.score >= 70
-                    ? 'good'
-                    : m.score >= 45
-                      ? 'mid'
+                m.compatibility === 'COMPATIBLE'
+                  ? 'good'
+                  : m.compatibility === 'NEAR_MATCH'
+                    ? 'mid'
+                    : m.compatibility === 'INCOMPATIBLE'
+                      ? 'bad'
                       : '';
               const reasons = Array.isArray(m.reasons) ? (m.reasons as string[]) : [];
               const fresh = evaluateFreshness(

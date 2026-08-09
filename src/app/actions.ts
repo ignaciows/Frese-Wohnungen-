@@ -638,3 +638,62 @@ export async function saveLivenessSettingsAction(formData: FormData) {
   await writeSetting(SETTING_KEYS.liveness, parsed, user.id);
   revalidatePath('/', 'layout');
 }
+
+/* ------------------------------------------------------- candidate edit --- */
+
+const CandidateEditInput = z.object({
+  candidateCaseId: z.string(),
+  reference: z.string().min(2).max(64),
+  displayName: z.string().min(2).max(128),
+  notes: z.string().max(4000).optional(),
+  contractSignedAt: optionalDate,
+  housingSecuredAt: optionalDate,
+});
+
+export async function updateCandidateAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = CandidateEditInput.parse(Object.fromEntries(formData));
+
+  const before = await prisma.candidateCase.findUniqueOrThrow({
+    where: { id: parsed.candidateCaseId },
+    select: { reference: true, housingSecuredAt: true },
+  });
+
+  // The reference is used to route search-agent mails, so a clash must fail
+  // loudly rather than silently stealing another case's alerts.
+  if (parsed.reference !== before.reference) {
+    const clash = await prisma.candidateCase.findUnique({
+      where: { reference: parsed.reference },
+      select: { id: true },
+    });
+    if (clash && clash.id !== parsed.candidateCaseId) {
+      redirect(`/kandidat/${parsed.candidateCaseId}/stammdaten?error=reference-taken`);
+    }
+  }
+
+  await prisma.$transaction([
+    prisma.candidateCase.update({
+      where: { id: parsed.candidateCaseId },
+      data: {
+        reference: parsed.reference,
+        displayName: parsed.displayName,
+        notes: parsed.notes || null,
+        contractSignedAt: parsed.contractSignedAt,
+        housingSecuredAt: parsed.housingSecuredAt,
+      },
+    }),
+    prisma.auditEvent.create({
+      data: {
+        userId: user.id,
+        candidateCaseId: parsed.candidateCaseId,
+        entityType: 'CandidateCase',
+        entityId: parsed.candidateCaseId,
+        action: 'case.update',
+        fromState: before.housingSecuredAt ? 'SECURED' : 'SEARCHING',
+        toState: parsed.housingSecuredAt ? 'SECURED' : 'SEARCHING',
+      },
+    }),
+  ]);
+  revalidatePath('/', 'layout');
+  redirect(`/kandidat/${parsed.candidateCaseId}/stammdaten?saved=1`);
+}

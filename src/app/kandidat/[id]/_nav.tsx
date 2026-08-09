@@ -11,6 +11,8 @@ const TABS = [
   { seg: 'ergebnisse', label: 'Ergebnisse' },
   { seg: 'kontakte', label: 'Kontakte' },
   { seg: 'termine', label: 'Termine' },
+  { seg: 'verlauf', label: 'Verlauf' },
+  { seg: 'stammdaten', label: 'Stammdaten' },
 ] as const;
 
 export function CandidateNav({

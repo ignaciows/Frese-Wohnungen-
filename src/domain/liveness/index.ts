@@ -38,22 +38,56 @@ export interface LivenessResult {
  * perfectly live pages.
  */
 const GONE_PHRASES = [
-  'ist nicht mehr verfügbar',
-  'nicht mehr verfuegbar',
-  'wurde deaktiviert',
+  // --- ImmoScout24 -------------------------------------------------------
+  // Served as a normal 200 page, so the wording is the only signal.
+  'angebot nicht gefunden',
+  'anzeige bereits gelöscht',
+  'anzeige bereits geloescht',
+  'wurde die anzeige bereits gelöscht',
+  'scout-id ist etwas schiefgegangen',
+  // --- Immowelt / Immonet ------------------------------------------------
+  'objekt nicht gefunden',
+  'immobilie nicht gefunden',
+  'dieses angebot ist leider nicht mehr',
+  'exposé nicht gefunden',
+  'expose nicht gefunden',
+  // --- Kleinanzeigen -----------------------------------------------------
+  'anzeige ist nicht mehr verfügbar',
   'anzeige wurde gelöscht',
   'anzeige wurde geloescht',
+  'diese anzeige existiert nicht',
+  // --- WG-Gesucht --------------------------------------------------------
+  'angebot wurde gelöscht',
+  'angebot wurde geloescht',
+  'dieses inserat ist nicht mehr',
+  'inserat wurde beendet',
+  'inserat ist deaktiviert',
+  // --- generic German ----------------------------------------------------
+  'ist nicht mehr verfügbar',
+  'nicht mehr verfuegbar',
+  'nicht mehr verfügbar',
+  'wurde deaktiviert',
+  'wurde bereits vermietet',
+  'bereits vermietet',
   'diese anzeige ist nicht mehr',
   'das angebot ist nicht mehr',
   'angebot wurde zurückgezogen',
   'angebot wurde zurueckgezogen',
   'objekt ist nicht mehr verfügbar',
-  'inserat wurde beendet',
-  'bereits vermietet',
-  'no longer available',
-  'listing has been removed',
-  'this advert has ended',
+  'objekt wurde vermietet',
+  'leider vergeben',
+  'bereits vergeben',
   'seite nicht gefunden',
+  'seite existiert nicht',
+  'fehler 404',
+  // --- English (HousingAnywhere, Wunderflats, Spotahome…) -----------------
+  'no longer available',
+  'no longer listed',
+  'listing has been removed',
+  'listing not found',
+  'this advert has ended',
+  'property is not available',
+  'already rented',
   'page not found',
 ];
 
