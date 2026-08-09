@@ -6,6 +6,7 @@ import {
   getSystemTransferSettings,
   getFreshnessSettings,
   getBridgingSettings,
+  getLivenessSettings,
 } from '@/server/settings';
 import {
   saveSharingSettingsAction,
@@ -13,6 +14,8 @@ import {
   saveTransferSettingsAction,
   saveFreshnessSettingsAction,
   saveBridgingSettingsAction,
+  saveLivenessSettingsAction,
+  runLivenessSweepAction,
 } from '@/app/actions';
 import { AppBar, Callout } from '@/app/_components/Shell';
 import { prisma } from '@/lib/prisma';
@@ -27,13 +30,14 @@ export default async function SettingsPage() {
   if (!user) redirect('/login');
   const isAdmin = user.role === 'ADMIN';
 
-  const [sharing, recheck, transfer, recentIngests, freshness, bridging] = await Promise.all([
+  const [sharing, recheck, transfer, recentIngests, freshness, bridging, liveness] = await Promise.all([
     getSharingSettings(),
     getSourceRecheckSettings(),
     getSystemTransferSettings(),
     prisma.emailIngestLog.findMany({ orderBy: { receivedAt: 'desc' }, take: 8 }),
     getFreshnessSettings(),
     getBridgingSettings(),
+    getLivenessSettings(),
   ]);
   const mailConfigured = readMailConfig() != null;
 
@@ -316,6 +320,111 @@ export default async function SettingsPage() {
             </div>
           ) : null}
         </form>
+
+        {/* ------------------------------------------ link liveness --- */}
+        <form action={saveLivenessSettingsAction} className="card" style={{ marginTop: 18 }}>
+          <div className="card-head">
+            <h2>Automatische Link-Prüfung</h2>
+            {liveness.enabled ? <span className="badge success">aktiv</span> : <span className="badge">aus</span>}
+          </div>
+          <div className="card-body stack">
+            <p className="small muted">
+              Die App ruft in Abständen die bereits importierten Anzeigen auf und prüft nur, ob die Seite noch
+              existiert. Tote Anzeigen wandern automatisch in den Reiter „Abgelaufen“, damit niemand mehr auf
+              ein totes Inserat klickt.
+            </p>
+            <div className="checkline">
+              <input
+                id="livenessEnabled"
+                name="enabled"
+                type="checkbox"
+                value="true"
+                defaultChecked={liveness.enabled}
+                disabled={!isAdmin}
+              />
+              <label htmlFor="livenessEnabled">Link-Prüfung aktiv</label>
+            </div>
+            <div className="grid-3">
+              <div>
+                <label htmlFor="checkIntervalHours">Prüfintervall (Stunden)</label>
+                <input
+                  id="checkIntervalHours"
+                  name="checkIntervalHours"
+                  type="number"
+                  min={1}
+                  max={168}
+                  className="input"
+                  defaultValue={liveness.checkIntervalHours}
+                  disabled={!isAdmin}
+                />
+              </div>
+              <div>
+                <label htmlFor="expireAfterConsecutiveGone">Abgelaufen nach x Treffern</label>
+                <input
+                  id="expireAfterConsecutiveGone"
+                  name="expireAfterConsecutiveGone"
+                  type="number"
+                  min={1}
+                  max={5}
+                  className="input"
+                  defaultValue={liveness.expireAfterConsecutiveGone}
+                  disabled={!isAdmin}
+                />
+                <p className="field-hint">Nur eindeutige Treffer zählen</p>
+              </div>
+              <div>
+                <label htmlFor="maxPerRun">Max. Anzeigen pro Lauf</label>
+                <input
+                  id="maxPerRun"
+                  name="maxPerRun"
+                  type="number"
+                  min={1}
+                  max={500}
+                  className="input"
+                  defaultValue={liveness.maxPerRun}
+                  disabled={!isAdmin}
+                />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="perHostDelayMs">Pause zwischen Abrufen desselben Portals (ms)</label>
+              <input
+                id="perHostDelayMs"
+                name="perHostDelayMs"
+                type="number"
+                min={500}
+                max={30000}
+                step={500}
+                className="input"
+                style={{ maxWidth: 200 }}
+                defaultValue={liveness.perHostDelayMs}
+                disabled={!isAdmin}
+              />
+              <p className="field-hint">
+                Höflichkeit gegenüber den Portalen — nicht kleiner als nötig einstellen.
+              </p>
+            </div>
+            <div className="callout">
+              <span className="callout-icon" aria-hidden>i</span>
+              <div>
+                Blockiert ein Portal den Abruf oder antwortet es nicht, gilt das Ergebnis als{' '}
+                <strong>unklar</strong> — die Anzeige bleibt unverändert. Automatisch abgelaufen wird nur bei
+                eindeutigen Treffern (404/410 oder „nicht mehr verfügbar“), und erst nach mehreren Läufen.
+              </div>
+            </div>
+          </div>
+          {isAdmin ? (
+            <div className="card-foot row-between">
+              <button type="submit" className="btn primary">Speichern</button>
+            </div>
+          ) : null}
+        </form>
+
+        {isAdmin ? (
+          <form action={runLivenessSweepAction} style={{ marginTop: 8, textAlign: 'right' }}>
+            <button type="submit" className="btn">Alle fälligen Anzeigen jetzt prüfen</button>
+          </form>
+        ) : null}
 
         {/* ---------------------------------------------- mail ingest --- */}
         <div className="card" style={{ marginTop: 18 }}>

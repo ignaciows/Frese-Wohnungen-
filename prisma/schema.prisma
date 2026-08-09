@@ -473,11 +473,24 @@ model Listing {
   lastSeenAt       DateTime?
   expired          Boolean   @default(false)
   expiredAt        DateTime?
-  importedById     String
-  importedAt       DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  /// Set when the automatic link check retired the ad, so the UI can say
+  /// whether a human or the system marked it gone.
+  expiredBySystem  Boolean   @default(false)
+
+  /// --- automatic liveness check ---
+  lastCheckedAt   DateTime?
+  /// ALIVE | GONE | BLOCKED | UNKNOWN
+  lastCheckStatus String?
+  lastCheckReason String?
+  /// Consecutive confident "gone" verdicts. Reset by anything inconclusive, so
+  /// a blocked portal can never expire a listing on its own.
+  goneStreak      Int       @default(0)
+
+  importedById String
+  importedAt   DateTime @default(now())
+  updatedAt    DateTime @updatedAt
   /// Optimistic-locking counter, guards against lost updates.
-  version          Int       @default(0)
+  version      Int      @default(0)
 
   source          Source                  @relation(fields: [sourceId], references: [id])
   importedBy      User                    @relation(fields: [importedById], references: [id])

@@ -108,3 +108,61 @@ stabile, öffentlich erkennbare Expose-URL.
 - Wer die Benachrichtigung im Portal abbestellt, bekommt hier nichts mehr —
   die App kann das nicht erkennen. Die Wiedervorlage in der Quellen-Checkliste
   ist die Gegenprobe.
+
+---
+
+# Automatische Link-Prüfung (tote Anzeigen)
+
+Suchagent-Mails bringen neue Anzeigen herein — dieser Teil sorgt dafür, dass
+alte wieder verschwinden.
+
+## Was passiert
+
+In Abständen (Standard: alle 12 Stunden pro Anzeige) ruft die App jede
+importierte Anzeige einmal auf und schaut ausschließlich, **ob die Seite noch
+existiert**. Ergebnis pro Anzeige:
+
+| Ergebnis | Bedeutung | Folge |
+| --- | --- | --- |
+| `ALIVE` | Seite erreichbar | Aktualitäts-Uhr wird zurückgesetzt |
+| `GONE` | 404/410, Weiterleitung auf die Suche, oder „nicht mehr verfügbar" im Text | zählt Richtung Ablauf |
+| `BLOCKED` | Portal blockiert oder drosselt den Abruf | **keine Folge** |
+| `UNKNOWN` | Timeout, DNS, Serverfehler | **keine Folge** |
+
+Erst nach **zwei aufeinanderfolgenden eindeutigen** `GONE`-Ergebnissen wandert
+eine Anzeige in den Reiter „Abgelaufen". Alles Uneindeutige setzt den Zähler
+zurück. Ein blockierendes Portal kann also niemals eine gute Wohnung
+aussortieren.
+
+## Warum das kein Scraping ist
+
+Ein Abruf pro bereits bekannter Anzeige, in großen Abständen, mit Pause
+zwischen Anfragen an dasselbe Portal und einem ehrlichen User-Agent. Es werden
+keine Suchergebnisse geerntet, keine Anmeldung umgangen und keine Daten
+gesammelt, die wir nicht ohnehin schon hatten.
+
+## Einrichtung
+
+Denselben Cron-Mechanismus wie beim Postfach verwenden:
+
+```bash
+curl -X POST \
+  -H "x-ingest-token: $INGEST_TOKEN" \
+  https://<deine-domain>/api/checks/listings
+```
+
+Stündlich reicht — welche Anzeigen fällig sind, entscheidet die App selbst.
+Manuell geht es über **Einstellungen → Alle fälligen Anzeigen jetzt prüfen**,
+oder pro Anzeige über **„Jetzt prüfen"** im Detailbereich.
+
+## Sicherheit
+
+Weil die geprüften URLs aus Nutzereingaben stammen, läuft jeder Abruf durch
+einen SSRF-Schutz: nur `http`/`https`, keine internen Hostnamen, keine
+privaten IP-Bereiche, keine Cloud-Metadaten-Adresse — und jede Weiterleitung
+wird erneut geprüft. Antwortkörper werden bei 64 KB abgeschnitten.
+
+## Einstellbar
+
+Prüfintervall, Anzahl nötiger Treffer bis „abgelaufen", Anzeigen pro Lauf und
+die Pause zwischen Abrufen desselben Portals stehen in den Einstellungen.

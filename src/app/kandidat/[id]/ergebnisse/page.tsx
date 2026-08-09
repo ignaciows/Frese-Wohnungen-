@@ -13,7 +13,7 @@ import {
   type FreshnessSettings,
 } from '@/domain/timing';
 import { getFreshnessSettings, getBridgingSettings } from '@/server/settings';
-import { markListingExpiredAction } from '@/app/actions';
+import { markListingExpiredAction, checkListingNowAction } from '@/app/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -217,6 +217,9 @@ export default async function ErgebnissePage({
                       </span>
                       <span className="chip">{l.rooms != null ? `${l.rooms} Zi.` : 'Zi. ?'}</span>
                       {l.locationCity ? <span className="chip">{l.locationCity}</span> : null}
+                      {l.lastCheckStatus === 'GONE' ? (
+                        <span className="badge danger">Link tot</span>
+                      ) : null}
                       {fresh.state === 'NEW' ? (
                         <span className="badge success">● Neu</span>
                       ) : fresh.state === 'STALE' ? (
@@ -289,6 +292,10 @@ interface DetailMatch {
     importedAt: Date;
     lastSeenAt: Date | null;
     expired: boolean;
+    expiredBySystem: boolean;
+    lastCheckedAt: Date | null;
+    lastCheckStatus: string | null;
+    lastCheckReason: string | null;
     source: { name: string };
   };
 }
@@ -521,8 +528,42 @@ function TimingBlock({
         <span className={`badge ${fresh.state === 'NEW' ? 'success' : fresh.state === 'STALE' ? 'warning' : ''}`}>
           Anzeige: {fresh.label}
         </span>
-        {listing.expired ? <span className="badge danger">Abgelaufen</span> : null}
+        {listing.expired ? (
+          <span className="badge danger">
+            Abgelaufen{listing.expiredBySystem ? ' (automatisch erkannt)' : ''}
+          </span>
+        ) : null}
       </div>
+
+      <div className="row-wrap small">
+        {listing.lastCheckStatus ? (
+          <span
+            className={`badge ${
+              listing.lastCheckStatus === 'ALIVE'
+                ? 'success'
+                : listing.lastCheckStatus === 'GONE'
+                  ? 'danger'
+                  : 'warning'
+            }`}
+          >
+            Link-Prüfung: {listing.lastCheckStatus}
+          </span>
+        ) : (
+          <span className="badge">Noch nicht geprüft</span>
+        )}
+        {listing.lastCheckedAt ? (
+          <span className="subtle">zuletzt {formatDate(listing.lastCheckedAt)}</span>
+        ) : null}
+      </div>
+      {listing.lastCheckReason ? (
+        <p className="small subtle">{listing.lastCheckReason}</p>
+      ) : null}
+      <form action={checkListingNowAction}>
+        <input type="hidden" name="listingId" value={listing.id} />
+        <button type="submit" className="btn sm">
+          Jetzt prüfen, ob die Anzeige noch online ist
+        </button>
+      </form>
 
       {arrival ? (
         <div className={`callout ${needsBridge ? 'warning' : 'success'}`}>

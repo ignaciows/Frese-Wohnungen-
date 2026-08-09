@@ -605,3 +605,36 @@ export async function markListingExpiredAction(formData: FormData) {
   ]);
   revalidatePath('/', 'layout');
 }
+
+/* ------------------------------------------------- listing link checks --- */
+
+export async function runLivenessSweepAction() {
+  await requireAdmin();
+  const { runLivenessChecks } = await import('@/server/liveness');
+  await runLivenessChecks();
+  revalidatePath('/', 'layout');
+}
+
+export async function checkListingNowAction(formData: FormData) {
+  await requireUser();
+  const listingId = String(formData.get('listingId'));
+  const { checkSingleListing } = await import('@/server/liveness');
+  await checkSingleListing(listingId);
+  revalidatePath('/', 'layout');
+}
+
+const LivenessSettingsInput = z.object({
+  enabled: z.coerce.boolean().default(false),
+  checkIntervalHours: z.coerce.number().int().min(1).max(168),
+  expireAfterConsecutiveGone: z.coerce.number().int().min(1).max(5),
+  maxPerRun: z.coerce.number().int().min(1).max(500),
+  perHostDelayMs: z.coerce.number().int().min(500).max(30000),
+});
+
+export async function saveLivenessSettingsAction(formData: FormData) {
+  const user = await requireAdmin();
+  const parsed = LivenessSettingsInput.parse(Object.fromEntries(formData));
+  const { writeSetting, SETTING_KEYS } = await import('@/server/settings');
+  await writeSetting(SETTING_KEYS.liveness, parsed, user.id);
+  revalidatePath('/', 'layout');
+}

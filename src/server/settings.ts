@@ -15,6 +15,7 @@ import {
   type BridgingSettings,
   type FreshnessSettings,
 } from '@/domain/timing';
+import { DEFAULT_LIVENESS, type LivenessPolicy } from '@/domain/liveness';
 
 export const SETTING_KEYS = {
   sharing: 'sharing',
@@ -22,6 +23,7 @@ export const SETTING_KEYS = {
   systemTransfer: 'systemTransfer',
   freshness: 'freshness',
   bridging: 'bridging',
+  liveness: 'liveness',
 } as const;
 
 export interface SourceRecheckSettings {
@@ -78,6 +80,10 @@ export function getFreshnessSettings(): Promise<FreshnessSettings> {
 
 export function getBridgingSettings(): Promise<BridgingSettings> {
   return readSetting(SETTING_KEYS.bridging, DEFAULT_BRIDGING);
+}
+
+export function getLivenessSettings(): Promise<LivenessPolicy> {
+  return readSetting(SETTING_KEYS.liveness, DEFAULT_LIVENESS);
 }
 
 export async function writeSetting(key: string, value: object, userId: string): Promise<void> {
