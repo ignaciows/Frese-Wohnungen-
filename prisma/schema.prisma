@@ -38,18 +38,20 @@ model User {
 
   candidateCases   CandidateCase[]
   searchRuns       SearchRun[]
-  sourceChecksDone SourceCheck[]        @relation("SourceCheckCheckedBy")
-  sourceClaims     SourceCheck[]        @relation("SourceCheckClaimedBy")
+  sourceChecksDone SourceCheck[]             @relation("SourceCheckCheckedBy")
+  sourceClaims     SourceCheck[]             @relation("SourceCheckClaimedBy")
   listingsImported Listing[]
   claims           ListingClaim[]
   contactAttempts  ContactAttempt[]
-  contactOutcomes  ContactAttempt[]     @relation("ContactOutcomeBy")
+  contactOutcomes  ContactAttempt[]          @relation("ContactOutcomeBy")
   contactMessages  ContactMessage[]
   systemTransfers  SystemTransfer[]
   auditEvents      AuditEvent[]
   corrections      ListingFact[]
   settingsUpdated  AppSetting[]
   messagesUpdated  ApplicationMessage[]
+  appointments     Appointment[]
+  sharedDecisions  SharedHousingSuggestion[]
 }
 
 // ------------------------------------------------------- candidate case
@@ -76,7 +78,19 @@ model CandidateCase {
   /// Set once a flat is secured; retires the case from the priority queue.
   housingSecuredAt DateTime?
 
-  createdBy          User                    @relation(fields: [createdById], references: [id])
+  /// --- shared-flat (WG) matching ---
+  /// Only candidates who explicitly agreed are ever suggested as flatmates.
+  /// Nothing is proposed to a candidate automatically; a colleague asks first.
+  openToSharing Boolean @default(false)
+  /// Optional, and only collected to support flatmate matching (shared
+  /// language / familiarity). Free text, no dropdown of nationalities, and the
+  /// matching rule that uses it can be switched off entirely in the settings.
+  /// See docs/PRIVACY_AND_SECURITY.md before extending this.
+  nationality   String?
+  /// Free-text languages, e.g. "Hindi, Englisch".
+  languages     String?
+
+  createdBy          User                      @relation(fields: [createdById], references: [id])
   applicationMessage ApplicationMessage?
   searchProfile      SearchProfile?
   searchRuns         SearchRun[]
@@ -84,6 +98,9 @@ model CandidateCase {
   contactAttempts    ContactAttempt[]
   claims             ListingClaim[]
   auditEvents        AuditEvent[]
+  appointments       Appointment[]
+  sharedAsA          SharedHousingSuggestion[] @relation("SharedCaseA")
+  sharedAsB          SharedHousingSuggestion[] @relation("SharedCaseB")
 
   @@index([status])
 }
@@ -465,6 +482,7 @@ model Listing {
   claims          ListingClaim[]
   contactAttempts ContactAttempt[]
   duplicateLinks  DuplicateMember[]
+  appointments    Appointment[]
 
   @@index([sourceId])
   @@index([sourceListingId])
@@ -688,6 +706,73 @@ model AuditEvent {
 
   @@index([entityType, entityId])
   @@index([candidateCaseId, createdAt])
+}
+
+enum AppointmentKind {
+  VIDEO_CALL
+  VIEWING
+  PHONE_CALL
+  HANDOVER
+  OTHER
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  DONE_POSITIVE
+  DONE_NEGATIVE
+  CANCELLED
+  NO_SHOW
+}
+
+/// A planned video call, viewing or handover. Kept in this tool so a colleague
+/// sees what is coming up without opening a separate calendar.
+model Appointment {
+  id              String            @id @default(cuid())
+  candidateCaseId String
+  listingId       String?
+  kind            AppointmentKind
+  scheduledAt     DateTime
+  durationMinutes Int?
+  /// Address for a viewing, or the meeting link for a video call.
+  location        String?
+  notes           String?
+  status          AppointmentStatus @default(SCHEDULED)
+  outcomeNote     String?
+  outcomeAt       DateTime?
+  createdById     String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  candidateCase CandidateCase @relation(fields: [candidateCaseId], references: [id], onDelete: Cascade)
+  listing       Listing?      @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  createdBy     User          @relation(fields: [createdById], references: [id])
+
+  @@index([candidateCaseId, scheduledAt])
+  @@index([scheduledAt, status])
+}
+
+/// A suggested flatmate pairing between two candidate cases. Deterministic and
+/// advisory only — a colleague decides whether to even mention it.
+model SharedHousingSuggestion {
+  id            String    @id @default(cuid())
+  /// Always stored with caseAId < caseBId so a pair exists at most once.
+  caseAId       String
+  caseBId       String
+  score         Float
+  reasons       Json
+  /// PROPOSED -> a colleague has not acted yet.
+  status        String    @default("PROPOSED") // PROPOSED | ACCEPTED | DISMISSED
+  decidedById   String?
+  decidedAt     DateTime?
+  dismissReason String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  caseA     CandidateCase @relation("SharedCaseA", fields: [caseAId], references: [id], onDelete: Cascade)
+  caseB     CandidateCase @relation("SharedCaseB", fields: [caseBId], references: [id], onDelete: Cascade)
+  decidedBy User?         @relation(fields: [decidedById], references: [id])
+
+  @@unique([caseAId, caseBId])
 }
 
 /// Starting estimate of how hard a region's housing market is, per postal

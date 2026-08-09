@@ -364,3 +364,177 @@ export async function syncCatalogAction() {
   await syncSeedCatalog();
   revalidatePath('/', 'layout');
 }
+
+/* ------------------------------------------------------- appointments --- */
+
+const AppointmentInput = z.object({
+  candidateCaseId: z.string(),
+  listingId: z.string().optional(),
+  kind: z.enum(['VIDEO_CALL', 'VIEWING', 'PHONE_CALL', 'HANDOVER', 'OTHER']),
+  scheduledAt: z.string().min(1),
+  durationMinutes: z.coerce.number().int().min(5).max(600).optional(),
+  location: z.string().max(512).optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+export async function createAppointmentAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = AppointmentInput.parse(Object.fromEntries(formData));
+  await prisma.appointment.create({
+    data: {
+      candidateCaseId: parsed.candidateCaseId,
+      listingId: parsed.listingId || null,
+      kind: parsed.kind,
+      scheduledAt: new Date(parsed.scheduledAt),
+      durationMinutes: parsed.durationMinutes ?? null,
+      location: parsed.location || null,
+      notes: parsed.notes || null,
+      createdById: user.id,
+    },
+  });
+  revalidatePath('/', 'layout');
+}
+
+const AppointmentOutcomeInput = z.object({
+  appointmentId: z.string(),
+  status: z.enum(['SCHEDULED', 'DONE_POSITIVE', 'DONE_NEGATIVE', 'CANCELLED', 'NO_SHOW']),
+  outcomeNote: z.string().max(2000).optional(),
+});
+
+export async function setAppointmentOutcomeAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = AppointmentOutcomeInput.parse(Object.fromEntries(formData));
+  const appt = await prisma.appointment.findUniqueOrThrow({
+    where: { id: parsed.appointmentId },
+    select: { status: true, candidateCaseId: true },
+  });
+  await prisma.$transaction([
+    prisma.appointment.update({
+      where: { id: parsed.appointmentId },
+      data: {
+        status: parsed.status,
+        outcomeNote: parsed.outcomeNote || null,
+        outcomeAt: parsed.status === 'SCHEDULED' ? null : new Date(),
+      },
+    }),
+    prisma.auditEvent.create({
+      data: {
+        userId: user.id,
+        candidateCaseId: appt.candidateCaseId,
+        entityType: 'Appointment',
+        entityId: parsed.appointmentId,
+        action: 'appointment.outcome',
+        fromState: appt.status,
+        toState: parsed.status,
+      },
+    }),
+  ]);
+  revalidatePath('/', 'layout');
+}
+
+export async function deleteAppointmentAction(formData: FormData) {
+  await requireUser();
+  await prisma.appointment.delete({ where: { id: String(formData.get('appointmentId')) } });
+  revalidatePath('/', 'layout');
+}
+
+/* ------------------------------------------------- shared housing (WG) --- */
+
+export async function refreshSharingAction() {
+  await requireUser();
+  const { refreshSharingSuggestions } = await import('@/server/sharing');
+  await refreshSharingSuggestions();
+  revalidatePath('/', 'layout');
+}
+
+const SharingDecisionInput = z.object({
+  suggestionId: z.string(),
+  status: z.enum(['ACCEPTED', 'DISMISSED']),
+  dismissReason: z.string().max(500).optional(),
+});
+
+export async function decideSharingAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = SharingDecisionInput.parse(Object.fromEntries(formData));
+  await prisma.sharedHousingSuggestion.update({
+    where: { id: parsed.suggestionId },
+    data: {
+      status: parsed.status,
+      decidedById: user.id,
+      decidedAt: new Date(),
+      dismissReason: parsed.dismissReason || null,
+    },
+  });
+  revalidatePath('/', 'layout');
+}
+
+const SharingProfileInput = z.object({
+  candidateCaseId: z.string(),
+  openToSharing: z.coerce.boolean().default(false),
+  nationality: z.string().max(64).optional(),
+  languages: z.string().max(128).optional(),
+});
+
+export async function saveSharingProfileAction(formData: FormData) {
+  await requireUser();
+  const parsed = SharingProfileInput.parse(Object.fromEntries(formData));
+  await prisma.candidateCase.update({
+    where: { id: parsed.candidateCaseId },
+    data: {
+      openToSharing: parsed.openToSharing,
+      nationality: parsed.nationality || null,
+      languages: parsed.languages || null,
+    },
+  });
+  const { refreshSharingSuggestions } = await import('@/server/sharing');
+  await refreshSharingSuggestions();
+  revalidatePath('/', 'layout');
+}
+
+/* ------------------------------------------------------------ settings --- */
+
+const SharingSettingsInput = z.object({
+  enabled: z.coerce.boolean().default(false),
+  maxMoveInGapDays: z.coerce.number().int().min(1).max(180),
+  requireSameRegion: z.coerce.boolean().default(false),
+  nationalityRule: z.enum(['SAME_ONLY', 'PREFER_SAME', 'IGNORE']),
+  considerLanguages: z.coerce.boolean().default(false),
+  minScore: z.coerce.number().int().min(0).max(100),
+});
+
+export async function saveSharingSettingsAction(formData: FormData) {
+  const user = await requireAdmin();
+  const parsed = SharingSettingsInput.parse(Object.fromEntries(formData));
+  const { writeSetting, SETTING_KEYS } = await import('@/server/settings');
+  await writeSetting(SETTING_KEYS.sharing, parsed, user.id);
+  const { refreshSharingSuggestions } = await import('@/server/sharing');
+  await refreshSharingSuggestions();
+  revalidatePath('/', 'layout');
+}
+
+const RecheckSettingsInput = z.object({
+  recheckAfterDays: z.coerce.number().int().min(1).max(60),
+  highlightNeverChecked: z.coerce.boolean().default(false),
+});
+
+export async function saveRecheckSettingsAction(formData: FormData) {
+  const user = await requireAdmin();
+  const parsed = RecheckSettingsInput.parse(Object.fromEntries(formData));
+  const { writeSetting, SETTING_KEYS } = await import('@/server/settings');
+  await writeSetting(SETTING_KEYS.sourceRecheck, parsed, user.id);
+  revalidatePath('/', 'layout');
+}
+
+const TransferSettingsInput = z.object({
+  objectLabel: z.string().min(1).max(64),
+  linkLabel: z.string().min(1).max(64),
+  locationLabel: z.string().min(1).max(64),
+});
+
+export async function saveTransferSettingsAction(formData: FormData) {
+  const user = await requireAdmin();
+  const parsed = TransferSettingsInput.parse(Object.fromEntries(formData));
+  const { writeSetting, SETTING_KEYS } = await import('@/server/settings');
+  await writeSetting(SETTING_KEYS.systemTransfer, parsed, user.id);
+  revalidatePath('/', 'layout');
+}

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
-import { saveProfileAction } from '@/app/actions';
+import { saveProfileAction, saveSharingProfileAction } from '@/app/actions';
 import { Callout } from '@/app/_components/Shell';
 import { suggestedMinRooms, suggestedPreferredRooms } from '@/domain/ranking';
 
@@ -9,7 +9,13 @@ export const dynamic = 'force-dynamic';
 
 export default async function ProfilPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const p = await prisma.searchProfile.findUnique({ where: { candidateCaseId: id } });
+  const [p, c] = await Promise.all([
+    prisma.searchProfile.findUnique({ where: { candidateCaseId: id } }),
+    prisma.candidateCase.findUnique({
+      where: { id },
+      select: { openToSharing: true, nationality: true, languages: true },
+    }),
+  ]);
   if (!p) notFound();
 
   const sugMin = suggestedMinRooms(p.adults, p.children);
@@ -173,6 +179,64 @@ export default async function ProfilPage({ params }: { params: Promise<{ id: str
           <span className="small muted">Änderungen gelten ab dem nächsten Suchlauf.</span>
           <button type="submit" className="btn primary">
             Suchprofil speichern
+          </button>
+        </div>
+      </form>
+
+      <form action={saveSharingProfileAction} className="card">
+        <input type="hidden" name="candidateCaseId" value={id} />
+        <div className="card-head">
+          <h2>WG-Bereitschaft</h2>
+          <span className="small subtle">Freiwillig — nur für WG-Vorschläge</span>
+        </div>
+        <div className="card-body stack">
+          <div className="checkline">
+            <input
+              id="openToSharing"
+              name="openToSharing"
+              type="checkbox"
+              value="true"
+              defaultChecked={c?.openToSharing ?? false}
+            />
+            <label htmlFor="openToSharing">
+              Kandidat:in ist offen dafür, sich eine Wohnung mit einer anderen Pflegekraft zu teilen
+            </label>
+          </div>
+          <p className="field-hint">
+            Nur ankreuzen, wenn das vorher wirklich abgefragt wurde. Ohne Häkchen erscheint diese Person in
+            keinem WG-Vorschlag.
+          </p>
+
+          <div className="grid-2">
+            <div>
+              <label htmlFor="nationality">Herkunftsland (optional)</label>
+              <input
+                id="nationality"
+                name="nationality"
+                className="input"
+                defaultValue={c?.nationality ?? ''}
+                placeholder="z. B. Indien"
+              />
+            </div>
+            <div>
+              <label htmlFor="languages">Sprachen (optional)</label>
+              <input
+                id="languages"
+                name="languages"
+                className="input"
+                defaultValue={c?.languages ?? ''}
+                placeholder="z. B. Hindi, Englisch"
+              />
+            </div>
+          </div>
+          <p className="field-hint">
+            Wird ausschließlich für WG-Vorschläge verwendet und kann in den Einstellungen komplett
+            abgeschaltet werden. Leer lassen, wenn nicht benötigt.
+          </p>
+        </div>
+        <div className="card-foot" style={{ textAlign: 'right' }}>
+          <button type="submit" className="btn">
+            WG-Angaben speichern
           </button>
         </div>
       </form>

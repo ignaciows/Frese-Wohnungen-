@@ -5,7 +5,7 @@ export function AppBar({
   active,
 }: {
   user: { name: string; role: string };
-  active?: 'kandidaten' | 'quellen';
+  active?: 'kandidaten' | 'quellen' | 'wg' | 'einstellungen';
 }) {
   return (
     <header className="appbar">
@@ -20,8 +20,14 @@ export function AppBar({
           <Link href="/" aria-current={active === 'kandidaten' ? 'page' : undefined}>
             Kandidaten
           </Link>
+          <Link href="/wg" aria-current={active === 'wg' ? 'page' : undefined}>
+            WG-Vorschläge
+          </Link>
           <Link href="/quellen" aria-current={active === 'quellen' ? 'page' : undefined}>
             Quellen
+          </Link>
+          <Link href="/einstellungen" aria-current={active === 'einstellungen' ? 'page' : undefined}>
+            Einstellungen
           </Link>
         </nav>
         <div className="grow" />
