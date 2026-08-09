@@ -775,6 +775,26 @@ model SharedHousingSuggestion {
   @@unique([caseAId, caseBId])
 }
 
+/// One row per alert email we have looked at. The unique messageId makes
+/// ingestion idempotent: re-reading the mailbox never creates duplicates.
+model EmailIngestLog {
+  id              String   @id @default(cuid())
+  messageId       String   @unique
+  fromAddress     String
+  subject         String
+  receivedAt      DateTime
+  candidateCaseId String?
+  sourceKey       String?
+  listingsCreated Int      @default(0)
+  listingsSeen    Int      @default(0)
+  /// PROCESSED | NO_LINKS | UNKNOWN_SOURCE | UNKNOWN_CANDIDATE | ERROR
+  status          String
+  note            String?
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 /// Starting estimate of how hard a region's housing market is, per postal
 /// prefix (e.g. "749") or city. Only the SEED lives here — observed rates are
 /// derived live from our own contacts so the two can never drift apart.

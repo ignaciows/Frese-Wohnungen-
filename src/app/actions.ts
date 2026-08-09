@@ -538,3 +538,12 @@ export async function saveTransferSettingsAction(formData: FormData) {
   await writeSetting(SETTING_KEYS.systemTransfer, parsed, user.id);
   revalidatePath('/', 'layout');
 }
+
+/* ------------------------------------------------------ mailbox import --- */
+
+export async function runMailIngestAction() {
+  await requireAdmin();
+  const { ingestMailbox } = await import('@/server/mailIngest');
+  await ingestMailbox();
+  revalidatePath('/', 'layout');
+}

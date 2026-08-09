@@ -11,6 +11,10 @@ import {
   saveTransferSettingsAction,
 } from '@/app/actions';
 import { AppBar, Callout } from '@/app/_components/Shell';
+import { prisma } from '@/lib/prisma';
+import { readMailConfig } from '@/server/mailIngest';
+import { runMailIngestAction } from '@/app/actions';
+import { formatDateTime } from '@/lib/labels';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,11 +23,13 @@ export default async function SettingsPage() {
   if (!user) redirect('/login');
   const isAdmin = user.role === 'ADMIN';
 
-  const [sharing, recheck, transfer] = await Promise.all([
+  const [sharing, recheck, transfer, recentIngests] = await Promise.all([
     getSharingSettings(),
     getSourceRecheckSettings(),
     getSystemTransferSettings(),
+    prisma.emailIngestLog.findMany({ orderBy: { receivedAt: 'desc' }, take: 8 }),
   ]);
+  const mailConfigured = readMailConfig() != null;
 
   return (
     <>
@@ -186,6 +192,85 @@ export default async function SettingsPage() {
             </div>
           ) : null}
         </form>
+
+        {/* ---------------------------------------------- mail ingest --- */}
+        <div className="card" style={{ marginTop: 18 }}>
+          <div className="card-head">
+            <h2>Suchagent-Postfach</h2>
+            {mailConfigured ? (
+              <span className="badge success">✓ Verbunden</span>
+            ) : (
+              <span className="badge">Nicht konfiguriert</span>
+            )}
+          </div>
+          <div className="card-body stack">
+            <p className="small muted">
+              Portale schicken ihre Suchagent-Mails an ein gemeinsames Postfach. Die App liest es aus und legt
+              die neuen Anzeigen automatisch beim richtigen Kandidaten an. Kein Scraping, keine
+              Portal-Passwörter in dieser App.
+            </p>
+
+            <div className="callout">
+              <span className="callout-icon" aria-hidden>
+                i
+              </span>
+              <div>
+                <strong>So richtest du eine Quelle für einen Kandidaten ein:</strong>
+                <ol style={{ margin: '6px 0 0', paddingLeft: 18 }} className="small">
+                  <li>Im Portal mit dem eigenen Konto eine Suche speichern.</li>
+                  <li>
+                    Als Empfänger der Benachrichtigung die Adresse mit Kandidaten-Kennung eintragen, z. B.{' '}
+                    <span className="mono">wohnungen+CAND-2026-014@…</span>
+                  </li>
+                  <li>Fertig — neue Treffer landen automatisch bei diesem Kandidaten.</li>
+                </ol>
+              </div>
+            </div>
+
+            {recentIngests.length > 0 ? (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Empfangen</th>
+                      <th>Betreff</th>
+                      <th>Quelle</th>
+                      <th>Neu</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentIngests.map((r) => (
+                      <tr key={r.id}>
+                        <td className="small nowrap">{formatDateTime(r.receivedAt)}</td>
+                        <td className="small">{r.subject || '—'}</td>
+                        <td className="small">{r.sourceKey ?? '—'}</td>
+                        <td>{r.listingsCreated}</td>
+                        <td>
+                          <span className={`badge ${r.status === 'PROCESSED' ? 'success' : 'warning'}`}>
+                            {r.status}
+                          </span>
+                          {r.note ? <div className="small subtle">{r.note}</div> : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="small subtle">Noch keine Mails verarbeitet.</p>
+            )}
+          </div>
+          {isAdmin && mailConfigured ? (
+            <div className="card-foot" style={{ textAlign: 'right' }}>
+              <form action={runMailIngestAction}>
+                <button type="submit" className="btn primary">
+                  Postfach jetzt abrufen
+                </button>
+              </form>
+            </div>
+          ) : null}
+        </div>
 
         {/* ------------------------------------------- transfer labels --- */}
         <form action={saveTransferSettingsAction} className="card" style={{ marginTop: 18 }}>
