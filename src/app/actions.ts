@@ -763,3 +763,60 @@ export async function setFollowUpAction(formData: FormData) {
   });
   revalidatePath('/', 'layout');
 }
+
+/* -------------------------------------------------- what-if simulation --- */
+
+const SimulateInput = z.object({
+  candidateCaseId: z.string(),
+  maxWarmmieteEuros: z.coerce.number().int().min(100).max(10000).optional(),
+  minRooms: z.coerce.number().min(0.5).max(20).optional(),
+  maxCommuteMinutes: z.coerce.number().int().min(1).max(240).optional(),
+  radiusKm: z.coerce.number().int().min(1).max(300).optional(),
+  furnished: z.enum(['REQUIRED', 'PREFERRED', 'EITHER']).optional(),
+  temporaryMode: z.coerce.boolean().optional(),
+});
+
+export async function simulateProfileAction(input: z.input<typeof SimulateInput>) {
+  await requireUser();
+  const parsed = SimulateInput.parse(input);
+  const { loadSimulationInputs } = await import('@/server/whatif');
+  const { simulate, suggestRelaxations, diagnose, blockerBreakdown } = await import('@/domain/whatif');
+
+  const { listings, profile } = await loadSimulationInputs(parsed.candidateCaseId);
+
+  const result = simulate(listings, profile, {
+    maxWarmmieteCents: parsed.maxWarmmieteEuros != null ? parsed.maxWarmmieteEuros * 100 : undefined,
+    minRooms: parsed.minRooms,
+    maxCommuteMinutes: parsed.maxCommuteMinutes,
+    radiusKm: parsed.radiusKm,
+    furnished: parsed.furnished,
+    temporaryMode: parsed.temporaryMode,
+  });
+
+  return {
+    result,
+    suggestions: suggestRelaxations(listings, profile).slice(0, 5),
+    diagnosis: diagnose(listings, profile),
+    blockers: blockerBreakdown(listings, profile),
+    totalListings: listings.length,
+  };
+}
+
+/** Persists a simulated profile and recomputes every match for the candidate. */
+export async function applySimulatedProfileAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = SimulateInput.parse(Object.fromEntries(formData));
+  await updateSearchProfile({
+    candidateCaseId: parsed.candidateCaseId,
+    patch: {
+      ...(parsed.maxWarmmieteEuros != null ? { maxWarmmieteCents: parsed.maxWarmmieteEuros * 100 } : {}),
+      ...(parsed.minRooms != null ? { minRooms: parsed.minRooms } : {}),
+      ...(parsed.maxCommuteMinutes != null ? { maxCommuteMinutes: parsed.maxCommuteMinutes } : {}),
+      ...(parsed.radiusKm != null ? { radiusKm: parsed.radiusKm } : {}),
+      ...(parsed.furnished != null ? { furnished: parsed.furnished } : {}),
+      ...(parsed.temporaryMode != null ? { temporaryMode: parsed.temporaryMode } : {}),
+    },
+    userId: user.id,
+  });
+  revalidatePath('/', 'layout');
+}

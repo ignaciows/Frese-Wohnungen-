@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { Empty, Callout } from '@/app/_components/Shell';
 import { AutoCheck } from '@/app/_components/AutoCheck';
+import { WhatIfPanel } from '@/app/_components/WhatIfPanel';
 import { ContactFlow } from '@/app/_components/ContactFlow';
 import { favoriteListingAction, rejectListingAction } from '@/app/actions';
 import { formatEuroCents } from '@/lib/money';
@@ -128,6 +129,14 @@ export default async function ErgebnissePage({
   const selected = sp.listing ? matches.find((m) => m.listingId === sp.listing) ?? null : null;
   const totalAll = counts.reduce((n, c) => n + c._count, 0);
 
+  const usableNow = await prisma.candidateListingMatch.count({
+    where: {
+      candidateCaseId: id,
+      compatibility: { in: ['COMPATIBLE', 'NEAR_MATCH'] },
+      listing: { expired: false, NOT: { lastCheckStatus: 'GONE' } },
+    },
+  });
+
   return (
     <div className="stack">
       <AutoCheck />
@@ -139,6 +148,21 @@ export default async function ErgebnissePage({
               ? 'Achtung: Diese Wohnung wurde bereits für einen anderen Kandidaten kontaktiert.'
               : sp.error}
         </Callout>
+      ) : null}
+
+      {profile ? (
+        <WhatIfPanel
+          candidateCaseId={id}
+          startOpen={totalAll > 0 && usableNow === 0}
+          current={{
+            maxWarmmieteEuros: Math.round(profile.maxWarmmieteCents / 100),
+            minRooms: profile.minRooms,
+            maxCommuteMinutes: profile.maxCommuteMinutes ?? 35,
+            radiusKm: profile.radiusKm ?? 20,
+            furnished: profile.furnished,
+            temporaryMode: profile.temporaryMode,
+          }}
+        />
       ) : null}
 
       <nav className="tabs" aria-label="Status">
