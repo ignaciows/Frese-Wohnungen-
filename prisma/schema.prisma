@@ -566,8 +566,13 @@ model CandidateListingMatch {
   status          MatchStatus   @default(NEW)
   rejectedReason  String?
   rankVersion     String        @default("")
-  computedAt      DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+
+  /// Wiedervorlage: come back to this listing on this date. Independent of the
+  /// workflow status, so you can park something without rejecting it.
+  followUpAt   DateTime?
+  followUpNote String?
+  computedAt   DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   candidateCase CandidateCase @relation(fields: [candidateCaseId], references: [id], onDelete: Cascade)
   listing       Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)

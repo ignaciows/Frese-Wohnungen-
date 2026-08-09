@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { Empty, Callout } from '@/app/_components/Shell';
+import { AutoCheck } from '@/app/_components/AutoCheck';
 import { ContactFlow } from '@/app/_components/ContactFlow';
 import { favoriteListingAction, rejectListingAction } from '@/app/actions';
 import { formatEuroCents } from '@/lib/money';
@@ -13,7 +14,7 @@ import {
   type FreshnessSettings,
 } from '@/domain/timing';
 import { getFreshnessSettings, getBridgingSettings } from '@/server/settings';
-import { markListingExpiredAction, checkListingNowAction } from '@/app/actions';
+import { markListingExpiredAction, checkListingNowAction, setFollowUpAction } from '@/app/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +25,7 @@ const TABS = [
   { key: 'in-arbeit', label: 'In Arbeit' },
   { key: 'kontaktiert', label: 'Kontaktiert' },
   { key: 'abgelehnt', label: 'Abgelehnt' },
+  { key: 'wiedervorlage', label: 'Wiedervorlage' },
   { key: 'abgelaufen', label: 'Abgelaufen' },
 ] as const;
 
@@ -62,8 +64,14 @@ export default async function ErgebnissePage({
       where: {
         candidateCaseId: id,
         ...statusFilter(tab),
-        // Expired ads only show in their own tab, so the working list stays trustworthy.
-        listing: tab === 'abgelaufen' ? { expired: true } : { expired: false },
+        ...(tab === 'wiedervorlage' ? { followUpAt: { not: null } } : {}),
+        // Dead ads only show in their own tab, so the working list stays
+        // trustworthy. A single confident GONE already hides the listing —
+        // waiting for the second strike would keep sending people to a 404.
+        listing:
+          tab === 'abgelaufen'
+            ? { OR: [{ expired: true }, { lastCheckStatus: 'GONE' }] }
+            : { expired: false, NOT: { lastCheckStatus: 'GONE' } },
       },
       orderBy: [{ compatibility: 'asc' }, { score: 'desc' }],
       include: { listing: { include: { source: { select: { name: true } } } } },
@@ -80,7 +88,14 @@ export default async function ErgebnissePage({
   ]);
   const arrival = profile?.moveInDate ?? null;
   const expiredCount = await prisma.candidateListingMatch.count({
-    where: { candidateCaseId: id, listing: { expired: true } },
+    where: {
+      candidateCaseId: id,
+      listing: { OR: [{ expired: true }, { lastCheckStatus: 'GONE' }] },
+    },
+  });
+
+  const followUpCount = await prisma.candidateListingMatch.count({
+    where: { candidateCaseId: id, followUpAt: { not: null } },
   });
 
   type MatchRow = (typeof matchList)[number];
@@ -101,6 +116,8 @@ export default async function ErgebnissePage({
         return byStatus.CONTACTED ?? 0;
       case 'abgelehnt':
         return (byStatus.REJECTED ?? 0) + (byStatus.EXPIRED ?? 0);
+      case 'wiedervorlage':
+        return followUpCount;
       case 'abgelaufen':
         return expiredCount;
       default:
@@ -113,6 +130,7 @@ export default async function ErgebnissePage({
 
   return (
     <div className="stack">
+      <AutoCheck />
       {sp.error ? (
         <Callout tone="danger">
           {sp.error === 'ALREADY_CONTACTED_SAME_CANDIDATE'
@@ -241,9 +259,23 @@ export default async function ErgebnissePage({
                     ) : null}
                   </span>
                   <span className="listing-side">
-                    <span className={`badge ${st.tone}`}>
-                      {st.icon} {st.label}
-                    </span>
+                    {m.status === 'CONTACTED' ? (
+                      <span className="badge success" title="Bereits angeschrieben">
+                        ✓ Angeschrieben
+                      </span>
+                    ) : (
+                      <span className={`badge ${st.tone}`}>
+                        {st.icon} {st.label}
+                      </span>
+                    )}
+                    {m.followUpAt ? (
+                      <span
+                        className={`badge ${m.followUpAt <= new Date() ? 'warning' : ''}`}
+                        title={m.followUpNote ?? undefined}
+                      >
+                        ⏱ {m.followUpAt <= new Date() ? 'Wiedervorlage fällig' : `WV ${formatDate(m.followUpAt)}`}
+                      </span>
+                    ) : null}
                     {!l.monthlyTotalComplete ? (
                       <span className="small subtle">* Kosten unvollständig</span>
                     ) : null}
@@ -273,6 +305,8 @@ export default async function ErgebnissePage({
 
 interface DetailMatch {
   status: string;
+  followUpAt: Date | null;
+  followUpNote: string | null;
   score: number;
   compatibility: string;
   reasons: unknown;
@@ -458,6 +492,35 @@ async function DetailPane({
               : null
           }
         />
+
+        <form action={setFollowUpAction} className="stack-sm">
+          <input type="hidden" name="candidateCaseId" value={candidateId} />
+          <input type="hidden" name="listingId" value={l.id} />
+          <label htmlFor={`wv-${l.id}`}>Wiedervorlage — später nochmal ansehen</label>
+          <div className="row">
+            <input
+              id={`wv-${l.id}`}
+              name="followUpAt"
+              type="date"
+              className="input"
+              style={{ maxWidth: 170 }}
+              defaultValue={match.followUpAt ? match.followUpAt.toISOString().slice(0, 10) : ''}
+            />
+            <input
+              name="followUpNote"
+              className="input"
+              placeholder="Notiz (optional)"
+              defaultValue={match.followUpNote ?? ''}
+            />
+            <button type="submit" className="btn sm">
+              Setzen
+            </button>
+          </div>
+          <p className="field-hint">
+            Leer lassen und speichern entfernt die Wiedervorlage. Fällige stehen im Reiter
+            „Wiedervorlage“.
+          </p>
+        </form>
 
         <form action={markListingExpiredAction}>
           <input type="hidden" name="listingId" value={l.id} />

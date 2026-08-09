@@ -697,3 +697,69 @@ export async function updateCandidateAction(formData: FormData) {
   revalidatePath('/', 'layout');
   redirect(`/kandidat/${parsed.candidateCaseId}/stammdaten?saved=1`);
 }
+
+/**
+ * Opportunistic sweep, triggered by the UI rather than an external cron.
+ *
+ * Waiting for infrastructure that may never be configured is how dead ads stay
+ * on screen. This runs a small batch whenever someone is actually looking at
+ * results, throttled through a stored timestamp so concurrent viewers cannot
+ * stampede the portals.
+ */
+export async function maybeRunLivenessSweepAction() {
+  await requireUser();
+  const { getLivenessSettings } = await import('@/server/settings');
+  const policy = await getLivenessSettings();
+  if (!policy.enabled) return { ran: false as const };
+
+  const KEY = 'livenessLastRun';
+  const row = await prisma.appSetting.findUnique({ where: { key: KEY } });
+  const last = row ? new Date((row.valueJson as { at?: string }).at ?? 0).getTime() : 0;
+  const throttleMs = 10 * 60 * 1000;
+  if (Date.now() - last < throttleMs) return { ran: false as const };
+
+  // Claim the slot before working, so two parallel page loads do not both run.
+  await prisma.appSetting.upsert({
+    where: { key: KEY },
+    create: { key: KEY, valueJson: { at: new Date().toISOString() } },
+    update: { valueJson: { at: new Date().toISOString() } },
+  });
+
+  const { runLivenessChecks } = await import('@/server/liveness');
+  // Small batch: this happens while a colleague waits, not in a cron window.
+  const summary = await runLivenessChecks({ limit: 8 });
+  revalidatePath('/', 'layout');
+  return { ran: true as const, checked: summary.checked, expired: summary.expired };
+}
+
+/* ------------------------------------------------------- Wiedervorlage --- */
+
+const FollowUpInput = z.object({
+  candidateCaseId: z.string(),
+  listingId: z.string(),
+  followUpAt: z.string().optional(),
+  followUpNote: z.string().max(500).optional(),
+});
+
+export async function setFollowUpAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = FollowUpInput.parse(Object.fromEntries(formData));
+  await prisma.candidateListingMatch.updateMany({
+    where: { candidateCaseId: parsed.candidateCaseId, listingId: parsed.listingId },
+    data: {
+      followUpAt: parsed.followUpAt && parsed.followUpAt.trim() ? new Date(parsed.followUpAt) : null,
+      followUpNote: parsed.followUpNote || null,
+    },
+  });
+  await prisma.auditEvent.create({
+    data: {
+      userId: user.id,
+      candidateCaseId: parsed.candidateCaseId,
+      entityType: 'CandidateListingMatch',
+      entityId: parsed.listingId,
+      action: parsed.followUpAt ? 'match.followUpSet' : 'match.followUpCleared',
+      toState: parsed.followUpAt ?? null,
+    },
+  });
+  revalidatePath('/', 'layout');
+}
