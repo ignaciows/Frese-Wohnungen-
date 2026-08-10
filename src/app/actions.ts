@@ -306,6 +306,24 @@ export async function setContactOutcomeAction(formData: FormData) {
       },
     }),
   ]);
+
+  if (parsed.outcome === 'POSITIVE') {
+    const full = await prisma.contactAttempt.findUnique({
+      where: { id: parsed.contactAttemptId },
+      include: {
+        candidateCase: { select: { reference: true } },
+        listing: { select: { title: true } },
+      },
+    });
+    if (full) {
+      const { notifyPositiveOutcome } = await import('@/server/telegram');
+      await notifyPositiveOutcome({
+        candidateReference: full.candidateCase.reference,
+        listingTitle: full.listing.title,
+      });
+    }
+  }
+
   revalidatePath('/', 'layout');
 }
 
@@ -818,5 +836,28 @@ export async function applySimulatedProfileAction(formData: FormData) {
     },
     userId: user.id,
   });
+  revalidatePath('/', 'layout');
+}
+
+const TelegramSettingsInput = z.object({
+  enabled: z.coerce.boolean().default(false),
+  onReply: z.coerce.boolean().default(false),
+  onPositive: z.coerce.boolean().default(false),
+  onNewListings: z.coerce.boolean().default(false),
+  onFollowUpDue: z.coerce.boolean().default(false),
+});
+
+export async function saveTelegramSettingsAction(formData: FormData) {
+  const user = await requireAdmin();
+  const parsed = TelegramSettingsInput.parse(Object.fromEntries(formData));
+  const { writeSetting, SETTING_KEYS } = await import('@/server/settings');
+  await writeSetting(SETTING_KEYS.telegram, parsed, user.id);
+  revalidatePath('/', 'layout');
+}
+
+export async function sendTelegramTestAction() {
+  await requireAdmin();
+  const { sendTelegramMessage } = await import('@/server/telegram');
+  await sendTelegramMessage('✅ Frese Wohnung ist mit diesem Chat verbunden.');
   revalidatePath('/', 'layout');
 }

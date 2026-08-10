@@ -12,7 +12,14 @@
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { prisma } from '@/lib/prisma';
-import { parseAlertEmail, type RawEmail } from '@/domain/mail';
+import {
+  classifyMail,
+  extractListings,
+  extractReplyText,
+  parseAlertEmail,
+  routeFromRecipients,
+  type RawEmail,
+} from '@/domain/mail';
 import { ingestListing } from '@/server/listingIngest';
 
 export interface MailConfig {
@@ -128,8 +135,7 @@ export async function ingestMailbox(options: { limit?: number } = {}): Promise<I
           receivedAt: parsed.date ?? new Date(),
         };
 
-        const alert = parseAlertEmail(raw);
-        const result = await applyAlert(alert, raw, systemUser.id);
+        const result = await applyMail(raw, systemUser.id);
         summary.processed += result.status === 'PROCESSED' ? 1 : 0;
         summary.listingsCreated += result.created;
         if (result.status !== 'PROCESSED') summary.skipped++;
@@ -164,6 +170,119 @@ export async function ingestMailbox(options: { limit?: number } = {}): Promise<I
 }
 
 type ParsedAlert = ReturnType<typeof parseAlertEmail>;
+
+/**
+ * Routes one mail: a landlord's answer is appended to the conversation it
+ * belongs to, everything else goes down the new-listings path.
+ */
+async function applyMail(
+  raw: RawEmail,
+  userId: string,
+): Promise<{ status: string; created: number; note?: string }> {
+  const body = raw.html || raw.text || '';
+  const { listings } = extractListings(body);
+  const urls = listings.map((l) => l.url);
+
+  // Which of these have we actually written to? That is the strongest signal
+  // that this mail is a reply rather than a digest.
+  const contactedListings = urls.length
+    ? await prisma.listing.findMany({
+        where: { rawUrl: { in: urls }, contactAttempts: { some: {} } },
+        select: { id: true, rawUrl: true, title: true },
+      })
+    : [];
+  const contactedUrls = new Set(contactedListings.map((l) => l.rawUrl));
+
+  const kind = classifyMail({ subject: raw.subject, from: raw.from, body }, urls, contactedUrls);
+
+  if (kind.kind === 'REPLY' && contactedListings.length === 1) {
+    return applyReply(raw, contactedListings[0], userId, kind.reason);
+  }
+
+  return applyAlert(parseAlertEmail(raw), raw, userId);
+}
+
+/** Appends a landlord's answer to the right conversation. */
+async function applyReply(
+  raw: RawEmail,
+  listing: { id: string; rawUrl: string; title: string },
+  userId: string,
+  reason: string,
+): Promise<{ status: string; created: number; note?: string }> {
+  const base = {
+    messageId: raw.messageId,
+    fromAddress: raw.from,
+    subject: raw.subject,
+    receivedAt: raw.receivedAt,
+    sourceKey: null,
+    listingsSeen: 1,
+  };
+
+  // A listing can be contacted for several candidates; the plus-address tells
+  // us which conversation this belongs to.
+  const candidateRef = routeFromRecipients(raw.recipients);
+  const attempts = await prisma.contactAttempt.findMany({
+    where: {
+      listingId: listing.id,
+      ...(candidateRef ? { candidateCase: { reference: candidateRef } } : {}),
+    },
+    include: { candidateCase: { select: { id: true, reference: true } } },
+    orderBy: { contactedAt: 'desc' },
+  });
+
+  if (attempts.length !== 1) {
+    await prisma.emailIngestLog.create({
+      data: {
+        ...base,
+        status: 'UNMATCHED_REPLY',
+        note:
+          attempts.length === 0
+            ? `Antwort zu „${listing.title}", aber kein passender Kontakt gefunden.`
+            : `Antwort zu „${listing.title}" ist mehrdeutig (${attempts.length} Kontakte) — bitte manuell zuordnen.`,
+      },
+    });
+    return { status: 'UNMATCHED_REPLY', created: 0 };
+  }
+
+  const attempt = attempts[0];
+  const text = extractReplyText(raw.html || raw.text || '');
+
+  await prisma.contactMessage.create({
+    data: {
+      contactAttemptId: attempt.id,
+      direction: 'INCOMING',
+      body: text || '(Leere Nachricht — bitte im Portal nachsehen)',
+      occurredAt: raw.receivedAt,
+      recordedById: userId,
+    },
+  });
+
+  // The answer's content is a human judgement, so the outcome stays AWAITING
+  // until a colleague reads it and decides. Only the fact of an answer is
+  // recorded automatically.
+  await prisma.emailIngestLog.create({
+    data: {
+      ...base,
+      candidateCaseId: attempt.candidateCase.id,
+      status: 'REPLY_LOGGED',
+      note: `${reason} — Antwort zu „${listing.title}" für ${attempt.candidateCase.reference}.`,
+    },
+  });
+
+  const { notifyReplyReceived } = await import('@/server/telegram');
+  await notifyReplyReceived({
+    candidateReference: attempt.candidateCase.reference,
+    candidateCaseId: attempt.candidateCase.id,
+    listingTitle: listing.title,
+    excerpt: text.slice(0, 300),
+  });
+
+  return {
+    status: 'REPLY_LOGGED',
+    created: 0,
+    note: `Antwort von „${listing.title}" im Verlauf gespeichert.`,
+  };
+}
 
 async function applyAlert(
   alert: ParsedAlert,

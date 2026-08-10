@@ -16,6 +16,7 @@ import {
   type FreshnessSettings,
 } from '@/domain/timing';
 import { DEFAULT_LIVENESS, type LivenessPolicy } from '@/domain/liveness';
+import { DEFAULT_TELEGRAM, type NotificationSettings } from './telegram';
 
 export const SETTING_KEYS = {
   sharing: 'sharing',
@@ -24,6 +25,7 @@ export const SETTING_KEYS = {
   freshness: 'freshness',
   bridging: 'bridging',
   liveness: 'liveness',
+  telegram: 'telegram',
 } as const;
 
 export interface SourceRecheckSettings {
@@ -84,6 +86,10 @@ export function getBridgingSettings(): Promise<BridgingSettings> {
 
 export function getLivenessSettings(): Promise<LivenessPolicy> {
   return readSetting(SETTING_KEYS.liveness, DEFAULT_LIVENESS);
+}
+
+export function getTelegramSettings(): Promise<NotificationSettings> {
+  return readSetting(SETTING_KEYS.telegram, DEFAULT_TELEGRAM);
 }
 
 export async function writeSetting(key: string, value: object, userId: string): Promise<void> {

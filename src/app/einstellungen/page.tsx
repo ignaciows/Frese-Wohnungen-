@@ -7,6 +7,7 @@ import {
   getFreshnessSettings,
   getBridgingSettings,
   getLivenessSettings,
+  getTelegramSettings,
 } from '@/server/settings';
 import {
   saveSharingSettingsAction,
@@ -16,10 +17,13 @@ import {
   saveBridgingSettingsAction,
   saveLivenessSettingsAction,
   runLivenessSweepAction,
+  saveTelegramSettingsAction,
+  sendTelegramTestAction,
 } from '@/app/actions';
 import { AppBar, Callout } from '@/app/_components/Shell';
 import { prisma } from '@/lib/prisma';
 import { readMailConfig } from '@/server/mailIngest';
+import { isTelegramConfigured } from '@/server/telegram';
 import { runMailIngestAction } from '@/app/actions';
 import { formatDateTime } from '@/lib/labels';
 
@@ -30,7 +34,8 @@ export default async function SettingsPage() {
   if (!user) redirect('/login');
   const isAdmin = user.role === 'ADMIN';
 
-  const [sharing, recheck, transfer, recentIngests, freshness, bridging, liveness] = await Promise.all([
+  const [sharing, recheck, transfer, recentIngests, freshness, bridging, liveness, telegram] =
+    await Promise.all([
     getSharingSettings(),
     getSourceRecheckSettings(),
     getSystemTransferSettings(),
@@ -38,8 +43,10 @@ export default async function SettingsPage() {
     getFreshnessSettings(),
     getBridgingSettings(),
     getLivenessSettings(),
+    getTelegramSettings(),
   ]);
   const mailConfigured = readMailConfig() != null;
+  const telegramConfigured = isTelegramConfigured();
 
   return (
     <>
@@ -504,6 +511,77 @@ export default async function SettingsPage() {
             </div>
           ) : null}
         </div>
+
+        {/* -------------------------------------------------- telegram --- */}
+        <form action={saveTelegramSettingsAction} className="card" style={{ marginTop: 18 }}>
+          <div className="card-head">
+            <h2>Telegram</h2>
+            {telegramConfigured ? (
+              <span className="badge success">✓ Verbunden</span>
+            ) : (
+              <span className="badge">Nicht konfiguriert</span>
+            )}
+          </div>
+          <div className="card-body stack">
+            <p className="small muted">
+              Benachrichtigungen in eine Team-Gruppe, damit niemand die App den ganzen Tag beobachten muss.
+              Aus der Gruppe heraus gehen <span className="mono">/status</span> und{' '}
+              <span className="mono">/notiz REF Text</span>.
+            </p>
+
+            {!telegramConfigured ? (
+              <div className="callout">
+                <span className="callout-icon" aria-hidden>i</span>
+                <div className="small">
+                  Zum Aktivieren <span className="mono">TELEGRAM_BOT_TOKEN</span>,{' '}
+                  <span className="mono">TELEGRAM_CHAT_ID</span> und{' '}
+                  <span className="mono">TELEGRAM_WEBHOOK_SECRET</span> setzen — siehe
+                  docs/TELEGRAM.md.
+                </div>
+              </div>
+            ) : null}
+
+            <div className="checkline">
+              <input
+                id="tgEnabled"
+                name="enabled"
+                type="checkbox"
+                value="true"
+                defaultChecked={telegram.enabled}
+                disabled={!isAdmin}
+              />
+              <label htmlFor="tgEnabled">Benachrichtigungen aktiv</label>
+            </div>
+            <div className="checkline">
+              <input id="tgReply" name="onReply" type="checkbox" value="true" defaultChecked={telegram.onReply} disabled={!isAdmin} />
+              <label htmlFor="tgReply">Wenn ein Vermieter antwortet</label>
+            </div>
+            <div className="checkline">
+              <input id="tgPos" name="onPositive" type="checkbox" value="true" defaultChecked={telegram.onPositive} disabled={!isAdmin} />
+              <label htmlFor="tgPos">Bei positiver Rückmeldung</label>
+            </div>
+            <div className="checkline">
+              <input id="tgNew" name="onNewListings" type="checkbox" value="true" defaultChecked={telegram.onNewListings} disabled={!isAdmin} />
+              <label htmlFor="tgNew">Bei neuen Anzeigen aus dem Suchagent-Postfach</label>
+            </div>
+            <div className="checkline">
+              <input id="tgDue" name="onFollowUpDue" type="checkbox" value="true" defaultChecked={telegram.onFollowUpDue} disabled={!isAdmin} />
+              <label htmlFor="tgDue">Tagesübersicht (fällige Wiedervorlagen &amp; Termine)</label>
+            </div>
+          </div>
+          {isAdmin ? (
+            <div className="card-foot row-between">
+              <span className="small muted">Nur der konfigurierte Chat darf den Bot bedienen.</span>
+              <button type="submit" className="btn primary">Speichern</button>
+            </div>
+          ) : null}
+        </form>
+
+        {isAdmin && telegramConfigured ? (
+          <form action={sendTelegramTestAction} style={{ marginTop: 8, textAlign: 'right' }}>
+            <button type="submit" className="btn">Testnachricht senden</button>
+          </form>
+        ) : null}
 
         {/* ------------------------------------------- transfer labels --- */}
         <form action={saveTransferSettingsAction} className="card" style={{ marginTop: 18 }}>

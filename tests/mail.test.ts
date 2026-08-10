@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  classifyMail,
+  extractReplyText,
   extractListings,
   parseAlertEmail,
   parseRecipient,
@@ -131,5 +133,91 @@ describe('full alert parsing', () => {
     expect(a.candidateReference).toBeNull();
     // Listings are still found, so the log can explain what was missed.
     expect(a.listings).toHaveLength(2);
+  });
+});
+
+describe('telling replies apart from search-agent digests', () => {
+  const contacted = new Set(['https://www.immobilienscout24.de/expose/111']);
+
+  it('treats a mail about a flat we wrote to as a reply', () => {
+    const c = classifyMail(
+      { subject: 'Ihre Anfrage zur Wohnung', from: 'vermieter@example.de', body: 'Gerne, wann passt es?' },
+      ['https://www.immobilienscout24.de/expose/111'],
+      contacted,
+    );
+    expect(c.kind).toBe('REPLY');
+  });
+
+  it('treats a multi-listing digest as an alert even if we contacted one of them', () => {
+    const c = classifyMail(
+      { subject: '3 neue Angebote für Ihren Suchauftrag', from: 'noreply@is24.de', body: 'neue treffer' },
+      [
+        'https://www.immobilienscout24.de/expose/111',
+        'https://www.immobilienscout24.de/expose/222',
+        'https://www.immobilienscout24.de/expose/333',
+      ],
+      contacted,
+    );
+    expect(c.kind).toBe('ALERT');
+  });
+
+  it('alert wording beats a single contacted listing', () => {
+    const c = classifyMail(
+      { subject: 'Neue Angebote für Ihr Suchprofil', from: 'noreply@is24.de', body: 'suchagent' },
+      ['https://www.immobilienscout24.de/expose/111'],
+      contacted,
+    );
+    expect(c.kind).toBe('ALERT');
+  });
+
+  it('recognises a reply with no listing link at all', () => {
+    const c = classifyMail(
+      { subject: 'AW: Wohnungsanfrage', from: 'a@b.de', body: 'Die Wohnung ist noch frei.' },
+      [],
+      contacted,
+    );
+    expect(c.kind).toBe('REPLY');
+  });
+
+  it('says UNKNOWN when there is nothing to go on', () => {
+    const c = classifyMail(
+      { subject: 'Newsletter', from: 'news@x.de', body: 'Angebote der Woche im Baumarkt' },
+      [],
+      new Set(),
+    );
+    expect(c.kind).toBe('UNKNOWN');
+  });
+});
+
+describe('reply text extraction', () => {
+  it('strips the quoted original message', () => {
+    const body =
+      'Guten Tag, die Wohnung ist noch frei.\n\n' +
+      '-----Ursprüngliche Nachricht-----\nVon: uns\nSehr geehrte Damen und Herren, wir möchten…';
+    const t = extractReplyText(body);
+    expect(t).toContain('noch frei');
+    expect(t).not.toContain('Sehr geehrte Damen');
+  });
+
+  it('strips "Am … schrieb …:" quoting', () => {
+    const body = 'Passt Freitag?\n\nAm 09.08.2026 um 10:00 schrieb Frese Recruiting:\n> unser Anschreiben';
+    const t = extractReplyText(body);
+    expect(t).toBe('Passt Freitag?');
+  });
+
+  it('drops quoted lines starting with >', () => {
+    const t = extractReplyText('Ja gerne.\n> alte Nachricht\n> noch mehr');
+    expect(t).toBe('Ja gerne.');
+  });
+
+  it('converts HTML to readable text', () => {
+    const t = extractReplyText('<p>Die Wohnung ist <b>vergeben</b>.</p>');
+    expect(t).toContain('vergeben');
+    expect(t).not.toContain('<');
+  });
+
+  it('caps very long bodies', () => {
+    const t = extractReplyText('x'.repeat(9000), 500);
+    expect(t.length).toBeLessThanOrEqual(500);
   });
 });

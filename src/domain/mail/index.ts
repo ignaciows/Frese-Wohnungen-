@@ -136,3 +136,135 @@ export function parseAlertEmail(mail: RawEmail): ParsedAlert {
     listings,
   };
 }
+
+/* ----------------------------------------------------- reply detection --- */
+
+export type MailKind = 'ALERT' | 'REPLY' | 'UNKNOWN';
+
+export interface MailClassification {
+  kind: MailKind;
+  reason: string;
+}
+
+/** Wording portals use when telling us about *new search results*. */
+const ALERT_SIGNALS = [
+  'suchagent',
+  'suchauftrag',
+  'neue angebote',
+  'neue treffer',
+  'neue immobilien',
+  'neue anzeigen',
+  'passende angebote',
+  'ihr suchprofil',
+  'new listings',
+  'new matches',
+  'saved search',
+];
+
+/** Wording that means a human answered our enquiry. */
+const REPLY_SIGNALS = [
+  'antwort auf ihre anfrage',
+  'ihre anfrage',
+  'antwort von',
+  'neue nachricht',
+  'hat ihnen geantwortet',
+  'nachricht erhalten',
+  'antwort erhalten',
+  're:',
+  'aw:',
+  'wg:',
+  'reply to your',
+  'replied to your',
+  'new message',
+];
+
+/**
+ * Decides whether a mail announces new results or answers an enquiry.
+ *
+ * `knownContactedUrls` are canonical URLs of listings this mailbox has already
+ * written to. A mail pointing at exactly one of those, without alert wording,
+ * is almost certainly the landlord answering.
+ */
+export function classifyMail(
+  mail: Pick<RawEmail, 'subject' | 'from'> & { body: string },
+  listingUrls: string[],
+  knownContactedUrls: Set<string>,
+): MailClassification {
+  const hay = `${mail.subject} ${mail.body}`.toLowerCase();
+
+  const alertHit = ALERT_SIGNALS.find((s) => hay.includes(s));
+  const replyHit = REPLY_SIGNALS.find((s) => hay.includes(s));
+  const contacted = listingUrls.filter((u) => knownContactedUrls.has(u));
+
+  // Several listings in one mail is the shape of a digest, not a reply.
+  if (listingUrls.length > 1 && !replyHit) {
+    return { kind: 'ALERT', reason: `${listingUrls.length} Anzeigen — sieht nach Suchagent aus` };
+  }
+
+  if (contacted.length === 1) {
+    // We wrote to exactly this flat. Explicit alert wording still wins, because
+    // a digest can legitimately re-list something we already contacted.
+    if (alertHit && !replyHit) {
+      return { kind: 'ALERT', reason: `Suchagent-Formulierung erkannt („${alertHit}")` };
+    }
+    return { kind: 'REPLY', reason: 'Bezieht sich auf eine bereits angeschriebene Anzeige' };
+  }
+
+  if (replyHit && listingUrls.length <= 1) {
+    return { kind: 'REPLY', reason: `Antwort-Formulierung erkannt („${replyHit}")` };
+  }
+  if (alertHit) return { kind: 'ALERT', reason: `Suchagent-Formulierung erkannt („${alertHit}")` };
+  if (listingUrls.length > 0) return { kind: 'ALERT', reason: 'Anzeigen-Links ohne Antwort-Hinweis' };
+
+  return { kind: 'UNKNOWN', reason: 'Weder Anzeigen-Links noch eindeutige Formulierung' };
+}
+
+/**
+ * Strips quoted history and signatures so a logged reply reads as what the
+ * landlord actually wrote, not a wall of our own message quoted back.
+ */
+export function extractReplyText(body: string, maxLength = 4000): string {
+  let text = body;
+
+  // Drop HTML tags if we were handed a rendered mail.
+  if (/<[a-z][\s\S]*>/i.test(text)) {
+    text = text
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ');
+  }
+
+  text = text
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"');
+
+  const cutMarkers = [
+    /^\s*-{2,}\s*ursprüngliche nachricht\s*-{2,}/im,
+    /^\s*-{2,}\s*original message\s*-{2,}/im,
+    /^\s*am .{5,60} schrieb .{2,80}:\s*$/im,
+    /^\s*on .{5,60} wrote:\s*$/im,
+    /^\s*von:\s*.+$/im,
+    /^\s*_{5,}\s*$/m,
+  ];
+  for (const re of cutMarkers) {
+    const m = text.match(re);
+    // Only cut when real content precedes the marker — otherwise a mail that
+    // opens with the quote would be reduced to nothing.
+    if (m && m.index != null && text.slice(0, m.index).trim().length >= 10) {
+      text = text.slice(0, m.index);
+    }
+  }
+
+  // Drop quoted lines.
+  text = text
+    .split('\n')
+    .filter((line) => !/^\s*>/.test(line))
+    .join('\n');
+
+  return text.replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim().slice(0, maxLength);
+}
