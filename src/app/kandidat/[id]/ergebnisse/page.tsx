@@ -292,7 +292,6 @@ export default async function ErgebnissePage({
                     : m.compatibility === 'INCOMPATIBLE'
                       ? 'bad'
                       : '';
-              const reasons = Array.isArray(m.reasons) ? (m.reasons as string[]) : [];
               // The date the ad prints about itself beats the date we happened
               // to import it: an ad found this morning can already be three
               // weeks old, and that is exactly what decides whether it is worth
@@ -325,64 +324,74 @@ export default async function ErgebnissePage({
                     <span className="listing-title">
                       {i + 1}. {l.title}
                     </span>
-                    <span className="listing-meta">
-                      <span className={`badge ${comp.tone}`}>{comp.short}</span>
-                      <span className="badge">{l.source.name}</span>
-                      <span className="chip">{FURNISHING[l.furnishing]}</span>
-                      <span className="chip">
+                    {/* The three facts that decide whether to open an ad, big
+                        enough to read at a glance. Everything else is either in
+                        the detail pane or, if it is an "unknown", not shown at
+                        all — a row that announces "Möblierung unbekannt" has
+                        spent a line saying nothing. */}
+                    <span className="listing-facts">
+                      <span className="fact-price">
                         {l.effectiveMonthlyCents != null
-                          ? `${formatEuroCents(l.effectiveMonthlyCents)}${l.monthlyTotalComplete ? '' : ' *'}`
+                          ? `${formatEuroCents(l.effectiveMonthlyCents)}${l.monthlyTotalComplete ? '' : '*'}`
                           : 'Preis unbekannt'}
                       </span>
-                      <span className="chip">{l.rooms != null ? `${l.rooms} Zi.` : 'Zi. ?'}</span>
-                      {l.locationCity ? <span className="chip">{l.locationCity}</span> : null}
+                      {l.rooms != null ? <span className="fact">{l.rooms} Zimmer</span> : null}
+                      {l.livingSpaceSqm != null ? <span className="fact">{l.livingSpaceSqm} m²</span> : null}
+                      {l.locationCity ? <span className="fact">{l.locationCity}</span> : null}
+                    </span>
+
+                    <span className="listing-meta">
+                      <span className={`badge ${comp.tone}`}>{comp.short}</span>
+                      {/* Only say something about the check when it is news.
+                          "Noch nicht geprüft" sat on every row, and a label
+                          that never varies is one more thing to read past. */}
                       {band === 'DEAD' ? (
                         <span className="badge danger" title={l.lastCheckReason ?? undefined}>
                           Nicht mehr verfügbar
                         </span>
                       ) : band === 'LIMBO' ? (
                         <span className="badge warning" title={l.lastCheckReason ?? undefined}>
-                          ? {l.onlineConfidence} % online — zu prüfen
+                          Unsicher — bitte prüfen
                         </span>
-                      ) : band === 'CONFIRMED' ? (
-                        <span className="badge success" title={l.lastCheckReason ?? undefined}>
-                          ✓ {l.onlineConfidence} % online
-                        </span>
-                      ) : (
-                        <span className="badge">Noch nicht geprüft</span>
-                      )}
-                      {l.postedAt ? (
-                        <span className="chip" title={l.postedAtLabel ?? undefined}>
-                          Inseriert {formatDate(l.postedAt)}
-                        </span>
-                      ) : null}
-                      {fresh.state === 'NEW' ? (
-                        <span className="badge success">● Neu</span>
-                      ) : fresh.state === 'STALE' ? (
-                        <span className="badge warning">Älter — evtl. vergeben</span>
                       ) : null}
                       {timing.verdict === 'BRIDGE_NEEDED' || timing.verdict === 'BRIDGE_TOO_LONG' ? (
                         <span className="badge warning">
                           {timing.bridgeNights} Tage Lücke ≈ {formatEuroCents(timing.bridgeCostCents)}
                         </span>
-                      ) : timing.verdict === 'READY_BEFORE_ARRIVAL' || timing.verdict === 'READY_ON_TIME' ? (
-                        <span className="badge success">Rechtzeitig frei</span>
                       ) : null}
+                      {fresh.state === 'STALE' ? (
+                        <span className="badge warning">Älter — evtl. vergeben</span>
+                      ) : null}
+                      {/* One statement of age, not three. */}
+                      <span className={`chip ${fresh.state === 'NEW' ? 'accent' : ''}`}>
+                        {l.postedAt
+                          ? fresh.state === 'NEW'
+                            ? 'Neu — heute inseriert'
+                            : `Inseriert ${formatDate(l.postedAt)}`
+                          : fresh.state === 'NEW'
+                            ? 'Neu gefunden'
+                            : `Gefunden ${formatDate(l.importedAt)}`}
+                      </span>
+                      <span className="listing-source">{l.source.name}</span>
                     </span>
-                    {reasons.length > 0 ? (
-                      <span className="small muted truncate">{reasons.slice(0, 3).join(' · ')}</span>
-                    ) : null}
+
                   </span>
                   <span className="listing-side">
+                    {/* Only a status somebody *did* something to get.
+                        "Neu" here meant "nobody has worked on it", which sat on
+                        every row and, worse, collided with the "Neu" in the row
+                        above meaning "recently advertised" — the same word for
+                        two different things. Untouched is the default; it needs
+                        no label. */}
                     {m.status === 'CONTACTED' ? (
                       <span className="badge success" title="Bereits angeschrieben">
                         ✓ Angeschrieben
                       </span>
-                    ) : (
+                    ) : m.status !== 'NEW' ? (
                       <span className={`badge ${st.tone}`}>
                         {st.icon} {st.label}
                       </span>
-                    )}
+                    ) : null}
                     {m.followUpAt ? (
                       <span
                         className={`badge ${m.followUpAt <= new Date() ? 'warning' : ''}`}
@@ -391,14 +400,19 @@ export default async function ErgebnissePage({
                         ⏱ {m.followUpAt <= new Date() ? 'Wiedervorlage fällig' : `WV ${formatDate(m.followUpAt)}`}
                       </span>
                     ) : null}
-                    {!l.monthlyTotalComplete ? (
-                      <span className="small subtle">* Kosten unvollständig</span>
-                    ) : null}
-                    <span className="small subtle">{fresh.label}</span>
                   </span>
                 </Link>
               );
             })}
+            {/* One footnote for the whole list. It used to be repeated on
+                every Kleinanzeigen row, where it said the same thing eleven
+                times and crowded out what differed between them. */}
+            {matches.some((m) => !m.listing.monthlyTotalComplete) ? (
+              <div className="listing-note">
+                <strong>*</strong> Bei diesen Anzeigen nennt das Portal nur die Kaltmiete. Die
+                Warmmiete liegt höher — meist 20–30 % — und steht erst in der Anzeige selbst.
+              </div>
+            ) : null}
           </div>
 
           {selected ? (

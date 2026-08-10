@@ -371,7 +371,14 @@ export async function runDiscoverySweep(
     }
   }
 
-  summary.enriched = await enrichNewListings(crawler, settings);
+  const enrichment = await enrichNewListings(crawler, settings);
+  summary.enriched = enrichment.enriched;
+  summary.retired += enrichment.unreadable;
+  if (enrichment.unreadable > 0) {
+    summary.notes.push(
+      `${enrichment.unreadable} Treffer ohne Miete, Zimmer oder Fläche entfernt — dort war nichts Verwertbares zu lesen.`,
+    );
+  }
   summary.requests = crawler.stats.requests;
   summary.durationMs = Date.now() - startedAt;
 
@@ -396,7 +403,13 @@ async function upsertDiscovered(
 
   const existing = await prisma.listing.findUnique({
     where: { canonicalUrl },
-    select: { id: true, expired: true, expiredBySystem: true, postedAt: true },
+    select: {
+      id: true,
+      expired: true,
+      expiredBySystem: true,
+      postedAt: true,
+      lastCheckStatus: true,
+    },
   });
 
   if (!existing) {
@@ -430,7 +443,16 @@ async function upsertDiscovered(
         ...(item.postedAt && !existing.postedAt
           ? { postedAt: item.postedAt.at, postedAtLabel: item.postedAt.label }
           : {}),
-        ...(existing.expired && existing.expiredBySystem
+        // Reappearing in the result list proves an ad is live, so a retirement
+        // we made for *disappearing* was wrong and gets undone.
+        //
+        // Not so for one retired as unreadable: those never had any content of
+        // their own and their detail page refuses us, so being listed again
+        // changes nothing. Undoing it anyway produced a loop — resurrect,
+        // re-fetch, retire — that burned the entire enrichment budget on the
+        // same dead links every sweep, starving the ads that could have been
+        // filled in.
+        ...(existing.expired && existing.expiredBySystem && existing.lastCheckStatus !== 'UNREADABLE'
           ? { expired: false, expiredAt: null, expiredBySystem: false }
           : {}),
       },
@@ -558,19 +580,14 @@ export async function retireUnseen(
  * availability and contact details for the ads a colleague is about to look
  * at, not to mirror the portal.
  */
-async function enrichNewListings(crawler: Crawler, settings: DiscoverySettings): Promise<number> {
-  if (settings.enrichPerRun <= 0 || crawler.budgetLeft <= 0) return 0;
+async function enrichNewListings(
+  crawler: Crawler,
+  settings: DiscoverySettings,
+): Promise<{ enriched: number; unreadable: number }> {
+  if (settings.enrichPerRun <= 0 || crawler.budgetLeft <= 0) return { enriched: 0, unreadable: 0 };
 
-  const pending = await prisma.listing.findMany({
-    where: {
-      origin: 'DISCOVERY',
-      expired: false,
-      // Never enriched: no detail read has happened yet.
-      lastCheckedAt: null,
-    },
-    orderBy: { firstSeenAt: 'desc' },
-    take: Math.min(settings.enrichPerRun, crawler.budgetLeft),
-    select: {
+  const budget = Math.min(settings.enrichPerRun, crawler.budgetLeft);
+  const select = {
       id: true,
       rawUrl: true,
       sourceId: true,
@@ -584,10 +601,46 @@ async function enrichNewListings(crawler: Crawler, settings: DiscoverySettings):
       nebenkostenCents: true,
       rooms: true,
       livingSpaceSqm: true,
+    } as const;
+
+  const never = { origin: 'DISCOVERY', expired: false, lastCheckedAt: null } as const;
+
+  // Serve the ads that have nothing first.
+  //
+  // Enrichment exists precisely for entries a link-list produced as a bare URL
+  // — no title, no price, no size. Ordering purely by "newest" meant a busy
+  // source like Kleinanzeigen, whose ads already arrive complete, filled the
+  // whole per-sweep budget every time, and the empty ones were never reached.
+  // They then sat in the pool indefinitely: 31 of 85 in a live run.
+  const empty = await prisma.listing.findMany({
+    where: {
+      ...never,
+      kaltMieteCents: null,
+      warmMieteCents: null,
+      rooms: null,
+      livingSpaceSqm: null,
     },
+    orderBy: { firstSeenAt: 'desc' },
+    take: budget,
+    select,
   });
 
+  // Whatever budget is left goes to the newest, to deepen ads that already
+  // look usable.
+  const rest =
+    empty.length >= budget
+      ? []
+      : await prisma.listing.findMany({
+          where: { ...never, id: { notIn: empty.map((l) => l.id) } },
+          orderBy: { firstSeenAt: 'desc' },
+          take: budget - empty.length,
+          select,
+        });
+
+  const pending = [...empty, ...rest];
+
   let enriched = 0;
+  let unreadable = 0;
   const importedById = await systemUserId();
 
   for (const listing of pending) {
@@ -595,15 +648,43 @@ async function enrichNewListings(crawler: Crawler, settings: DiscoverySettings):
     const page = await crawler.fetchPage(listing.rawUrl);
 
     if (page.blocked || page.error || !page.body) {
-      // Record the attempt so we do not retry the same dead end every sweep.
+      // A link-list entry starts out as nothing but a URL: the anchor wrapped a
+      // photo, so there was no title, price or size to read. Enrichment is what
+      // was supposed to fill that in — and when the detail page refuses us, it
+      // never will.
+      //
+      // Verified live: Immowelt answers 403 on every /expose/ page, and 31 of
+      // 85 discovered ads sat in the pool as permanently empty rows. Leaving
+      // them is the "list you have to mentally filter" this tool exists to
+      // remove, so an entry that has nothing of its own and cannot be read is
+      // retired with an honest reason. The row stays, which is what stops the
+      // next sweep from recreating and re-fetching it forever.
+      const stillEmpty =
+        listing.kaltMieteCents == null &&
+        listing.warmMieteCents == null &&
+        listing.rooms == null &&
+        listing.livingSpaceSqm == null;
+
       await prisma.listing.update({
         where: { id: listing.id },
         data: {
           lastCheckedAt: new Date(),
           lastCheckStatus: page.blocked ? 'BLOCKED' : 'UNKNOWN',
           lastCheckReason: page.error ?? 'Detailseite nicht lesbar',
+          ...(stillEmpty
+            ? {
+                expired: true,
+                expiredAt: new Date(),
+                expiredBySystem: true,
+                // A distinct marker, because this retirement must survive the
+                // ad reappearing in the result list — see upsertDiscovered.
+                lastCheckStatus: 'UNREADABLE',
+                lastCheckReason: `Keine Angaben lesbar — ${page.error ?? 'Detailseite nicht abrufbar'}`,
+              }
+            : {}),
         },
       });
+      if (stillEmpty) unreadable++;
       continue;
     }
 
@@ -643,6 +724,44 @@ async function enrichNewListings(crawler: Crawler, settings: DiscoverySettings):
       }
     }
 
+    // Read the detail page and *still* no rent, no rooms, no size?
+    //
+    // Then it is not an advert. Every real listing states at least one of the
+    // three — the whole point of publishing it is to say what it costs or how
+    // big it is. What lands here instead is navigation the link-list adapter
+    // swept up: a live Gewobag run contributed "Wohnungsangebote finden" and
+    // "Wohnen im Alter in Berlin", both of which sail past a wording check
+    // because they contain the word "Wohnen".
+    //
+    // Judging on the absence of every figure catches those without another
+    // list of banned phrases to maintain.
+    const after = await prisma.listing.findUnique({
+      where: { id: listing.id },
+      select: { kaltMieteCents: true, warmMieteCents: true, rooms: true, livingSpaceSqm: true },
+    });
+    const nothingToShow =
+      after != null &&
+      after.kaltMieteCents == null &&
+      after.warmMieteCents == null &&
+      after.rooms == null &&
+      after.livingSpaceSqm == null;
+
+    if (nothingToShow) {
+      await prisma.listing.update({
+        where: { id: listing.id },
+        data: {
+          lastCheckedAt: new Date(),
+          expired: true,
+          expiredAt: new Date(),
+          expiredBySystem: true,
+          lastCheckStatus: 'UNREADABLE',
+          lastCheckReason: 'Detailseite gelesen, nennt aber weder Miete noch Zimmer noch Fläche',
+        },
+      });
+      unreadable++;
+      continue;
+    }
+
     await prisma.listing.update({
       where: { id: listing.id },
       data: {
@@ -657,7 +776,7 @@ async function enrichNewListings(crawler: Crawler, settings: DiscoverySettings):
     enriched++;
   }
 
-  return enriched;
+  return { enriched, unreadable };
 }
 
 /* ------------------------------------------------------------ helpers --- */

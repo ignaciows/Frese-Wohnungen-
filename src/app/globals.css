@@ -73,8 +73,10 @@ body {
   color: var(--text);
   font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto,
     Helvetica, Arial, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
+  /* 16px, not 14. The people using this are not all twenty-five, and the
+     app is read all day; every label below was scaled with it. */
+  font-size: 16px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -88,16 +90,16 @@ h4 {
   color: var(--text);
 }
 h1 {
-  font-size: 22px;
+  font-size: 28px;
 }
 h2 {
-  font-size: 17px;
+  font-size: 20px;
 }
 h3 {
-  font-size: 15px;
+  font-size: 17px;
 }
 h4 {
-  font-size: 13px;
+  font-size: 15px;
 }
 p {
   margin: 0;
@@ -241,7 +243,7 @@ a:hover {
   color: #fff;
   display: grid;
   place-items: center;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 700;
 }
 .appbar-nav {
@@ -254,7 +256,7 @@ a:hover {
   border-radius: var(--radius-sm);
   color: var(--text-muted);
   font-weight: 500;
-  font-size: 13.5px;
+  font-size: 15px;
 }
 .appbar-nav a:hover {
   background: var(--surface-3);
@@ -272,7 +274,7 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 13px;
+  font-size: 14.5px;
   color: var(--text-muted);
   margin-bottom: 14px;
   flex-wrap: wrap;
@@ -347,7 +349,7 @@ a:hover {
 }
 .page-title .sub {
   color: var(--text-muted);
-  font-size: 13.5px;
+  font-size: 15px;
 }
 
 /* Numbered "next step" list */
@@ -379,7 +381,7 @@ a:hover {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 700;
   background: var(--surface-3);
   color: var(--text-muted);
@@ -405,7 +407,7 @@ a:hover {
   font-size: 14px;
 }
 .step-desc {
-  font-size: 13px;
+  font-size: 14.5px;
   color: var(--text-muted);
 }
 
@@ -426,7 +428,7 @@ a:hover {
   line-height: 1.15;
 }
 .stat-label {
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--text-muted);
 }
 .stat.accent .stat-value {
@@ -439,10 +441,10 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 999px;
-  font-size: 12px;
-  font-weight: 550;
+  font-size: 15px;
+  font-weight: 600;
   line-height: 1.6;
   border: 1px solid var(--neutral-border);
   background: var(--neutral-soft);
@@ -479,11 +481,11 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 9px;
+  padding: 5px 11px;
   border-radius: var(--radius-sm);
   background: var(--surface-3);
   border: 1px solid var(--border);
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -498,18 +500,26 @@ a:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 8px 14px;
+  gap: 8px;
+  /* 44px minimum: the size a finger, or a less steady hand, can actually hit. */
+  min-height: 44px;
+  padding: 10px 18px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-strong);
   background: var(--surface);
   color: var(--text);
-  font-size: 13.5px;
-  font-weight: 550;
+  font-size: 15.5px;
+  font-weight: 600;
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease,
+    transform 0.08s ease, box-shadow 0.15s ease;
+}
+
+/* A press you can feel. */
+.btn:active {
+  transform: translateY(1px) scale(0.995);
 }
 .btn:hover:not(:disabled) {
   background: var(--surface-3);
@@ -554,12 +564,14 @@ a:hover {
   background: var(--danger-soft);
 }
 .btn.sm {
-  padding: 5px 10px;
-  font-size: 12.5px;
+  min-height: 38px;
+  padding: 7px 14px;
+  font-size: 14px;
 }
 .btn.lg {
-  padding: 11px 20px;
-  font-size: 14.5px;
+  min-height: 52px;
+  padding: 14px 24px;
+  font-size: 17.5px;
 }
 .btn.block {
   width: 100%;
@@ -569,24 +581,25 @@ a:hover {
 
 label {
   display: block;
-  font-size: 12.5px;
-  font-weight: 550;
-  color: var(--text-muted);
-  margin-bottom: 5px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
 }
 
 .input,
 .select,
 .textarea {
   width: 100%;
-  padding: 8px 11px;
+  min-height: 44px;
+  padding: 11px 13px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
-  font-size: 14px;
+  font-size: 16px;
   font-family: inherit;
-  transition: border-color 0.12s, box-shadow 0.12s;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .input:focus,
 .select:focus,
@@ -601,7 +614,7 @@ label {
   line-height: 1.55;
 }
 .field-hint {
-  font-size: 12px;
+  font-size: 13.5px;
   color: var(--text-subtle);
   margin-top: 4px;
 }
@@ -615,7 +628,7 @@ label {
   margin: 0;
   color: var(--text);
   font-weight: 500;
-  font-size: 13.5px;
+  font-size: 15px;
 }
 .checkline input[type='checkbox'] {
   width: 15px;
@@ -633,7 +646,7 @@ label {
 }
 .tab {
   padding: 8px 13px;
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 550;
   color: var(--text-muted);
   border-bottom: 2px solid transparent;
@@ -652,7 +665,7 @@ label {
   border-bottom-color: var(--brand);
 }
 .tab-count {
-  font-size: 11.5px;
+  font-size: 13px;
   padding: 0 6px;
   border-radius: 999px;
   background: var(--surface-3);
@@ -669,11 +682,11 @@ label {
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13.5px;
+  font-size: 15px;
 }
 .table th {
   text-align: left;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--text-muted);
   padding: 9px 12px;
@@ -767,7 +780,7 @@ label {
 }
 
 .reason {
-  font-size: 12.5px;
+  font-size: 14px;
   display: flex;
   gap: 6px;
   align-items: baseline;
@@ -800,7 +813,7 @@ label {
   max-width: 76%;
   padding: 10px 13px;
   border-radius: var(--radius);
-  font-size: 13.5px;
+  font-size: 15px;
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -818,7 +831,7 @@ label {
   border-bottom-left-radius: 3px;
 }
 .bubble-meta {
-  font-size: 11.5px;
+  font-size: 13px;
   color: var(--text-subtle);
   margin-top: 5px;
 }
@@ -848,7 +861,7 @@ label {
 .empty p {
   color: var(--text-muted);
   max-width: 460px;
-  font-size: 13.5px;
+  font-size: 15px;
 }
 
 .callout {
@@ -857,7 +870,7 @@ label {
   border: 1px solid var(--info-border);
   background: var(--info-soft);
   color: var(--text);
-  font-size: 13px;
+  font-size: 14.5px;
   display: flex;
   gap: 10px;
   align-items: flex-start;
@@ -889,11 +902,11 @@ label {
   color: var(--text-subtle);
 }
 .small {
-  font-size: 12.5px;
+  font-size: 14px;
 }
 .mono {
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
-  font-size: 12.5px;
+  font-size: 14px;
 }
 .truncate {
   overflow: hidden;
@@ -937,4 +950,224 @@ label {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* ==========================================================================
+   Motion
+
+   Every animation here has a job: showing that something arrived, that
+   something is happening, or that a press registered. Nothing moves for
+   decoration — on a screen somebody works all day, decorative motion becomes
+   noise within an hour.
+
+   All of it is switched off under prefers-reduced-motion at the bottom of the
+   file; that is a real accessibility need, not a nicety.
+   ========================================================================== */
+
+@keyframes fw-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fw-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fw-pop {
+  0% {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes fw-shimmer {
+  from {
+    background-position: -400px 0;
+  }
+  to {
+    background-position: 400px 0;
+  }
+}
+
+@keyframes fw-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* A slow, quiet breath. Used only on "somebody is waiting for you" counts,
+   never on more than one thing at a time. */
+@keyframes fw-attention {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(14, 124, 134, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(14, 124, 134, 0);
+  }
+}
+
+/* --- arrivals ------------------------------------------------------------ */
+
+.card,
+.listing,
+.list-row,
+.subcard {
+  animation: fw-rise 0.28s ease both;
+}
+
+/* Stagger the first rows so a list reads as arriving rather than blinking on.
+   Capped at eight: past that the last row would visibly lag. */
+.listing:nth-child(1) { animation-delay: 0.01s; }
+.listing:nth-child(2) { animation-delay: 0.03s; }
+.listing:nth-child(3) { animation-delay: 0.05s; }
+.listing:nth-child(4) { animation-delay: 0.07s; }
+.listing:nth-child(5) { animation-delay: 0.09s; }
+.listing:nth-child(6) { animation-delay: 0.11s; }
+.listing:nth-child(7) { animation-delay: 0.13s; }
+.listing:nth-child(8) { animation-delay: 0.15s; }
+
+.callout {
+  animation: fw-rise 0.24s ease both;
+}
+
+/* --- hover and press ----------------------------------------------------- */
+
+.listing {
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+.listing:hover {
+  background: var(--surface-2);
+}
+.listing.selected {
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+
+.card-link {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.card-link:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.step {
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+.step:hover {
+  transform: translateX(2px);
+}
+
+/* --- states -------------------------------------------------------------- */
+
+/* Something genuinely new since last time. */
+.badge.accent,
+.chip.accent {
+  animation: fw-pop 0.32s ease both;
+}
+
+/* The navigation badge for replies and due tasks: the one thing on screen
+   allowed to ask for attention. */
+.appbar-nav .badge.accent {
+  animation: fw-pop 0.32s ease both, fw-attention 2.6s ease-in-out 0.4s infinite;
+}
+
+/* Placeholder rows while a sweep runs. */
+.skeleton {
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--surface-3) 0%,
+    var(--surface-2) 40%,
+    var(--surface-3) 80%
+  );
+  background-size: 800px 100%;
+  animation: fw-shimmer 1.4s linear infinite;
+  min-height: 14px;
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--brand-border);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: fw-spin 0.7s linear infinite;
+  flex: none;
+}
+
+/* Working buttons say so, and stop accepting a second click. */
+.btn[aria-busy='true'] {
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* --- listing rows: facts first ------------------------------------------- */
+
+/* Price, rooms, size and town, at a size that survives a glance across the
+   desk. These four decide whether an ad is worth opening; everything else on
+   the row is context and is set smaller and quieter on purpose. */
+.listing-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  margin-top: 3px;
+}
+.fact-price {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.fact {
+  font-size: 16px;
+  color: var(--text-muted);
+}
+.fact + .fact::before {
+  content: '·';
+  margin-right: 14px;
+  color: var(--text-subtle);
+}
+.listing-source {
+  font-size: 13.5px;
+  color: var(--text-subtle);
+}
+.listing-note {
+  padding: 14px 18px;
+  font-size: 14.5px;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+  line-height: 1.55;
 }

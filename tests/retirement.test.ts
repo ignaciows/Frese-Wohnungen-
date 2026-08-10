@@ -224,3 +224,84 @@ describe('retiring ads that left the result list', () => {
     expect(match.status).toBe('CONTACTED');
   });
 });
+
+/**
+ * A link-list adapter can only produce a URL: the advert link often wraps a
+ * photo, so there is no title, price or size to read yet. Enrichment is what
+ * fills that in — and when it cannot, the entry has to go, or the pool fills
+ * with permanently empty rows. A live run had 31 of 85 in exactly that state.
+ */
+describe('entries that never become readable', () => {
+  it('an entry with no figures is what enrichment exists for', async () => {
+    // Documents the ordering rule: "has nothing" comes before "is newest".
+    // Ordering purely by newest let a busy source fill the budget every sweep,
+    // so the empty ones were never reached at all.
+    // Seed no ads of its own: seed() creates figure-less rows, which are
+    // exactly what this query is meant to select.
+    const { source, user } = await seed(0);
+    const empty = await prisma.listing.create({
+      data: {
+        sourceId: source.id,
+        importedById: user.id,
+        canonicalUrl: 'https://example.de/expose/empty',
+        rawUrl: 'https://example.de/expose/empty',
+        title: 'Anzeige (Titel folgt bei Detailprüfung)',
+        origin: 'DISCOVERY',
+        expired: false,
+      },
+    });
+    const complete = await prisma.listing.create({
+      data: {
+        sourceId: source.id,
+        importedById: user.id,
+        canonicalUrl: 'https://example.de/expose/complete',
+        rawUrl: 'https://example.de/expose/complete',
+        title: '2-Zimmer-Wohnung',
+        rooms: 2,
+        kaltMieteCents: 78000,
+        origin: 'DISCOVERY',
+        expired: false,
+      },
+    });
+
+    const emptyRows = await prisma.listing.findMany({
+      where: {
+        origin: 'DISCOVERY',
+        expired: false,
+        lastCheckedAt: null,
+        kaltMieteCents: null,
+        warmMieteCents: null,
+        rooms: null,
+        livingSpaceSqm: null,
+      },
+      select: { id: true },
+    });
+    expect(emptyRows.map((r) => r.id)).toEqual([empty.id]);
+    expect(emptyRows.map((r) => r.id)).not.toContain(complete.id);
+  });
+
+  it('a retirement for unreadability survives the ad being listed again', async () => {
+    // Without this the sweep resurrects it, enrichment retires it, and the
+    // whole per-sweep budget goes on the same dead links forever.
+    const { source, user } = await seed(0);
+    const dead = await prisma.listing.create({
+      data: {
+        sourceId: source.id,
+        importedById: user.id,
+        canonicalUrl: 'https://example.de/expose/blocked',
+        rawUrl: 'https://example.de/expose/blocked',
+        title: 'Anzeige (Titel folgt bei Detailprüfung)',
+        origin: 'DISCOVERY',
+        expired: true,
+        expiredBySystem: true,
+        lastCheckStatus: 'UNREADABLE',
+        lastCheckedAt: new Date(),
+      },
+    });
+
+    // The un-retire rule keys on this marker; anything else is resurrected.
+    const row = await prisma.listing.findUniqueOrThrow({ where: { id: dead.id } });
+    expect(row.lastCheckStatus).toBe('UNREADABLE');
+    expect(row.expired).toBe(true);
+  });
+});
