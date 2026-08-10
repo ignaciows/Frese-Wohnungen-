@@ -264,6 +264,24 @@ function looksLikeListingPath(url: string): boolean {
   return LISTING_PATH_HINTS.some((h) => lower.includes(h));
 }
 
+/**
+ * The page as a reader sees it: scripts, styles and every tag's attributes
+ * removed.
+ *
+ * A withdrawal notice is something the portal *shows*. Anything that only
+ * exists inside markup — a `data-` label held ready for a state the ad is not
+ * in, a translation string in a bundled script, a hidden error template — is
+ * not the portal saying anything, and treating it as such condemns live ads.
+ */
+function visibleTextOf(body: string): string {
+  return body
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
 /** The `<title>` and the first `<h1>`, where a portal puts its verdict. */
 function headlineOf(body: string): string {
   const title = body.match(/<title[^>]*>([\s\S]{0,300}?)<\/title>/i)?.[1] ?? '';
@@ -288,6 +306,13 @@ function collectSignals(input: LivenessInput): LivenessSignal[] {
   const signals: LivenessSignal[] = [];
   const raw = input.bodySnippet ?? '';
   const body = raw.toLowerCase();
+  // The withdrawal wording is read from what a person would actually see, not
+  // from the markup. Every live Kleinanzeigen advert carries the attribute
+  // `data-soldlabel="Nicht mehr verfügbar"` on its own headline — the label the
+  // page would show *if* the flat were ever let. Matched against raw HTML that
+  // is a strong "gone" signal on every single advert, so the biggest source in
+  // the system had its entire pool judged dead and filtered out of the results.
+  const visible = visibleTextOf(raw);
   const headline = raw ? headlineOf(raw) : '';
   const status = input.status;
 
@@ -314,7 +339,7 @@ function collectSignals(input: LivenessInput): LivenessSignal[] {
   const addGone = (phrases: string[], weight: number, kind: string, headlineOnly = false) => {
     for (const p of phrases) {
       const inHeadline = headline.includes(p);
-      if (headlineOnly ? !inHeadline : !body.includes(p)) continue;
+      if (headlineOnly ? !inHeadline : !visible.includes(p)) continue;
       signals.push({
         side: 'GONE',
         weight: Math.min(0.97, weight + (inHeadline ? HEADLINE_BONUS : 0)),

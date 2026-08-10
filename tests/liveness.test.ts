@@ -7,6 +7,8 @@
  * ones — the middle band is the whole point of reporting a percentage.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_LIVENESS,
@@ -111,6 +113,74 @@ describe('reading an ad that is gone', () => {
     expect(r.verdict).toBe('GONE');
     // The status contributed, but so did the wording.
     expect(r.signals.filter((s) => s.side === 'GONE').length).toBeGreaterThan(1);
+  });
+});
+
+/**
+ * Kleinanzeigen is the source most of the pool comes from, and it fails the
+ * detector in both directions at once. Both cases here are pinned against the
+ * live site on 2026-08-10.
+ */
+describe('Kleinanzeigen, read the way the portal actually behaves', () => {
+  const adUrl =
+    'https://www.kleinanzeigen.de/s-anzeige/moderne-4-zimmer-wohnung/3477575921-203-956';
+
+  it('does not kill a live ad over a label it is merely holding ready', () => {
+    // Every live advert's own headline carries
+    // `data-soldlabel="Nicht mehr verfügbar"` — the words the page would show
+    // *if* the flat were ever let. Matched against raw HTML that is a strong
+    // "gone" signal on every advert the source has, so the whole Kleinanzeigen
+    // pool read as dead and was filtered out of the results. The wording only
+    // counts where a reader would see it.
+    const fixtureBody = readFileSync(
+      join(__dirname, 'fixtures', 'kleinanzeigen-live-ad.html'),
+      'utf8',
+    );
+    expect(fixtureBody).toContain('data-soldlabel="Nicht mehr verfügbar"');
+
+    const r = evaluateLiveness({
+      requestedUrl: adUrl,
+      finalUrl: adUrl,
+      status: 200,
+      bodySnippet: fixtureBody,
+      now: NOW,
+    });
+
+    expect(r.verdict).toBe('ALIVE');
+    expect(r.signals.some((s) => s.side === 'GONE')).toBe(false);
+  });
+
+  it('still believes the portal when it says so where a reader can see it', () => {
+    // The guard must not cost us the real notice: same phrase, in the text.
+    const sold = `<html><head><title>Anzeige</title></head><body>
+      <h1 data-soldlabel="Nicht mehr verfügbar">Wohnung</h1>
+      <p>Diese Anzeige ist nicht mehr verfügbar.</p></body></html>`;
+
+    const r = evaluateLiveness({
+      requestedUrl: adUrl,
+      finalUrl: adUrl,
+      status: 200,
+      bodySnippet: sold,
+      now: NOW,
+    });
+
+    expect(r.verdict).toBe('GONE');
+  });
+
+  it('catches a deleted ad that is answered with a search page and a 200', () => {
+    // Kleinanzeigen does not say "gone" for a removed advert at all: it
+    // redirects to a category listing and returns 200. There is no wording to
+    // scrape, so the only evidence is that we no longer stand on an advert.
+    const r = evaluateLiveness({
+      requestedUrl: adUrl,
+      finalUrl: 'https://www.kleinanzeigen.de/s-wohnung-mieten/kirchdorf/c203l14373',
+      status: 200,
+      // The page we land on is a healthy result list, full of real flats.
+      bodySnippet: LIVE_PAGE,
+      now: NOW,
+    });
+
+    expect(r.verdict).toBe('GONE');
   });
 });
 
