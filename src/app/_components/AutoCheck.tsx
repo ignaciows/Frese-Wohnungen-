@@ -2,39 +2,85 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { maybeRunLivenessSweepAction } from '@/app/actions';
+import { maybeRunLivenessSweepAction, maybeRunDiscoverySweepAction } from '@/app/actions';
 
 /**
- * Kicks off a small liveness sweep when someone opens the results list.
+ * Brings the list up to date when somebody opens it.
  *
- * Dead ads staying on screen because a cron was never configured is the exact
- * complaint this solves. The server action throttles itself, so this is safe to
- * mount on every page load; the component only reports when something changed.
+ * Two passes, in this order and for this reason: the link check runs first and
+ * is fast, so dead ads disappear immediately; the search for new ones runs
+ * second and takes longer, because a stale list is the complaint and a
+ * slightly late arrival is not.
+ *
+ * Both server actions throttle themselves, so mounting this on every page load
+ * costs nothing when a sweep has just run. Neither can disturb the page: a
+ * failure is swallowed and the list simply stays as it was.
  */
 export function AutoCheck() {
   const router = useRouter();
   const [note, setNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+
     (async () => {
+      const parts: string[] = [];
+      let changed = false;
+
       try {
-        const r = await maybeRunLivenessSweepAction();
-        if (cancelled || !r.ran) return;
-        if (r.expired > 0) {
-          setNote(`${r.expired} nicht mehr verfügbare Anzeige(n) wurden ausgeblendet.`);
-          router.refresh();
-        } else if (r.checked > 0) {
-          router.refresh();
+        const liveness = await maybeRunLivenessSweepAction();
+        if (cancelled) return;
+        if (liveness.ran && liveness.expired > 0) {
+          parts.push(`${liveness.expired} nicht mehr verfügbare Anzeige(n) ausgeblendet`);
+          changed = true;
+        } else if (liveness.ran && liveness.checked > 0) {
+          changed = true;
         }
       } catch {
         // A failed background check must never disturb the page.
       }
+
+      try {
+        setBusy(true);
+        const discovery = await maybeRunDiscoverySweepAction();
+        if (cancelled) return;
+        if (discovery.ran) {
+          if (discovery.created > 0) parts.push(`${discovery.created} neue Anzeige(n) gefunden`);
+          if (discovery.retired > 0) parts.push(`${discovery.retired} verschwundene Anzeige(n) entfernt`);
+          if (discovery.created > 0 || discovery.retired > 0) changed = true;
+          // Say so when a portal turned us away, rather than letting an empty
+          // list imply the market is empty.
+          if (discovery.sourcesBlocked > 0) {
+            parts.push(`${discovery.sourcesBlocked} Quelle(n) blockieren automatische Abrufe`);
+          }
+        }
+      } catch {
+        // Same: discovery is best-effort.
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+
+      if (cancelled) return;
+      if (parts.length > 0) setNote(parts.join(' · ') + '.');
+      if (changed) router.refresh();
     })();
+
     return () => {
       cancelled = true;
     };
   }, [router]);
+
+  if (busy && !note) {
+    return (
+      <div className="callout info">
+        <span className="callout-icon" aria-hidden>
+          ⟳
+        </span>
+        <div>Quellen werden auf neue Anzeigen geprüft …</div>
+      </div>
+    );
+  }
 
   if (!note) return null;
   return (

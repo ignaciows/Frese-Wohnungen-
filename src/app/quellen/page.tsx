@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { inboxCounts } from '@/server/followUps';
 import { currentUser } from '@/lib/auth';
 import { syncCatalogAction } from '@/app/actions';
 import { AppBar, Callout } from '@/app/_components/Shell';
@@ -22,6 +23,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 export default async function QuellenRegistryPage() {
   const user = await currentUser();
   if (!user) redirect('/login');
+  const pending = await inboxCounts();
 
   const sources = await prisma.source.findMany({
     orderBy: [{ category: 'asc' }, { priority: 'asc' }],
@@ -41,7 +43,7 @@ export default async function QuellenRegistryPage() {
 
   return (
     <>
-      <AppBar user={user} active="quellen" />
+      <AppBar user={user} active="quellen" pending={pending.dueTasks + pending.unreadReplies} />
       <main className="container-wide page">
         <div className="page-head">
           <div className="page-title">

@@ -194,6 +194,46 @@ export function suggestRelaxations(
 }
 
 /**
+ * Which individual listings change status under a hypothetical profile.
+ *
+ * Counts alone answer "how many", but the question a colleague actually has is
+ * "which ones" — a slider that promises five more flats is only worth pulling
+ * if those five are worth writing to. `T` carries whatever identity the caller
+ * needs (title, price, link); this function only decides in or out.
+ */
+export interface DiffResult<T> {
+  /** Usable under the new profile, not under the current one. */
+  added: T[];
+  /** Usable now, but lost under the new profile. */
+  removed: T[];
+  /** Usable under both. */
+  kept: T[];
+}
+
+export function diffUnder<T extends RankingListing>(
+  listings: T[],
+  base: RankingProfile,
+  overrides: ProfileOverrides,
+): DiffResult<T> {
+  const hypothetical = applyOverrides(base, overrides);
+  const out: DiffResult<T> = { added: [], removed: [], kept: [] };
+
+  for (const listing of listings) {
+    const before = isUsable(rank(listing, base).compatibility);
+    const after = isUsable(rank(listing, hypothetical).compatibility);
+    if (after && !before) out.added.push(listing);
+    else if (!after && before) out.removed.push(listing);
+    else if (after && before) out.kept.push(listing);
+  }
+
+  return out;
+}
+
+function isUsable(compatibility: string): boolean {
+  return compatibility === 'COMPATIBLE' || compatibility === 'NEAR_MATCH';
+}
+
+/**
  * The honest headline: loosening only helps if listings exist to loosen onto.
  */
 export function diagnose(

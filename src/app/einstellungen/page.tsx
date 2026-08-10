@@ -1,6 +1,10 @@
 import { redirect } from 'next/navigation';
+import { inboxCounts } from '@/server/followUps';
 import { currentUser } from '@/lib/auth';
 import {
+  getDiscoverySettings,
+  getOutboundSettings,
+  getFollowUpSettings,
   getSharingSettings,
   getSourceRecheckSettings,
   getSystemTransferSettings,
@@ -26,16 +30,39 @@ import { readMailConfig } from '@/server/mailIngest';
 import { isTelegramConfigured } from '@/server/telegram';
 import { runMailIngestAction } from '@/app/actions';
 import { formatDateTime } from '@/lib/labels';
+import { listAccounts } from '@/server/portalAccounts';
+import { credentialKeyConfigured } from '@/lib/crypto';
+import { AccountsSection, DiscoverySection } from './_sections';
 
 export const dynamic = 'force-dynamic';
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ fehler?: string; gespeichert?: string }>;
+}) {
+  const feedback = await searchParams;
   const user = await currentUser();
   if (!user) redirect('/login');
+  const pending = await inboxCounts();
   const isAdmin = user.role === 'ADMIN';
 
-  const [sharing, recheck, transfer, recentIngests, freshness, bridging, liveness, telegram] =
-    await Promise.all([
+  const [
+    sharing,
+    recheck,
+    transfer,
+    recentIngests,
+    freshness,
+    bridging,
+    liveness,
+    telegram,
+    discovery,
+    outbound,
+    followUp,
+    accounts,
+    discoverySources,
+    discoveryRuns,
+  ] = await Promise.all([
     getSharingSettings(),
     getSourceRecheckSettings(),
     getSystemTransferSettings(),
@@ -44,13 +71,38 @@ export default async function SettingsPage() {
     getBridgingSettings(),
     getLivenessSettings(),
     getTelegramSettings(),
+    getDiscoverySettings(),
+    getOutboundSettings(),
+    getFollowUpSettings(),
+    listAccounts(),
+    prisma.source.findMany({
+      where: { active: true },
+      orderBy: [{ discoveryEnabled: 'desc' }, { priority: 'asc' }],
+      select: {
+        id: true,
+        key: true,
+        name: true,
+        discoveryAdapter: true,
+        discoveryEnabled: true,
+        discoveryConfig: true,
+        discoveryStatus: true,
+        discoveryNote: true,
+        lastDiscoveredAt: true,
+      },
+    }),
+    prisma.discoveryRun.findMany({
+      orderBy: { startedAt: 'desc' },
+      take: 12,
+      include: { source: { select: { name: true } } },
+    }),
   ]);
-  const mailConfigured = readMailConfig() != null;
+  const mailConfigured = (await readMailConfig()) != null;
+  const credentialKeyOk = credentialKeyConfigured();
   const telegramConfigured = isTelegramConfigured();
 
   return (
     <>
-      <AppBar user={user} />
+      <AppBar user={user} active="einstellungen" pending={pending.dueTasks + pending.unreadReplies} />
       <main className="container page" style={{ maxWidth: 820 }}>
         <div className="page-title" style={{ marginBottom: 20 }}>
           <h1>Einstellungen</h1>
@@ -59,11 +111,40 @@ export default async function SettingsPage() {
           </span>
         </div>
 
+        {feedback.fehler ? <Callout tone="danger">{feedback.fehler}</Callout> : null}
+        {feedback.gespeichert ? <Callout tone="success">{feedback.gespeichert}</Callout> : null}
+
         {!isAdmin ? (
           <Callout tone="warning">
             Nur Admins können diese Einstellungen ändern. Du siehst die aktuellen Werte.
           </Callout>
         ) : null}
+
+        <DiscoverySection
+          settings={discovery}
+          sources={discoverySources}
+          runs={discoveryRuns.map((r) => ({
+            id: r.id,
+            sourceName: r.source.name,
+            adapter: r.adapter,
+            status: r.status,
+            found: r.found,
+            created: r.created,
+            retired: r.retired,
+            message: r.message,
+            startedAt: r.startedAt,
+          }))}
+          isAdmin={isAdmin}
+        />
+
+        <AccountsSection
+          accounts={accounts}
+          outbound={outbound}
+          followUp={followUp}
+          isAdmin={isAdmin}
+          credentialKeyOk={credentialKeyOk}
+          sources={discoverySources.map((s) => ({ id: s.id, key: s.key, name: s.name }))}
+        />
 
         {/* ------------------------------------------------ WG matching --- */}
         <form action={saveSharingSettingsAction} className="card" style={{ marginTop: 18 }}>

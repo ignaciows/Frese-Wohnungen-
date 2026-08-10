@@ -3,9 +3,12 @@ import Link from 'next/link';
 export function AppBar({
   user,
   active,
+  pending,
 }: {
   user: { name: string; role: string };
-  active?: 'kandidaten' | 'quellen' | 'wg' | 'einstellungen';
+  active?: 'kandidaten' | 'aufgaben' | 'quellen' | 'wg' | 'einstellungen';
+  /** Fällige Aufgaben + ungelesene Antworten, für das Badge in der Navigation. */
+  pending?: number;
 }) {
   return (
     <header className="appbar">
@@ -19,6 +22,14 @@ export function AppBar({
         <nav className="appbar-nav" aria-label="Hauptnavigation">
           <Link href="/" aria-current={active === 'kandidaten' ? 'page' : undefined}>
             Kandidaten
+          </Link>
+          <Link href="/aufgaben" aria-current={active === 'aufgaben' ? 'page' : undefined}>
+            Aufgaben
+            {pending && pending > 0 ? (
+              <span className="badge accent" style={{ marginLeft: 6 }}>
+                {pending > 99 ? '99+' : pending}
+              </span>
+            ) : null}
           </Link>
           <Link href="/wg" aria-current={active === 'wg' ? 'page' : undefined}>
             WG-Vorschläge

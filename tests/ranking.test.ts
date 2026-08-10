@@ -49,6 +49,50 @@ describe('ranking: compatibility', () => {
     expect(r.compatibility).toBe('INCOMPATIBLE');
   });
 
+  /**
+   * Most ads automatic discovery brings in publish a single headline price and
+   * no Nebenkosten, so this branch decides the fate of the bulk of the pool.
+   * The Kaltmiete is a lower bound on the Warmmiete, which is what makes these
+   * judgements safe.
+   */
+  describe('when only the Kaltmiete is known', () => {
+    const kaltOnly = (kaltMieteCents: number): RankingListing => ({
+      ...baseListing,
+      monthlyTotalComplete: false,
+      effectiveMonthlyCents: kaltMieteCents,
+      kaltMieteCents,
+    });
+
+    it('a cold rent far above the cap is INCOMPATIBLE', () => {
+      // 1.800 € cold cannot become 900 € warm under any Nebenkosten.
+      const r = rank(kaltOnly(180000), baseProfile);
+      expect(r.compatibility).toBe('INCOMPATIBLE');
+      expect(r.blockers.join(' ')).toMatch(/Budget/);
+    });
+
+    it('a cold rent just over the cap is a soft flag, not a block', () => {
+      const r = rank(kaltOnly(95000), baseProfile);
+      expect(r.compatibility).not.toBe('INCOMPATIBLE');
+      expect(r.reasons.join(' ')).toMatch(/Kaltmiete/);
+    });
+
+    it('a cold rent under the cap stays usable but flags the unknown total', () => {
+      const r = rank(kaltOnly(70000), baseProfile);
+      expect(['COMPATIBLE', 'NEAR_MATCH']).toContain(r.compatibility);
+      expect(r.reasons.join(' ')).toMatch(/unbekannt|unvollständig/);
+    });
+
+    it('raising the budget actually changes the verdict', () => {
+      // The property the what-if simulator depends on: if this stops holding,
+      // every "+N listings" suggestion silently becomes "+0".
+      const listing = kaltOnly(120000);
+      expect(rank(listing, baseProfile).compatibility).toBe('INCOMPATIBLE');
+      expect(rank(listing, { ...baseProfile, maxWarmmieteCents: 150000 }).compatibility).not.toBe(
+        'INCOMPATIBLE',
+      );
+    });
+  });
+
   it('too few rooms is INCOMPATIBLE', () => {
     const r = rank(
       { ...baseListing, rooms: 0.5 },

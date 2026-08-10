@@ -197,8 +197,19 @@ export function classify(listing: RankingListing, profile: RankingProfile): {
       softFlags.push('Leicht über Budget');
     }
   } else if (listing.kaltMieteCents != null) {
-    // Only Kaltmiete known → conservative check on Kaltmiete only.
-    if (listing.kaltMieteCents > cap) {
+    // Only the Kaltmiete is known — which is the normal case for the ads
+    // automatic discovery brings in, because most portals publish a single
+    // headline price.
+    //
+    // The Kaltmiete is a *lower bound* on the Warmmiete: nothing can make the
+    // total cheaper than the cold rent. So the same thresholds apply, and they
+    // apply honestly — a 1.800 € cold rent cannot fit a 900 € warm budget under
+    // any imaginable Nebenkosten. Treating that as merely "worth a look",
+    // which is what the old soft flag did, made the budget filter meaningless
+    // once the pool filled with such ads: everything came back "fast passend".
+    if (listing.kaltMieteCents > cap * 1.15) {
+      blockers.push('Deutlich über Budget (schon die Kaltmiete)');
+    } else if (listing.kaltMieteCents > cap) {
       softFlags.push('Kaltmiete allein liegt schon über Budget');
     } else {
       softFlags.push('Gesamtkosten unbekannt — Warmmiete muss geprüft werden');

@@ -1,13 +1,19 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { claimListingAction, confirmContactAction } from '@/app/actions';
+import { claimListingAction, confirmContactAction, sendAnfrageAction } from '@/app/actions';
 
 /**
- * The deliberate one-by-one contact flow:
- *   1. copy the message   2. open the listing   3. mark IN_PROGRESS
- *   4. only an explicit confirmation sets CONTACTED.
- * Opening never marks a listing as contacted.
+ * Contacting a landlord, by whichever route the ad actually allows.
+ *
+ * When the ad publishes an address, the message goes out from here in one
+ * click and the contact, the follow-up and the reply-matching are all set up
+ * automatically — that is the whole point of the tool.
+ *
+ * When it does not — which is most large portals, because they deliberately
+ * keep enquiries inside their own form — the older flow stands: copy the text,
+ * open the ad, come back and confirm. Opening an ad never counts as
+ * contacting it; only an explicit confirmation does.
  */
 export function ContactFlow({
   candidateCaseId,
@@ -16,6 +22,8 @@ export function ContactFlow({
   message,
   status,
   alreadyContactedWarning,
+  contactEmail,
+  sendingEnabled,
 }: {
   candidateCaseId: string;
   listingId: string;
@@ -23,11 +31,16 @@ export function ContactFlow({
   message: string;
   status: string;
   alreadyContactedWarning?: string | null;
+  /** Address published by the ad itself, when there is one. */
+  contactEmail?: string | null;
+  /** Whether an admin has configured and switched on sending. */
+  sendingEnabled?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const [pending, start] = useTransition();
   const [showConfirm, setShowConfirm] = useState(status === 'IN_PROGRESS');
   const [showFallback, setShowFallback] = useState(false);
+  const [sendResult, setSendResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   if (status === 'CONTACTED') {
     return (
@@ -39,6 +52,8 @@ export function ContactFlow({
       </div>
     );
   }
+
+  const canSendFromApp = !!contactEmail && !!sendingEnabled;
 
   async function openAndContact() {
     if (!message.trim()) {
@@ -61,6 +76,29 @@ export function ContactFlow({
     });
   }
 
+  function sendFromApp() {
+    if (!message.trim()) {
+      alert('Es ist noch kein Anschreiben hinterlegt. Bitte zuerst unter „Anschreiben“ einfügen.');
+      return;
+    }
+    const fd = new FormData();
+    fd.set('candidateCaseId', candidateCaseId);
+    fd.set('listingId', listingId);
+    start(async () => {
+      const result = await sendAnfrageAction(fd);
+      setSendResult(
+        result.ok
+          ? {
+              ok: true,
+              text: `Anfrage an ${result.sentTo} gesendet. Wiedervorlage „Antwort prüfen" steht für den ${new Date(
+                result.followUpAt,
+              ).toLocaleDateString('de-DE')}.`,
+            }
+          : { ok: false, text: result.reason },
+      );
+    });
+  }
+
   return (
     <div className="stack">
       {alreadyContactedWarning ? (
@@ -72,9 +110,53 @@ export function ContactFlow({
         </div>
       ) : null}
 
-      <button type="button" className="btn primary lg block" onClick={openAndContact} disabled={pending}>
+      {canSendFromApp ? (
+        <>
+          <button type="button" className="btn primary lg block" onClick={sendFromApp} disabled={pending}>
+            {pending ? 'Sendet …' : `Anfrage direkt senden an ${contactEmail} ✉`}
+          </button>
+          <span className="small muted">
+            Geht aus dem gemeinsamen Postfach raus. Kontakt, Wiedervorlage und Antwort-Zuordnung passieren
+            automatisch — kein Portal-Tab nötig.
+          </span>
+        </>
+      ) : null}
+
+      {sendResult ? (
+        <div className={sendResult.ok ? 'callout success' : 'callout danger'}>
+          <span className="callout-icon" aria-hidden>
+            {sendResult.ok ? '✓' : '!'}
+          </span>
+          <div>{sendResult.text}</div>
+        </div>
+      ) : null}
+
+      {!canSendFromApp && contactEmail && !sendingEnabled ? (
+        <div className="callout info">
+          <span className="callout-icon" aria-hidden>
+            i
+          </span>
+          <div>
+            Diese Anzeige nennt eine E-Mail-Adresse. Sobald in den Einstellungen ein Postfach hinterlegt
+            und der Versand aktiviert ist, kann die Anfrage direkt von hier rausgehen.
+          </div>
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        className={canSendFromApp ? 'btn block' : 'btn primary lg block'}
+        onClick={openAndContact}
+        disabled={pending}
+      >
         {pending ? 'Öffnet …' : 'Anschreiben kopieren & Anzeige öffnen ↗'}
       </button>
+
+      {!contactEmail ? (
+        <span className="small muted">
+          Diese Anzeige veröffentlicht keine Adresse — die Anfrage läuft über das Formular des Portals.
+        </span>
+      ) : null}
 
       {copied ? (
         <div className="callout success">

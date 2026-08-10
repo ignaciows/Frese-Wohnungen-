@@ -14,7 +14,8 @@ import {
   type BridgingSettings,
   type FreshnessSettings,
 } from '@/domain/timing';
-import { getFreshnessSettings, getBridgingSettings } from '@/server/settings';
+import { getFreshnessSettings, getBridgingSettings, getOutboundSettings } from '@/server/settings';
+import { LIVE_LISTING, DEAD_LISTING } from '@/server/listingFilters';
 import { markListingExpiredAction, checkListingNowAction, setFollowUpAction } from '@/app/actions';
 
 export const dynamic = 'force-dynamic';
@@ -69,10 +70,15 @@ export default async function ErgebnissePage({
         // Dead ads only show in their own tab, so the working list stays
         // trustworthy. A single confident GONE already hides the listing —
         // waiting for the second strike would keep sending people to a 404.
-        listing:
-          tab === 'abgelaufen'
-            ? { OR: [{ expired: true }, { lastCheckStatus: 'GONE' }] }
-            : { expired: false, NOT: { lastCheckStatus: 'GONE' } },
+        //
+        // The exception is anything we have already written to: a conversation
+        // outlives the ad behind it, and hiding it would lose the reply we are
+        // still waiting for. Those tabs therefore show live and dead alike.
+        ...(tab === 'kontaktiert' || tab === 'in-arbeit'
+          ? {}
+          : {
+              listing: tab === 'abgelaufen' ? DEAD_LISTING : LIVE_LISTING,
+            }),
       },
       orderBy: [{ compatibility: 'asc' }, { score: 'desc' }],
       include: { listing: { include: { source: { select: { name: true } } } } },
@@ -91,7 +97,7 @@ export default async function ErgebnissePage({
   const expiredCount = await prisma.candidateListingMatch.count({
     where: {
       candidateCaseId: id,
-      listing: { OR: [{ expired: true }, { lastCheckStatus: 'GONE' }] },
+      listing: DEAD_LISTING,
     },
   });
 
@@ -133,7 +139,7 @@ export default async function ErgebnissePage({
     where: {
       candidateCaseId: id,
       compatibility: { in: ['COMPATIBLE', 'NEAR_MATCH'] },
-      listing: { expired: false, NOT: { lastCheckStatus: 'GONE' } },
+      listing: LIVE_LISTING,
     },
   });
 
@@ -190,8 +196,9 @@ export default async function ErgebnissePage({
               </Link>
             }
           >
-            Die App durchsucht die Portale nicht selbst. Öffne eine Quelle, suche dort mit dem angezeigten
-            Rezept und importiere passende Anzeigen — danach erscheinen sie hier bewertet und sortiert.
+            Die automatische Suche läuft nur für Quellen, die in den Einstellungen freigeschaltet sind —
+            und Portale wie ImmoScout24 sperren automatische Abrufe grundsätzlich. Für alles Übrige: Quelle
+            öffnen, mit dem angezeigten Rezept suchen und Anzeigen importieren.
           </Empty>
         </div>
       ) : matches.length === 0 ? (
@@ -357,6 +364,9 @@ interface DetailMatch {
     lastCheckedAt: Date | null;
     lastCheckStatus: string | null;
     lastCheckReason: string | null;
+    /// Only set when the ad itself publishes an address; decides whether the
+    /// enquiry can be sent from here or has to go through the portal form.
+    contactEmail: string | null;
     source: { name: string };
   };
 }
@@ -379,6 +389,10 @@ async function DetailPane({
   bridging: BridgingSettings;
 }) {
   const l = match.listing;
+  // Whether the send button can appear at all. Read here rather than threaded
+  // down from the page, because only this pane needs it.
+  const outbound = await getOutboundSettings();
+  const sendingEnabled = outbound.enabled && !!outbound.fromAddress.trim();
 
   // Warn if this exact listing was already contacted for someone else.
   const otherContact = await prisma.contactAttempt.findFirst({
@@ -515,6 +529,8 @@ async function DetailPane({
                 } bereits für Kandidat ${otherContact.candidateCase.reference} kontaktiert.`
               : null
           }
+          contactEmail={l.contactEmail}
+          sendingEnabled={sendingEnabled}
         />
 
         <form action={setFollowUpAction} className="stack-sm">

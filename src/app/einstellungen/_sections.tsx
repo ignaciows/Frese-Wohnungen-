@@ -1,0 +1,688 @@
+import { ADAPTERS, adapterChoices, missingConfig } from '@/domain/discovery/registry';
+import {
+  saveDiscoverySettingsAction,
+  saveSourceDiscoveryFormAction,
+  saveOutboundSettingsAction,
+  saveFollowUpSettingsAction,
+  saveAccountFormAction,
+  deleteAccountAction,
+  verifyMailboxFormAction,
+  runDiscoverySweepFormAction,
+} from '@/app/actions';
+import { Callout } from '@/app/_components/Shell';
+import { formatDateTime } from '@/lib/labels';
+import type { DiscoverySettings, OutboundSettings, FollowUpSettings } from '@/server/settings';
+import type { PortalAccountView } from '@/server/portalAccounts';
+
+export interface SourceRow {
+  id: string;
+  key: string;
+  name: string;
+  discoveryAdapter: string | null;
+  discoveryEnabled: boolean;
+  discoveryConfig: unknown;
+  discoveryStatus: string | null;
+  discoveryNote: string | null;
+  lastDiscoveredAt: Date | null;
+}
+
+/* ============================================== automatic discovery ==== */
+
+export function DiscoverySection({
+  settings,
+  sources,
+  runs,
+  isAdmin,
+}: {
+  settings: DiscoverySettings;
+  sources: SourceRow[];
+  runs: Array<{
+    id: string;
+    sourceName: string;
+    adapter: string;
+    status: string;
+    found: number;
+    created: number;
+    retired: number;
+    message: string | null;
+    startedAt: Date;
+  }>;
+  isAdmin: boolean;
+}) {
+  const choices = adapterChoices();
+  const configurable = sources.filter((s) => s.discoveryAdapter || s.discoveryEnabled);
+  const rest = sources.filter((s) => !s.discoveryAdapter && !s.discoveryEnabled);
+
+  return (
+    <>
+      <form action={saveDiscoverySettingsAction} className="card" style={{ marginTop: 18 }}>
+        <div className="card-head">
+          <h2>Automatische Suche</h2>
+          <span className="sub">Sucht selbstständig neue Anzeigen und entfernt verschwundene.</span>
+        </div>
+        <div className="card-body stack">
+          <div className="checkline">
+            <input
+              id="discoveryEnabled"
+              name="enabled"
+              type="checkbox"
+              value="true"
+              defaultChecked={settings.enabled}
+              disabled={!isAdmin}
+            />
+            <label htmlFor="discoveryEnabled">Automatische Suche aktiv</label>
+          </div>
+
+          <Callout tone="info">
+            Es werden nur Quellen abgefragt, die unten ausdrücklich freigeschaltet sind. Die App hält sich
+            an die robots.txt jeder Seite, fragt pro Server nur einzeln nacheinander an und begrenzt jeden
+            Lauf. Portale, die automatische Abrufe sperren (ImmoScout24, Immowelt), bleiben beim
+            E-Mail-Suchauftrag.
+          </Callout>
+
+          <div className="grid-3">
+            <NumberField
+              name="sweepIntervalMinutes"
+              label="Mindestabstand (Minuten)"
+              value={settings.sweepIntervalMinutes}
+              disabled={!isAdmin}
+              hint="Häufiger als das wird nicht gesucht, egal wie oft jemand die Seite öffnet."
+            />
+            <NumberField
+              name="maxRequestsPerRun"
+              label="Anfragen je Lauf"
+              value={settings.maxRequestsPerRun}
+              disabled={!isAdmin}
+              hint="Obergrenze über alle Quellen zusammen."
+            />
+            <NumberField
+              name="perHostDelayMs"
+              label="Pause je Server (ms)"
+              value={settings.perHostDelayMs}
+              disabled={!isAdmin}
+              hint="Abstand zwischen zwei Anfragen an dieselbe Seite."
+            />
+            <NumberField
+              name="maxPagesPerSource"
+              label="Ergebnisseiten je Quelle"
+              value={settings.maxPagesPerSource}
+              disabled={!isAdmin}
+            />
+            <NumberField
+              name="enrichPerRun"
+              label="Detailseiten je Lauf"
+              value={settings.enrichPerRun}
+              disabled={!isAdmin}
+              hint="Holt Nebenkosten, Termin und Kontaktadresse von der Anzeigenseite. 0 = aus."
+            />
+            <NumberField
+              name="retireAfterMissedSweeps"
+              label="Läufe bis Ausblenden"
+              value={settings.retireAfterMissedSweeps}
+              disabled={!isAdmin}
+              hint="So oft darf eine Anzeige in der Ergebnisliste fehlen, bevor sie verschwindet."
+            />
+            <NumberField
+              name="priceSlack"
+              label="Preis-Puffer"
+              value={settings.priceSlack}
+              step="0.05"
+              disabled={!isAdmin}
+              hint="Suche über dem Budget, weil Portale nach Kaltmiete filtern, wir aber warm rechnen."
+            />
+          </div>
+        </div>
+        {isAdmin ? (
+          <div className="card-foot row-between">
+            <span className="small muted">
+              {runs.length > 0 ? `Letzter Lauf: ${formatDateTime(runs[0].startedAt)}` : 'Noch kein Lauf.'}
+            </span>
+            <button type="submit" className="btn primary">
+              Speichern
+            </button>
+          </div>
+        ) : null}
+      </form>
+
+      {isAdmin ? (
+        <div className="card" style={{ marginTop: 18 }}>
+          <div className="card-head">
+            <h2>Quellen freischalten</h2>
+            <div className="grow" />
+            <form action={runDiscoverySweepFormAction}>
+              <button className="btn sm" type="submit">
+                Jetzt suchen
+              </button>
+            </form>
+          </div>
+          <div className="card-body stack">
+            {configurable.length === 0 ? (
+              <Callout tone="warning">
+                Noch keine Quelle freigeschaltet — die automatische Suche findet deshalb nichts.
+              </Callout>
+            ) : null}
+
+            {[...configurable, ...rest].map((source) => (
+              <SourceDiscoveryForm key={source.id} source={source} choices={choices} />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {runs.length > 0 ? (
+        <div className="card" style={{ marginTop: 18 }}>
+          <div className="card-head">
+            <h2>Letzte Suchläufe</h2>
+          </div>
+          <div className="card-body">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Quelle</th>
+                  <th>Status</th>
+                  <th>Gefunden</th>
+                  <th>Neu</th>
+                  <th>Entfernt</th>
+                  <th>Zeitpunkt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.sourceName}</td>
+                    <td>
+                      <span className={r.status === 'OK' ? 'badge success' : 'badge danger'}>{r.status}</span>
+                      {r.message ? <div className="small muted">{r.message}</div> : null}
+                    </td>
+                    <td>{r.found}</td>
+                    <td>{r.created}</td>
+                    <td>{r.retired}</td>
+                    <td className="small muted">{formatDateTime(r.startedAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function SourceDiscoveryForm({
+  source,
+  choices,
+}: {
+  source: SourceRow;
+  choices: Array<{ key: string; label: string; description: string }>;
+}) {
+  const config = (source.discoveryConfig as Record<string, unknown>) ?? {};
+  const gaps = missingConfig(source.discoveryAdapter, config);
+  const adapter = choices.find((c) => c.key === source.discoveryAdapter);
+  const hints = source.discoveryAdapter ? adapterHints(source.discoveryAdapter) : [];
+
+  return (
+    <form action={saveSourceDiscoveryFormAction} className="subcard">
+      <input type="hidden" name="sourceId" value={source.id} />
+      <div className="row-between" style={{ gap: 12, alignItems: 'flex-start' }}>
+        <div className="stack" style={{ gap: 4 }}>
+          <strong>{source.name}</strong>
+          {adapter ? <span className="small muted">{adapter.description}</span> : null}
+          {source.discoveryStatus ? (
+            <span className={source.discoveryStatus === 'OK' ? 'badge success' : 'badge danger'}>
+              {source.discoveryStatus}
+              {source.discoveryNote ? ` — ${source.discoveryNote}` : ''}
+            </span>
+          ) : null}
+          {gaps.length > 0 && source.discoveryEnabled ? (
+            <span className="badge danger">Fehlende Konfiguration: {gaps.join(', ')}</span>
+          ) : null}
+        </div>
+        <div className="checkline">
+          <input
+            id={`enabled-${source.id}`}
+            name="discoveryEnabled"
+            type="checkbox"
+            value="true"
+            defaultChecked={source.discoveryEnabled}
+          />
+          <label htmlFor={`enabled-${source.id}`}>aktiv</label>
+        </div>
+      </div>
+
+      <div className="grid-2" style={{ marginTop: 10 }}>
+        <div>
+          <label htmlFor={`adapter-${source.id}`}>Verfahren</label>
+          <select
+            id={`adapter-${source.id}`}
+            name="discoveryAdapter"
+            className="input"
+            defaultValue={source.discoveryAdapter ?? ''}
+          >
+            <option value="">— keine automatische Suche —</option>
+            {choices.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor={`config-${source.id}`}>Konfiguration (JSON)</label>
+          <textarea
+            id={`config-${source.id}`}
+            name="config"
+            className="input"
+            rows={3}
+            defaultValue={JSON.stringify(config, null, 1)}
+          />
+        </div>
+      </div>
+
+      {hints.length > 0 ? (
+        <ul className="small muted" style={{ marginTop: 8 }}>
+          {hints.map((h) => (
+            <li key={h.key}>
+              <code>{h.key}</code>
+              {h.required ? ' (nötig)' : ' (optional)'} — {h.hint}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <div className="row" style={{ marginTop: 10 }}>
+        <button className="btn sm" type="submit">
+          Speichern
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function adapterHints(key: string) {
+  return ADAPTERS.find((a) => a.key === key)?.configKeys ?? [];
+}
+
+/* ==================================================== accounts & mail ==== */
+
+export function AccountsSection({
+  accounts,
+  outbound,
+  followUp,
+  isAdmin,
+  credentialKeyOk,
+  sources,
+}: {
+  accounts: PortalAccountView[];
+  outbound: OutboundSettings;
+  followUp: FollowUpSettings;
+  isAdmin: boolean;
+  credentialKeyOk: boolean;
+  sources: Array<{ id: string; key: string; name: string }>;
+}) {
+  const mailbox = accounts.find((a) => a.kind === 'MAILBOX');
+  const portals = accounts.filter((a) => a.kind === 'PORTAL');
+
+  return (
+    <>
+      <div className="card" style={{ marginTop: 18 }}>
+        <div className="card-head">
+          <h2>Konten &amp; Postfach</h2>
+          <span className="sub">
+            Damit Anfragen aus der App rausgehen und Antworten hier ankommen — ohne Portal-Tabs.
+          </span>
+        </div>
+        <div className="card-body stack">
+          {!credentialKeyOk ? (
+            <Callout tone="danger">
+              <strong>CREDENTIAL_KEY fehlt.</strong> Ohne diesen Serverschlüssel werden keine Passwörter
+              gespeichert — Zugangsdaten würden sonst im Klartext in der Datenbank liegen. In der
+              Serverkonfiguration einen zufälligen Wert mit mindestens 32 Zeichen hinterlegen:
+              <br />
+              <code>node -e &quot;console.log(require(&apos;crypto&apos;).randomBytes(32).toString(&apos;base64url&apos;))&quot;</code>
+            </Callout>
+          ) : (
+            <Callout tone="info">
+              Passwörter werden mit AES-256-GCM verschlüsselt gespeichert und nie wieder angezeigt — auch
+              nicht hier. Ein leeres Passwortfeld lässt das gespeicherte Passwort unverändert.
+            </Callout>
+          )}
+
+          <h3 className="small" style={{ marginTop: 4 }}>
+            Gemeinsames Postfach
+          </h3>
+          {mailbox ? (
+            <div className="subcard row-between">
+              <div className="stack" style={{ gap: 3 }}>
+                <strong>{mailbox.label}</strong>
+                <span className="small muted">
+                  {mailbox.loginName} · {String(mailbox.meta.smtpHost ?? '—')} ·{' '}
+                  {mailbox.hasSecret ? 'Passwort hinterlegt' : 'kein Passwort'}
+                </span>
+                <span className={mailbox.status === 'OK' ? 'badge success' : 'badge'}>
+                  {mailbox.status}
+                  {mailbox.statusNote ? ` — ${mailbox.statusNote}` : ''}
+                  {mailbox.lastVerifiedAt ? ` (${formatDateTime(mailbox.lastVerifiedAt)})` : ''}
+                </span>
+              </div>
+              {isAdmin ? (
+                <div className="row" style={{ gap: 8 }}>
+                  <form action={verifyMailboxFormAction}>
+                    <button className="btn sm" type="submit">
+                      Verbindung testen
+                    </button>
+                  </form>
+                  <form action={deleteAccountAction}>
+                    <input type="hidden" name="id" value={mailbox.id} />
+                    <button className="btn sm ghost" type="submit">
+                      Entfernen
+                    </button>
+                  </form>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {isAdmin ? <MailboxForm existing={mailbox} /> : null}
+
+          <h3 className="small" style={{ marginTop: 14 }}>
+            Portal-Zugänge
+          </h3>
+          <p className="small muted" style={{ marginTop: 0 }}>
+            Für Portale, bei denen die Anfrage nur über das eigene Formular geht. Die App speichert den
+            Zugang, damit klar ist, mit welchem Konto gearbeitet wird — angemeldet wird sich weiterhin im
+            Portal selbst. Automatisches Einloggen wäre ein Verstoß gegen deren Nutzungsbedingungen und
+            würde das Konto gefährden.
+          </p>
+
+          {portals.length === 0 ? (
+            <span className="small muted">Noch keine Portal-Zugänge hinterlegt.</span>
+          ) : (
+            <ul className="list">
+              {portals.map((a) => (
+                <li key={a.id} className="list-row row-between">
+                  <div className="stack" style={{ gap: 2 }}>
+                    <strong>{a.label}</strong>
+                    <span className="small muted">
+                      {a.sourceName ?? a.siteKey}
+                      {a.loginName ? ` · ${a.loginName}` : ''}
+                      {a.hasSecret ? ' · Passwort hinterlegt' : ' · kein Passwort'}
+                      {a.replyToAddress ? ` · Antworten an ${a.replyToAddress}` : ''}
+                    </span>
+                  </div>
+                  {isAdmin ? (
+                    <form action={deleteAccountAction}>
+                      <input type="hidden" name="id" value={a.id} />
+                      <button className="btn sm ghost" type="submit">
+                        Entfernen
+                      </button>
+                    </form>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {isAdmin ? <PortalAccountForm sources={sources} /> : null}
+        </div>
+      </div>
+
+      {/* ------------------------------------------------- send settings --- */}
+      <form action={saveOutboundSettingsAction} className="card" style={{ marginTop: 18 }}>
+        <div className="card-head">
+          <h2>Versand aus der App</h2>
+        </div>
+        <div className="card-body stack">
+          <div className="checkline">
+            <input
+              id="outboundEnabled"
+              name="enabled"
+              type="checkbox"
+              value="true"
+              defaultChecked={outbound.enabled}
+              disabled={!isAdmin}
+            />
+            <label htmlFor="outboundEnabled">Anfragen dürfen aus der App gesendet werden</label>
+          </div>
+          <div className="grid-2">
+            <TextField name="fromName" label="Absendername" value={outbound.fromName} disabled={!isAdmin} />
+            <TextField
+              name="fromAddress"
+              label="Absenderadresse"
+              value={outbound.fromAddress}
+              disabled={!isAdmin}
+              hint="Muss Plus-Adressen annehmen (name+kennung@…) — daran wird jede Antwort erkannt."
+            />
+            <TextField
+              name="subjectTemplate"
+              label="Betreff"
+              value={outbound.subjectTemplate}
+              disabled={!isAdmin}
+              hint="{title} und {city} werden ersetzt."
+            />
+            <NumberField
+              name="maxPerHour"
+              label="Max. Anfragen pro Stunde"
+              value={outbound.maxPerHour}
+              disabled={!isAdmin}
+              hint="Gilt für das ganze Team. Schützt die Absenderadresse vor Sperren."
+            />
+          </div>
+        </div>
+        {isAdmin ? (
+          <div className="card-foot row-between">
+            <span className="small muted">
+              Anfragen gehen nur an Adressen, die in der Anzeige selbst veröffentlicht sind.
+            </span>
+            <button type="submit" className="btn primary">
+              Speichern
+            </button>
+          </div>
+        ) : null}
+      </form>
+
+      {/* ---------------------------------------------------- follow-ups --- */}
+      <form action={saveFollowUpSettingsAction} className="card" style={{ marginTop: 18 }}>
+        <div className="card-head">
+          <h2>Wiedervorlagen</h2>
+        </div>
+        <div className="card-body stack">
+          <div className="checkline">
+            <input
+              id="autoCreate"
+              name="autoCreate"
+              type="checkbox"
+              value="true"
+              defaultChecked={followUp.autoCreate}
+              disabled={!isAdmin}
+            />
+            <label htmlFor="autoCreate">
+              Nach jeder Anfrage automatisch &bdquo;Antwort pr&uuml;fen&ldquo; eintragen
+            </label>
+          </div>
+          <div className="grid-2">
+            <NumberField
+              name="checkReplyAfterDays"
+              label="Erste Nachfrage nach (Tagen)"
+              value={followUp.checkReplyAfterDays}
+              disabled={!isAdmin}
+            />
+            <NumberField
+              name="secondCheckAfterDays"
+              label="Zweite Nachfrage nach weiteren (Tagen)"
+              value={followUp.secondCheckAfterDays}
+              disabled={!isAdmin}
+              hint="0 = keine zweite Nachfrage."
+            />
+          </div>
+        </div>
+        {isAdmin ? (
+          <div className="card-foot row-between">
+            <span className="small muted">Antwortet jemand, verschwindet die Aufgabe von selbst.</span>
+            <button type="submit" className="btn primary">
+              Speichern
+            </button>
+          </div>
+        ) : null}
+      </form>
+    </>
+  );
+}
+
+function MailboxForm({ existing }: { existing?: PortalAccountView }) {
+  const meta = existing?.meta ?? {};
+  return (
+    <form action={saveAccountFormAction} className="subcard stack">
+      <input type="hidden" name="kind" value="MAILBOX" />
+      <input type="hidden" name="siteKey" value="mailbox" />
+      {existing ? <input type="hidden" name="id" value={existing.id} /> : null}
+      <strong className="small">{existing ? 'Postfach bearbeiten' : 'Postfach einrichten'}</strong>
+      <div className="grid-2">
+        <TextField idPrefix="mb-" name="label" label="Bezeichnung" value={existing?.label ?? 'Wohnungssuche-Postfach'} />
+        <TextField idPrefix="mb-" name="loginName" label="Benutzername" value={existing?.loginName ?? ''} />
+        <TextField idPrefix="mb-" name="smtpHost" label="SMTP-Server" value={String(meta.smtpHost ?? '')} />
+        <TextField idPrefix="mb-" name="smtpPort" label="SMTP-Port" value={String(meta.smtpPort ?? '587')} />
+        <TextField idPrefix="mb-" name="imapHost" label="IMAP-Server" value={String(meta.imapHost ?? '')} hint="Leer = wie SMTP." />
+        <TextField idPrefix="mb-" name="imapPort" label="IMAP-Port" value={String(meta.imapPort ?? '993')} />
+      </div>
+      <div className="grid-2">
+        <div>
+          <label htmlFor="mailboxSecret">Passwort</label>
+          <input
+            id="mailboxSecret"
+            name="secret"
+            type="password"
+            className="input"
+            autoComplete="new-password"
+            placeholder={existing?.hasSecret ? 'unverändert lassen' : 'App-Passwort'}
+          />
+        </div>
+        <div>
+          <label htmlFor="mailboxSecret2">IMAP-Passwort (nur falls abweichend)</label>
+          <input
+            id="mailboxSecret2"
+            name="secondarySecret"
+            type="password"
+            className="input"
+            autoComplete="new-password"
+            placeholder="leer = wie oben"
+          />
+        </div>
+      </div>
+      <input type="hidden" name="active" value="true" />
+      <div className="row">
+        <button className="btn sm primary" type="submit">
+          Speichern
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function PortalAccountForm({ sources }: { sources: Array<{ id: string; key: string; name: string }> }) {
+  return (
+    <form action={saveAccountFormAction} className="subcard stack">
+      <input type="hidden" name="kind" value="PORTAL" />
+      <strong className="small">Portal-Zugang hinzufügen</strong>
+      <div className="grid-2">
+        <div>
+          <label htmlFor="accountSource">Quelle</label>
+          <select id="accountSource" name="sourceId" className="input" defaultValue="">
+            <option value="">— nicht im Katalog —</option>
+            {sources.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <TextField idPrefix="pa-" name="siteKey" label="Website / Kennung" value="" hint="z. B. kleinanzeigen" />
+        <TextField idPrefix="pa-" name="label" label="Bezeichnung" value="" hint="z. B. Konto Frau Meier" />
+        <TextField idPrefix="pa-" name="loginName" label="Benutzername / E-Mail" value="" />
+        <TextField idPrefix="pa-" name="replyToAddress" label="Antworten kommen an" value="" />
+        <TextField idPrefix="pa-" name="profileUrl" label="Profil-/Login-Adresse" value="" />
+      </div>
+      <div>
+        <label htmlFor="portalSecret">Passwort</label>
+        <input
+          id="portalSecret"
+          name="secret"
+          type="password"
+          className="input"
+          autoComplete="new-password"
+          placeholder="wird verschlüsselt gespeichert"
+        />
+      </div>
+      <TextField idPrefix="pa-" name="note" label="Notiz" value="" />
+      <input type="hidden" name="active" value="true" />
+      <div className="row">
+        <button className="btn sm" type="submit">
+          Hinzufügen
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/* ----------------------------------------------------------- fields ---- */
+
+function TextField({
+  name,
+  label,
+  value,
+  hint,
+  disabled,
+  idPrefix = '',
+}: {
+  name: string;
+  label: string;
+  value: string;
+  hint?: string;
+  disabled?: boolean;
+  /** Several forms on one page reuse field names, so ids need scoping. */
+  idPrefix?: string;
+}) {
+  const id = `${idPrefix}${name}`;
+  return (
+    <div>
+      <label htmlFor={id}>{label}</label>
+      <input id={id} name={name} className="input" defaultValue={value} disabled={disabled} />
+      {hint ? <span className="small muted">{hint}</span> : null}
+    </div>
+  );
+}
+
+function NumberField({
+  name,
+  label,
+  value,
+  hint,
+  step,
+  disabled,
+  idPrefix = '',
+}: {
+  name: string;
+  label: string;
+  value: number;
+  hint?: string;
+  step?: string;
+  disabled?: boolean;
+  idPrefix?: string;
+}) {
+  const id = `${idPrefix}${name}`;
+  return (
+    <div>
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        name={name}
+        type="number"
+        step={step}
+        className="input"
+        defaultValue={value}
+        disabled={disabled}
+      />
+      {hint ? <span className="small muted">{hint}</span> : null}
+    </div>
+  );
+}

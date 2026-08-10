@@ -1,5 +1,6 @@
 import { redirect, notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { inboxCounts } from '@/server/followUps';
 import { currentUser } from '@/lib/auth';
 import { AppBar, Crumbs } from '@/app/_components/Shell';
 import { CandidateNav } from './_nav';
@@ -15,6 +16,7 @@ export default async function CandidateLayout({
 }) {
   const user = await currentUser();
   if (!user) redirect('/login');
+  const pending = await inboxCounts();
   const { id } = await params;
 
   const candidate = await prisma.candidateCase.findUnique({
@@ -41,7 +43,7 @@ export default async function CandidateLayout({
 
   return (
     <>
-      <AppBar user={user} active="kandidaten" />
+      <AppBar user={user} active="kandidaten" pending={pending.dueTasks + pending.unreadReplies} />
       <div className="container-wide" style={{ paddingTop: 20 }}>
         <Crumbs
           items={[

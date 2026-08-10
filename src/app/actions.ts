@@ -798,17 +798,35 @@ export async function simulateProfileAction(input: z.input<typeof SimulateInput>
   await requireUser();
   const parsed = SimulateInput.parse(input);
   const { loadSimulationInputs } = await import('@/server/whatif');
-  const { simulate, suggestRelaxations, diagnose, blockerBreakdown } = await import('@/domain/whatif');
+  const { simulate, suggestRelaxations, diagnose, blockerBreakdown, diffUnder } = await import(
+    '@/domain/whatif'
+  );
 
   const { listings, profile } = await loadSimulationInputs(parsed.candidateCaseId);
 
-  const result = simulate(listings, profile, {
+  const overrides = {
     maxWarmmieteCents: parsed.maxWarmmieteEuros != null ? parsed.maxWarmmieteEuros * 100 : undefined,
     minRooms: parsed.minRooms,
     maxCommuteMinutes: parsed.maxCommuteMinutes,
     radiusKm: parsed.radiusKm,
     furnished: parsed.furnished,
     temporaryMode: parsed.temporaryMode,
+  };
+
+  const result = simulate(listings, profile, overrides);
+  const diff = diffUnder(listings, profile, overrides);
+
+  // Only what the panel renders travels to the browser — a whole listing row
+  // per ad would be a lot of payload for a slider that moves continuously.
+  const slim = (l: (typeof listings)[number]) => ({
+    id: l.id,
+    title: l.title,
+    city: l.city,
+    url: l.url,
+    monthlyCents: l.monthlyCents,
+    rooms: l.roomCount,
+    sourceName: l.sourceName,
+    status: l.status,
   });
 
   return {
@@ -817,6 +835,13 @@ export async function simulateProfileAction(input: z.input<typeof SimulateInput>
     diagnosis: diagnose(listings, profile),
     blockers: blockerBreakdown(listings, profile),
     totalListings: listings.length,
+    preview: {
+      added: diff.added.slice(0, 12).map(slim),
+      removed: diff.removed.slice(0, 12).map(slim),
+      addedTotal: diff.added.length,
+      removedTotal: diff.removed.length,
+      keptTotal: diff.kept.length,
+    },
   };
 }
 
@@ -860,4 +885,311 @@ export async function sendTelegramTestAction() {
   const { sendTelegramMessage } = await import('@/server/telegram');
   await sendTelegramMessage('✅ Frese Wohnung ist mit diesem Chat verbunden.');
   revalidatePath('/', 'layout');
+}
+
+/* ==================================================== automatic discovery */
+
+export async function runDiscoverySweepAction() {
+  await requireAdmin();
+  const { runDiscoverySweep } = await import('@/server/discovery');
+  const summary = await runDiscoverySweep({ force: true });
+  revalidatePath('/', 'layout');
+  return summary;
+}
+
+/**
+ * Triggered when someone opens a results page. Throttles itself, so mounting
+ * it on every page load is safe — a sweep that ran recently returns at once.
+ */
+export async function maybeRunDiscoverySweepAction() {
+  await requireUser();
+  const { maybeRunDiscoverySweep } = await import('@/server/discovery');
+  const summary = await maybeRunDiscoverySweep();
+  if (summary.ran) revalidatePath('/', 'layout');
+  return summary;
+}
+
+const DiscoverySettingsInput = z.object({
+  enabled: z.coerce.boolean().default(false),
+  sweepIntervalMinutes: z.coerce.number().int().min(15).max(1440).default(90),
+  maxRequestsPerRun: z.coerce.number().int().min(10).max(2000).default(120),
+  perHostDelayMs: z.coerce.number().int().min(1000).max(60000).default(4000),
+  maxPagesPerSource: z.coerce.number().int().min(1).max(20).default(2),
+  enrichPerRun: z.coerce.number().int().min(0).max(200).default(25),
+  retireAfterMissedSweeps: z.coerce.number().int().min(1).max(10).default(2),
+  priceSlack: z.coerce.number().min(1).max(3).default(1.25),
+});
+
+export async function saveDiscoverySettingsAction(formData: FormData) {
+  const user = await requireAdmin();
+  const parsed = DiscoverySettingsInput.parse(Object.fromEntries(formData));
+  const { writeSetting, SETTING_KEYS } = await import('@/server/settings');
+  await writeSetting(SETTING_KEYS.discovery, parsed, user.id);
+  revalidatePath('/', 'layout');
+}
+
+const SourceDiscoveryInput = z.object({
+  sourceId: z.string().min(1),
+  discoveryAdapter: z.string().max(40).optional().nullable(),
+  discoveryEnabled: z.coerce.boolean().default(false),
+  /** Free-form JSON, or the adapter's keys as individual fields. */
+  config: z.string().max(8000).optional().nullable(),
+});
+
+export async function saveSourceDiscoveryAction(formData: FormData) {
+  await requireAdmin();
+  const parsed = SourceDiscoveryInput.parse(Object.fromEntries(formData));
+
+  let config: Record<string, unknown> = {};
+  if (parsed.config?.trim()) {
+    try {
+      const decoded = JSON.parse(parsed.config) as unknown;
+      if (decoded && typeof decoded === 'object' && !Array.isArray(decoded)) {
+        config = decoded as Record<string, unknown>;
+      }
+    } catch {
+      // Malformed JSON must not silently wipe a working configuration.
+      return { ok: false as const, error: 'Konfiguration ist kein gültiges JSON.' };
+    }
+  }
+
+  await prisma.source.update({
+    where: { id: parsed.sourceId },
+    data: {
+      discoveryAdapter: parsed.discoveryAdapter?.trim() || null,
+      discoveryEnabled: parsed.discoveryEnabled,
+      discoveryConfig: config as never,
+      // A configuration change invalidates the previous verdict.
+      discoveryStatus: null,
+      discoveryNote: null,
+    },
+  });
+  revalidatePath('/', 'layout');
+  return { ok: true as const };
+}
+
+/* ========================================================= portal accounts */
+
+const AccountInput = z.object({
+  id: z.string().optional(),
+  kind: z.enum(['PORTAL', 'MAILBOX']).default('PORTAL'),
+  siteKey: z.string().min(1).max(80),
+  sourceId: z.string().optional().nullable(),
+  label: z.string().min(1).max(120),
+  loginName: z.string().max(200).optional().nullable(),
+  secret: z.string().max(400).optional(),
+  secondarySecret: z.string().max(400).optional(),
+  replyToAddress: z.string().max(200).optional().nullable(),
+  smtpHost: z.string().max(200).optional().nullable(),
+  smtpPort: z.string().max(6).optional().nullable(),
+  imapHost: z.string().max(200).optional().nullable(),
+  imapPort: z.string().max(6).optional().nullable(),
+  profileUrl: z.string().max(400).optional().nullable(),
+  note: z.string().max(1000).optional().nullable(),
+  active: z.coerce.boolean().default(true),
+});
+
+export async function saveAccountAction(formData: FormData) {
+  const user = await requireAdmin();
+  const parsed = AccountInput.parse(Object.fromEntries(formData));
+  const { saveAccount } = await import('@/server/portalAccounts');
+
+  const result = await saveAccount({
+    id: parsed.id || undefined,
+    kind: parsed.kind,
+    siteKey: parsed.siteKey,
+    sourceId: parsed.sourceId || null,
+    label: parsed.label,
+    loginName: parsed.loginName,
+    // An empty password field means "leave it alone", not "delete it" —
+    // otherwise editing a label would silently wipe the credential.
+    secret: parsed.secret ? parsed.secret : undefined,
+    secondarySecret: parsed.secondarySecret ? parsed.secondarySecret : undefined,
+    replyToAddress: parsed.replyToAddress,
+    meta: {
+      smtpHost: parsed.smtpHost || null,
+      smtpPort: parsed.smtpPort || null,
+      imapHost: parsed.imapHost || null,
+      imapPort: parsed.imapPort || null,
+      profileUrl: parsed.profileUrl || null,
+      note: parsed.note || null,
+    },
+    active: parsed.active,
+    userId: user.id,
+  });
+
+  revalidatePath('/einstellungen');
+  return result.ok ? { ok: true as const } : { ok: false as const, error: result.reason };
+}
+
+export async function deleteAccountAction(formData: FormData) {
+  const user = await requireAdmin();
+  const id = z.string().min(1).parse(formData.get('id'));
+  const { deleteAccount } = await import('@/server/portalAccounts');
+  await deleteAccount(id, user.id);
+  revalidatePath('/einstellungen');
+}
+
+export async function verifyMailboxAction() {
+  await requireAdmin();
+  const { verifyMailbox } = await import('@/server/outbound');
+  const result = await verifyMailbox();
+  revalidatePath('/einstellungen');
+  return result;
+}
+
+const OutboundSettingsInput = z.object({
+  enabled: z.coerce.boolean().default(false),
+  fromName: z.string().max(120).default('Frese Recruiting GmbH'),
+  fromAddress: z.string().max(200).default(''),
+  subjectTemplate: z.string().max(200).default('Anfrage zu Ihrer Wohnung: {title}'),
+  maxPerHour: z.coerce.number().int().min(1).max(200).default(20),
+});
+
+export async function saveOutboundSettingsAction(formData: FormData) {
+  const user = await requireAdmin();
+  const parsed = OutboundSettingsInput.parse(Object.fromEntries(formData));
+  const { writeSetting, SETTING_KEYS } = await import('@/server/settings');
+  await writeSetting(SETTING_KEYS.outbound, parsed, user.id);
+  revalidatePath('/', 'layout');
+}
+
+const FollowUpSettingsInput = z.object({
+  checkReplyAfterDays: z.coerce.number().int().min(1).max(30).default(3),
+  secondCheckAfterDays: z.coerce.number().int().min(0).max(30).default(4),
+  autoCreate: z.coerce.boolean().default(true),
+});
+
+export async function saveFollowUpSettingsAction(formData: FormData) {
+  const user = await requireAdmin();
+  const parsed = FollowUpSettingsInput.parse(Object.fromEntries(formData));
+  const { writeSetting, SETTING_KEYS } = await import('@/server/settings');
+  await writeSetting(SETTING_KEYS.followUp, parsed, user.id);
+  revalidatePath('/', 'layout');
+}
+
+/* ================================================ sending from the app */
+
+export async function sendAnfrageAction(formData: FormData) {
+  const user = await requireUser();
+  const input = z
+    .object({
+      candidateCaseId: z.string().min(1),
+      listingId: z.string().min(1),
+      bodyOverride: z.string().max(20000).optional(),
+      overrideReason: z.string().max(500).optional(),
+    })
+    .parse(Object.fromEntries(formData));
+
+  const { sendAnfrage } = await import('@/server/outbound');
+  const result = await sendAnfrage({
+    candidateCaseId: input.candidateCaseId,
+    listingId: input.listingId,
+    userId: user.id,
+    bodyOverride: input.bodyOverride,
+    overrideReason: input.overrideReason || undefined,
+  });
+
+  revalidatePath('/', 'layout');
+  return result;
+}
+
+export async function retrySendAction(formData: FormData) {
+  const user = await requireUser();
+  const id = z.string().min(1).parse(formData.get('contactAttemptId'));
+  const { retrySend } = await import('@/server/outbound');
+  const result = await retrySend(id, user.id);
+  revalidatePath('/', 'layout');
+  return result;
+}
+
+/**
+ * Same retry, but returning nothing so it can be a plain `<form action>`.
+ * A failure is reported through the notification list rather than a return
+ * value the form has no way to render.
+ */
+export async function retrySendFormAction(formData: FormData) {
+  const result = await retrySendAction(formData);
+  if (!result.ok) {
+    const { notify } = await import('@/server/followUps');
+    await notify({
+      kind: 'SEND_FAILED',
+      title: 'Erneuter Versand fehlgeschlagen',
+      body: result.reason ?? null,
+      contactAttemptId: String(formData.get('contactAttemptId') ?? '') || null,
+    });
+    revalidatePath('/', 'layout');
+  }
+}
+
+/* ============================================== tasks and notifications */
+
+export async function completeTaskAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = z
+    .object({ id: z.string().min(1), state: z.enum(['DONE', 'DISMISSED']).default('DONE') })
+    .parse(Object.fromEntries(formData));
+  const { completeTask } = await import('@/server/followUps');
+  await completeTask(parsed.id, user.id, parsed.state);
+  revalidatePath('/', 'layout');
+}
+
+export async function markNotificationsReadAction(formData?: FormData) {
+  await requireUser();
+  const raw = formData?.get('ids');
+  const ids = typeof raw === 'string' && raw ? raw.split(',').filter(Boolean) : undefined;
+  const { markNotificationsRead } = await import('@/server/followUps');
+  await markNotificationsRead(ids);
+  revalidatePath('/', 'layout');
+}
+
+export async function markRepliesReadAction(formData: FormData) {
+  await requireUser();
+  const attemptId = z.string().min(1).parse(formData.get('contactAttemptId'));
+  await prisma.contactMessage.updateMany({
+    where: { contactAttemptId: attemptId, direction: 'INCOMING', readAt: null },
+    data: { readAt: new Date() },
+  });
+  revalidatePath('/', 'layout');
+}
+
+/* --------------------------------------------------- form-safe wrappers */
+
+/**
+ * `<form action>` requires an action that resolves to nothing, so these thin
+ * wrappers run the real action and report a failure by redirecting back with a
+ * readable message. Returning the error object instead would leave the form
+ * with a value it cannot render.
+ */
+export async function saveAccountFormAction(formData: FormData) {
+  const result = await saveAccountAction(formData);
+  if (!result.ok) {
+    redirect(`/einstellungen?fehler=${encodeURIComponent(result.error)}`);
+  }
+  redirect('/einstellungen?gespeichert=konto');
+}
+
+export async function saveSourceDiscoveryFormAction(formData: FormData) {
+  const result = await saveSourceDiscoveryAction(formData);
+  if (!result.ok) {
+    redirect(`/einstellungen?fehler=${encodeURIComponent(result.error)}`);
+  }
+  redirect('/einstellungen?gespeichert=quelle');
+}
+
+export async function verifyMailboxFormAction() {
+  const result = await verifyMailboxAction();
+  redirect(
+    result.ok
+      ? `/einstellungen?gespeichert=${encodeURIComponent(result.message)}`
+      : `/einstellungen?fehler=${encodeURIComponent(result.message)}`,
+  );
+}
+
+export async function runDiscoverySweepFormAction() {
+  const summary = await runDiscoverySweepAction();
+  const note = summary.skippedReason
+    ? summary.skippedReason
+    : `${summary.created} neu, ${summary.updated} bestätigt, ${summary.retired} entfernt (${summary.requests} Abrufe).`;
+  redirect(`/einstellungen?gespeichert=${encodeURIComponent(note)}`);
 }

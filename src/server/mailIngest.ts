@@ -21,6 +21,9 @@ import {
   type RawEmail,
 } from '@/domain/mail';
 import { ingestListing } from '@/server/listingIngest';
+import { loadMailbox } from '@/server/portalAccounts';
+import { tokenFromAddress } from '@/server/outbound';
+import { closeReplyCheck, notify } from '@/server/followUps';
 
 export interface MailConfig {
   host: string;
@@ -31,7 +34,7 @@ export interface MailConfig {
   mailbox: string;
 }
 
-export function readMailConfig(): MailConfig | null {
+export function readMailConfigFromEnv(): MailConfig | null {
   const host = process.env.MAIL_IMAP_HOST;
   const user = process.env.MAIL_IMAP_USER;
   const password = process.env.MAIL_IMAP_PASSWORD;
@@ -44,6 +47,28 @@ export function readMailConfig(): MailConfig | null {
     password,
     mailbox: process.env.MAIL_IMAP_MAILBOX ?? 'INBOX',
   };
+}
+
+/**
+ * Prefers the mailbox an admin configured in the settings, and falls back to
+ * the environment variables that predate it. The settings route exists so the
+ * team can set this up themselves; the env route keeps existing deployments
+ * working untouched.
+ */
+export async function readMailConfig(): Promise<MailConfig | null> {
+  const stored = await loadMailbox();
+  if (stored.ok) {
+    const meta = stored.credentials;
+    return {
+      host: meta.imapHost,
+      port: meta.imapPort,
+      secure: meta.imapSecure,
+      user: meta.user,
+      password: meta.imapPassword,
+      mailbox: 'INBOX',
+    };
+  }
+  return readMailConfigFromEnv();
 }
 
 export interface IngestSummary {
@@ -62,7 +87,7 @@ export interface IngestSummary {
  * overlapping cron can never duplicate a listing.
  */
 export async function ingestMailbox(options: { limit?: number } = {}): Promise<IngestSummary> {
-  const cfg = readMailConfig();
+  const cfg = await readMailConfig();
   const summary: IngestSummary = {
     configured: cfg != null,
     examined: 0,
@@ -180,6 +205,16 @@ async function applyMail(
   userId: string,
 ): Promise<{ status: string; created: number; note?: string }> {
   const body = raw.html || raw.text || '';
+
+  // Strongest signal first: an Anfrage we sent ourselves carries a random token
+  // in its Reply-To address, so the answer identifies its own conversation. No
+  // wording heuristic can compete with that, and landlords rewrite subject
+  // lines constantly.
+  const tokenAttempt = await matchByThreadToken(raw.recipients);
+  if (tokenAttempt) {
+    return applyTokenReply(raw, tokenAttempt);
+  }
+
   const { listings } = extractListings(body);
   const urls = listings.map((l) => l.url);
 
@@ -200,6 +235,91 @@ async function applyMail(
   }
 
   return applyAlert(parseAlertEmail(raw), raw, userId);
+}
+
+/**
+ * Finds the enquiry a reply belongs to from the plus-addressed token, e.g.
+ * `post+ab12cd@firma.de`. Returns null when no recipient carries a token we
+ * issued — which is the normal case for portal alert mail.
+ */
+async function matchByThreadToken(recipients: string[]) {
+  const tokens = recipients.map(tokenFromAddress).filter((t): t is string => !!t);
+  if (tokens.length === 0) return null;
+
+  return prisma.contactAttempt.findFirst({
+    where: { threadToken: { in: tokens } },
+    include: {
+      listing: { select: { id: true, title: true } },
+      candidateCase: { select: { id: true, reference: true } },
+    },
+  });
+}
+
+/** Logs a reply that identified itself through our own token. */
+async function applyTokenReply(
+  raw: RawEmail,
+  attempt: {
+    id: string;
+    listing: { id: string; title: string };
+    candidateCase: { id: string; reference: string };
+  },
+): Promise<{ status: string; created: number; note?: string }> {
+  const text = extractReplyText(raw.html || raw.text || '');
+
+  // The unique Message-ID makes this safe to run twice.
+  const existing = await prisma.contactMessage.findUnique({ where: { externalId: raw.messageId } });
+  if (existing) return { status: 'SKIPPED', created: 0 };
+
+  await prisma.contactMessage.create({
+    data: {
+      contactAttemptId: attempt.id,
+      direction: 'INCOMING',
+      body: text || '(Leere Nachricht — bitte im Portal nachsehen)',
+      subject: raw.subject,
+      fromAddress: raw.from,
+      externalId: raw.messageId,
+      occurredAt: raw.receivedAt,
+      // Left unread on purpose: unread replies are what the badge counts.
+      readAt: null,
+    },
+  });
+
+  // Somebody answered, so "check whether they answered" is done. Whether the
+  // answer is a yes stays a human judgement — outcome remains AWAITING.
+  await closeReplyCheck(attempt.id);
+
+  await notify({
+    kind: 'REPLY_RECEIVED',
+    title: `Antwort erhalten: ${attempt.listing.title}`,
+    body: text.slice(0, 300),
+    url: `/kandidat/${attempt.candidateCase.id}/kontakte`,
+    candidateCaseId: attempt.candidateCase.id,
+    listingId: attempt.listing.id,
+    contactAttemptId: attempt.id,
+  });
+
+  await prisma.emailIngestLog.create({
+    data: {
+      messageId: raw.messageId,
+      fromAddress: raw.from,
+      subject: raw.subject,
+      receivedAt: raw.receivedAt,
+      candidateCaseId: attempt.candidateCase.id,
+      status: 'REPLY_LOGGED',
+      listingsSeen: 1,
+      note: `Antwort über Thread-Kennung zugeordnet — „${attempt.listing.title}" für ${attempt.candidateCase.reference}.`,
+    },
+  });
+
+  const { notifyReplyReceived } = await import('@/server/telegram');
+  await notifyReplyReceived({
+    candidateReference: attempt.candidateCase.reference,
+    candidateCaseId: attempt.candidateCase.id,
+    listingTitle: attempt.listing.title,
+    excerpt: text.slice(0, 300),
+  });
+
+  return { status: 'REPLY_LOGGED', created: 0, note: `Antwort zu „${attempt.listing.title}" gespeichert.` };
 }
 
 /** Appends a landlord's answer to the right conversation. */
@@ -252,9 +372,24 @@ async function applyReply(
       contactAttemptId: attempt.id,
       direction: 'INCOMING',
       body: text || '(Leere Nachricht — bitte im Portal nachsehen)',
+      subject: raw.subject,
+      fromAddress: raw.from,
+      externalId: raw.messageId,
       occurredAt: raw.receivedAt,
       recordedById: userId,
+      readAt: null,
     },
+  });
+
+  await closeReplyCheck(attempt.id);
+  await notify({
+    kind: 'REPLY_RECEIVED',
+    title: `Antwort erhalten: ${listing.title}`,
+    body: text.slice(0, 300),
+    url: `/kandidat/${attempt.candidateCase.id}/kontakte`,
+    candidateCaseId: attempt.candidateCase.id,
+    listingId: listing.id,
+    contactAttemptId: attempt.id,
   });
 
   // The answer's content is a human judgement, so the outcome stays AWAITING

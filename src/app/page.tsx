@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { inboxCounts } from '@/server/followUps';
 import { currentUser } from '@/lib/auth';
 import { loadCandidatePriorities } from '@/server/priority';
 import { AppBar, Empty, Stat, Callout } from './_components/Shell';
@@ -11,6 +12,7 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardPage() {
   const user = await currentUser();
   if (!user) redirect('/login');
+  const pending = await inboxCounts();
 
   const [cases, priorities, archivedCount] = await Promise.all([
     prisma.candidateCase.findMany({
@@ -41,7 +43,7 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <AppBar user={user} active="kandidaten" />
+      <AppBar user={user} active="kandidaten" pending={pending.dueTasks + pending.unreadReplies} />
       <main className="container page">
         <div className="page-head">
           <div className="page-title">

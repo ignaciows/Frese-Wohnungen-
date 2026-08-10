@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { inboxCounts } from '@/server/followUps';
 import { currentUser } from '@/lib/auth';
 import { loadOpenSuggestions } from '@/server/sharing';
 import { getSharingSettings } from '@/server/settings';
@@ -12,12 +13,13 @@ export const dynamic = 'force-dynamic';
 export default async function WgPage() {
   const user = await currentUser();
   if (!user) redirect('/login');
+  const pending = await inboxCounts();
 
   const [suggestions, settings] = await Promise.all([loadOpenSuggestions(), getSharingSettings()]);
 
   return (
     <>
-      <AppBar user={user} />
+      <AppBar user={user} active="wg" pending={pending.dueTasks + pending.unreadReplies} />
       <main className="container page" style={{ maxWidth: 980 }}>
         <div className="page-head">
           <div className="page-title">

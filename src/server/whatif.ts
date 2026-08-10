@@ -7,9 +7,26 @@
 import { prisma } from '@/lib/prisma';
 import type { RankingListing, RankingProfile } from '@/domain/ranking';
 import { haversineKm, estimateCommuteMinutes } from '@/lib/distance';
+import { LIVE_LISTING } from './listingFilters';
+
+/**
+ * A ranking input that still knows which ad it came from, so the simulator can
+ * show *which* flats a loosened criterion would unlock rather than only how
+ * many.
+ */
+export interface IdentifiedListing extends RankingListing {
+  id: string;
+  title: string;
+  city: string | null;
+  url: string;
+  monthlyCents: number | null;
+  roomCount: number | null;
+  sourceName: string;
+  status: string;
+}
 
 export async function loadSimulationInputs(candidateCaseId: string): Promise<{
-  listings: RankingListing[];
+  listings: IdentifiedListing[];
   profile: RankingProfile;
 }> {
   const [p, matches] = await Promise.all([
@@ -18,9 +35,9 @@ export async function loadSimulationInputs(candidateCaseId: string): Promise<{
       where: {
         candidateCaseId,
         // Simulating against dead ads would promise results that do not exist.
-        listing: { expired: false, NOT: { lastCheckStatus: 'GONE' } },
+        listing: LIVE_LISTING,
       },
-      include: { listing: true },
+      include: { listing: { include: { source: { select: { name: true } } } } },
     }),
   ]);
 
@@ -39,7 +56,7 @@ export async function loadSimulationInputs(candidateCaseId: string): Promise<{
     temporaryMode: p.temporaryMode,
   };
 
-  const listings: RankingListing[] = matches.map(({ listing: l }) => {
+  const listings: IdentifiedListing[] = matches.map(({ listing: l, status }) => {
     let distanceKm: number | null = null;
     let commuteMinutes: number | null = null;
     if (p.workplaceLat != null && p.workplaceLon != null && l.lat != null && l.lon != null) {
@@ -50,6 +67,14 @@ export async function loadSimulationInputs(candidateCaseId: string): Promise<{
       commuteMinutes = estimateCommuteMinutes(distanceKm, 'CAR');
     }
     return {
+      id: l.id,
+      title: l.title,
+      city: l.locationCity,
+      url: l.canonicalUrl,
+      monthlyCents: l.effectiveMonthlyCents,
+      roomCount: l.rooms,
+      sourceName: l.source.name,
+      status,
       propertyType: l.propertyType,
       furnishing: l.furnishing,
       fittedKitchen: l.fittedKitchen,

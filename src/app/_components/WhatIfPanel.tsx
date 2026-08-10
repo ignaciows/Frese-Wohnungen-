@@ -245,6 +245,49 @@ export function WhatIfPanel({ candidateCaseId, current, startOpen = false }: Pro
           </div>
         ) : null}
 
+        {/* --- which ads actually come and go ---------------------------- */}
+        {sim && changed && (sim.preview.addedTotal > 0 || sim.preview.removedTotal > 0) ? (
+          <div className="grid-2">
+            {sim.preview.addedTotal > 0 ? (
+              <div className="stack-sm">
+                <h4 style={{ color: 'var(--success)' }}>
+                  Kommt dazu ({sim.preview.addedTotal})
+                </h4>
+                <ul className="list">
+                  {sim.preview.added.map((l) => (
+                    <li key={l.id} className="list-row">
+                      <PreviewRow listing={l} />
+                    </li>
+                  ))}
+                </ul>
+                {sim.preview.addedTotal > sim.preview.added.length ? (
+                  <span className="small muted">
+                    … und {sim.preview.addedTotal - sim.preview.added.length} weitere
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+
+            {sim.preview.removedTotal > 0 ? (
+              <div className="stack-sm">
+                <h4 style={{ color: 'var(--danger)' }}>Fällt weg ({sim.preview.removedTotal})</h4>
+                <ul className="list">
+                  {sim.preview.removed.map((l) => (
+                    <li key={l.id} className="list-row">
+                      <PreviewRow listing={l} />
+                    </li>
+                  ))}
+                </ul>
+                {sim.preview.removedTotal > sim.preview.removed.length ? (
+                  <span className="small muted">
+                    … und {sim.preview.removedTotal - sim.preview.removed.length} weitere
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         {sim && sim.suggestions.length === 0 && sim.diagnosis.kind !== 'FINE' ? (
           <p className="small muted">
             Keine einzelne Lockerung bringt zusätzliche Treffer — hier hilft nur, mehr Quellen
@@ -282,6 +325,41 @@ export function WhatIfPanel({ candidateCaseId, current, startOpen = false }: Pro
           </button>
         </form>
       </div>
+    </div>
+  );
+}
+
+/** One line in the "comes in / drops out" preview. */
+function PreviewRow({
+  listing,
+}: {
+  listing: {
+    title: string;
+    city: string | null;
+    url: string;
+    monthlyCents: number | null;
+    rooms: number | null;
+    sourceName: string;
+    status: string;
+  };
+}) {
+  return (
+    <div className="stack" style={{ gap: 2 }}>
+      <a href={listing.url} target="_blank" rel="noopener noreferrer" className="small">
+        {listing.title.slice(0, 70)}
+      </a>
+      <span className="small muted">
+        {[
+          listing.monthlyCents != null ? `${Math.round(listing.monthlyCents / 100)} €` : 'Preis unklar',
+          listing.rooms != null ? `${listing.rooms} Zi.` : null,
+          listing.city,
+          listing.sourceName,
+          // A flat already written to is not really a gain — say so.
+          listing.status === 'CONTACTED' ? 'bereits kontaktiert' : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
+      </span>
     </div>
   );
 }
