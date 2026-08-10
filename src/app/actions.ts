@@ -663,6 +663,19 @@ const LivenessSettingsInput = z
     path: ['aliveAtOrAbove'],
   });
 
+const AgeFilterInput = z.object({
+  maxAgeDays: z.coerce.number().int().min(0).max(365),
+  hideApproximate: z.coerce.boolean().default(false),
+});
+
+export async function saveAgeFilterSettingsAction(formData: FormData) {
+  const user = await requireAdmin();
+  const parsed = AgeFilterInput.parse(Object.fromEntries(formData));
+  const { writeSetting, SETTING_KEYS } = await import('@/server/settings');
+  await writeSetting(SETTING_KEYS.ageFilter, parsed, user.id);
+  revalidatePath('/', 'layout');
+}
+
 export async function saveLivenessSettingsAction(formData: FormData) {
   const user = await requireAdmin();
   const parsed = LivenessSettingsInput.parse(Object.fromEntries(formData));

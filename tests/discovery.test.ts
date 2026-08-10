@@ -308,7 +308,10 @@ describe('registry', () => {
   });
 
   it('names the config a source still needs', () => {
-    expect(missingConfig('kleinanzeigen', {})).toEqual(['locationIds']);
+    // Kleinanzeigen no longer demands a town number up front: it reads one from
+    // the portal's own region navigation when a sweep runs. Requiring it was
+    // what kept the source switched off and producing nothing.
+    expect(missingConfig('kleinanzeigen', {})).toEqual([]);
     expect(missingConfig('kleinanzeigen', { locationIds: ['9228'] })).toEqual([]);
     expect(missingConfig('linklist', { searchUrlTemplate: 'https://x.de' })).toEqual(['linkPattern']);
     expect(missingConfig(null, {})).toEqual([]);

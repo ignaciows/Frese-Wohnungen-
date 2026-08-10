@@ -16,6 +16,7 @@ import {
   type FreshnessSettings,
 } from '@/domain/timing';
 import { DEFAULT_LIVENESS, type LivenessPolicy } from '@/domain/liveness';
+import { DEFAULT_AGE_FILTER, type AgeFilterSettings } from '@/domain/timing/age';
 import { DEFAULT_TELEGRAM, type NotificationSettings } from './telegram';
 
 export const SETTING_KEYS = {
@@ -29,6 +30,7 @@ export const SETTING_KEYS = {
   discovery: 'discovery',
   outbound: 'outbound',
   followUp: 'followUp',
+  ageFilter: 'ageFilter',
 } as const;
 
 export interface DiscoverySettings {
@@ -180,6 +182,10 @@ export function getOutboundSettings(): Promise<OutboundSettings> {
 
 export function getFollowUpSettings(): Promise<FollowUpSettings> {
   return readSetting(SETTING_KEYS.followUp, DEFAULT_FOLLOW_UP);
+}
+
+export function getAgeFilterSettings(): Promise<AgeFilterSettings> {
+  return readSetting(SETTING_KEYS.ageFilter, DEFAULT_AGE_FILTER);
 }
 
 export async function writeSetting(key: string, value: object, userId: string): Promise<void> {

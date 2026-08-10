@@ -64,6 +64,17 @@ export interface DiscoveredListing {
   contactName?: string | null;
   /** Portal-side enquiry form, when the list view links one. */
   contactFormUrl?: string | null;
+  /**
+   * When the portal says the ad was put up, read from the result list itself.
+   *
+   * Worth far more than the moment we happened to find it: an ad discovered
+   * today can already be three weeks old, and on this market that is usually
+   * the difference between a viewing and a "leider schon weg". Only set when
+   * the portal actually publishes it — never inferred from the sweep time.
+   */
+  postedAt?: Date | null;
+  /** The wording it was read from, shown next to the date. */
+  postedAtLabel?: string | null;
 }
 
 /** Result of one HTTP call made on an adapter's behalf. */

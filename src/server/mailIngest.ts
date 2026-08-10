@@ -472,7 +472,7 @@ async function applyAlert(
   let created = 0;
   for (const l of alert.listings) {
     try {
-      await ingestListing({
+      const { listingId } = await ingestListing({
         sourceId: source.id,
         rawUrl: l.url,
         title: l.title || raw.subject || 'Anzeige aus Suchagent',
@@ -480,6 +480,19 @@ async function applyAlert(
         // the listing to complete it. We never invent text here.
         descriptionRaw: '',
         importedById: userId,
+      });
+
+      // A search-agent mail announces *new* results, so its arrival is within
+      // hours of publication. That makes it a real publication date — and for
+      // ImmoScout24, which refuses to be read at all (HTTP 401), it is the only
+      // one we will ever get. Never overwritten: a later mail re-listing the
+      // same flat does not make it younger.
+      await prisma.listing.updateMany({
+        where: { id: listingId, postedAt: null },
+        data: {
+          postedAt: raw.receivedAt,
+          postedAtLabel: `Vom Suchagenten gemeldet am ${raw.receivedAt.toLocaleDateString('de-DE')}`,
+        },
       });
       created++;
     } catch {

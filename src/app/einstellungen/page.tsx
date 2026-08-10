@@ -11,6 +11,7 @@ import {
   getFreshnessSettings,
   getBridgingSettings,
   getLivenessSettings,
+  getAgeFilterSettings,
   getTelegramSettings,
 } from '@/server/settings';
 import {
@@ -20,6 +21,7 @@ import {
   saveFreshnessSettingsAction,
   saveBridgingSettingsAction,
   saveLivenessSettingsAction,
+  saveAgeFilterSettingsAction,
   runLivenessSweepAction,
   saveTelegramSettingsAction,
   sendTelegramTestAction,
@@ -56,6 +58,7 @@ export default async function SettingsPage({
     freshness,
     bridging,
     liveness,
+    ageFilter,
     telegram,
     discovery,
     outbound,
@@ -71,6 +74,7 @@ export default async function SettingsPage({
     getFreshnessSettings(),
     getBridgingSettings(),
     getLivenessSettings(),
+    getAgeFilterSettings(),
     getTelegramSettings(),
     getDiscoverySettings(),
     getOutboundSettings(),
@@ -422,6 +426,69 @@ export default async function SettingsPage({
           </div>
           {isAdmin ? (
             <div className="card-foot" style={{ textAlign: 'right' }}>
+              <button type="submit" className="btn primary">Speichern</button>
+            </div>
+          ) : null}
+        </form>
+
+        {/* ------------------------------------------- age filter --- */}
+        <form action={saveAgeFilterSettingsAction} className="card" style={{ marginTop: 18 }}>
+          <div className="card-head">
+            <h2>Nur frisch inserierte Anzeigen</h2>
+            {ageFilter.maxAgeDays > 0 ? (
+              <span className="badge success">max. {ageFilter.maxAgeDays} Tage</span>
+            ) : (
+              <span className="badge">aus</span>
+            )}
+          </div>
+          <div className="card-body stack">
+            <p className="small muted">
+              Blendet Anzeigen aus, die schon länger online sind. Gemessen wird — in dieser
+              Reihenfolge — am <strong>Einstelldatum des Portals</strong>, ersatzweise am Eingang
+              der Suchagent-Mail, und erst zuletzt daran, seit wann <em>wir</em> die Anzeige kennen.
+              Nur die ersten beiden sind echte Veröffentlichungsdaten; das dritte steht deshalb als
+              „seit … bekannt“ in der Liste und wird standardmäßig nicht weggefiltert.
+            </p>
+            <div className="grid-2">
+              <div>
+                <label htmlFor="maxAgeDays">Höchstalter in Tagen (0 = aus)</label>
+                <input
+                  id="maxAgeDays"
+                  name="maxAgeDays"
+                  type="number"
+                  min={0}
+                  max={365}
+                  className="input"
+                  defaultValue={ageFilter.maxAgeDays}
+                  disabled={!isAdmin}
+                />
+                <p className="field-hint">7 Tage ist ein üblicher Wert für angespannte Märkte.</p>
+              </div>
+              <div className="checkline" style={{ alignItems: 'flex-start', paddingTop: 26 }}>
+                <input
+                  id="hideApproximate"
+                  name="hideApproximate"
+                  type="checkbox"
+                  value="true"
+                  defaultChecked={ageFilter.hideApproximate}
+                  disabled={!isAdmin}
+                />
+                <label htmlFor="hideApproximate">
+                  Auch Anzeigen ohne Portal-Datum ausblenden
+                </label>
+              </div>
+            </div>
+            <div className="callout">
+              <span className="callout-icon" aria-hidden>i</span>
+              <div>
+                ImmoScout24 lässt sich nicht auslesen (HTTP 401), nennt also nie ein Datum. Solche
+                Anzeigen kommen über den Suchagenten herein — dort gilt der Maileingang als
+                Veröffentlichung, was auf wenige Stunden genau stimmt.
+              </div>
+            </div>
+          </div>
+          {isAdmin ? (
+            <div className="card-foot row-between">
               <button type="submit" className="btn primary">Speichern</button>
             </div>
           ) : null}

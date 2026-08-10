@@ -19,7 +19,9 @@ import {
   getBridgingSettings,
   getOutboundSettings,
   getLivenessSettings,
+  getAgeFilterSettings,
 } from '@/server/settings';
+import { listingAge, passesAgeFilter, describeAgeFilter } from '@/domain/timing/age';
 import { DEAD_LISTING, liveListingFilter, limboListingFilter } from '@/server/listingFilters';
 import {
   bandOf,
@@ -82,7 +84,7 @@ export default async function ErgebnissePage({
   const sp = await searchParams;
   const tab = sp.tab ?? 'alle';
 
-  const liveness = await getLivenessSettings();
+  const [liveness, ageFilter] = await Promise.all([getLivenessSettings(), getAgeFilterSettings()]);
 
   const [matchList, counts, message, profile, freshnessSettings, bridging] = await Promise.all([
     prisma.candidateListingMatch.findMany({
@@ -142,7 +144,20 @@ export default async function ErgebnissePage({
   // adjusts: a confirmed-live ad posted this morning outranks an equally good
   // one nobody could verify. The reading only reorders — it never removes,
   // which is what keeps a misread ad reachable.
-  const matches: MatchRow[] = [...matchList].sort((a, b) => {
+  // The age filter runs here rather than in SQL: the age of an ad depends on
+  // which date it has (portal, alert, or our own import), and that choice is
+  // the domain rule in listingAge — duplicating it in a query is how the badge
+  // and the filter end up disagreeing.
+  const ageOf = (m: MatchRow) =>
+    listingAge({
+      postedAt: m.listing.postedAt,
+      firstSeenAt: m.listing.firstSeenAt,
+      importedAt: m.listing.importedAt,
+    });
+  const ageNote = describeAgeFilter(matchList.map(ageOf), ageFilter);
+  const withinAge = matchList.filter((m) => passesAgeFilter(ageOf(m), ageFilter));
+
+  const matches: MatchRow[] = [...withinAge].sort((a, b) => {
     const rank = (COMPAT_RANK[a.compatibility] ?? 9) - (COMPAT_RANK[b.compatibility] ?? 9);
     if (rank !== 0) return rank;
     return effectiveScore(b, liveness) - effectiveScore(a, liveness);
@@ -188,6 +203,7 @@ export default async function ErgebnissePage({
   return (
     <div className="stack">
       <AutoCheck candidateCaseId={id} />
+      {ageNote ? <Callout tone="info">{ageNote}</Callout> : null}
       {sp.error ? (
         <Callout tone="danger">
           {sp.error === 'ALREADY_CONTACTED_SAME_CANDIDATE'

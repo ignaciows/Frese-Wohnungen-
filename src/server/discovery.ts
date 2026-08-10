@@ -396,7 +396,7 @@ async function upsertDiscovered(
 
   const existing = await prisma.listing.findUnique({
     where: { canonicalUrl },
-    select: { id: true, expired: true, expiredBySystem: true },
+    select: { id: true, expired: true, expiredBySystem: true, postedAt: true },
   });
 
   if (!existing) {
@@ -424,6 +424,12 @@ async function upsertDiscovered(
         lastSeenAt: now,
         missedSweeps: 0,
         goneStreak: 0,
+        // Backfill the publication date onto ads imported before we read it.
+        // Never overwritten once known: a portal that stops printing the date
+        // does not make the ad younger.
+        ...(item.postedAt && !existing.postedAt
+          ? { postedAt: item.postedAt, postedAtLabel: item.postedAtLabel ?? null }
+          : {}),
         ...(existing.expired && existing.expiredBySystem
           ? { expired: false, expiredAt: null, expiredBySystem: false }
           : {}),
@@ -454,6 +460,9 @@ async function upsertDiscovered(
         lastListedAt: now,
         lastSeenAt: now,
         missedSweeps: 0,
+        ...(item.postedAt
+          ? { postedAt: item.postedAt, postedAtLabel: item.postedAtLabel ?? null }
+          : {}),
         ...(item.contactEmail ? { contactEmail: item.contactEmail } : {}),
         ...(item.contactName ? { contactName: item.contactName } : {}),
         ...(item.contactFormUrl ? { contactFormUrl: item.contactFormUrl } : {}),

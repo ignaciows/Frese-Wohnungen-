@@ -16,10 +16,15 @@
  *
  * So the adapter asks for the unfiltered city list and lets our own ranking do
  * the filtering — which costs a little more parsing and, usefully, returns
- * *more* ads rather than fewer. Because the autocomplete is off limits, the
- * town's internal id is configuration: an admin pastes one search URL from
- * their browser and the id is read out of it. Guessing ids was never an
- * option — a wrong one silently returns a different town's flats.
+ * *more* ads rather than fewer.
+ *
+ * The town's internal id is not optional — verified live, a search without one
+ * returns nationwide results rather than none, so a missing id silently swaps
+ * the search rather than narrowing it. The autocomplete that would resolve it
+ * is disallowed, but the portal publishes the same ids in its own region
+ * navigation, so `prepare` reads them from there (see kleinanzeigenLocations).
+ * Guessing an id was never an option — a wrong one returns another town's flats
+ * and looks perfectly healthy doing it.
  *
  * Cover the surrounding area by listing several `locationIds`, which is the
  * permitted equivalent of a radius search.
@@ -34,6 +39,7 @@ import {
   type DiscoveryQuery,
   type FetchedPage,
 } from '../types';
+import { resolveCityId } from './kleinanzeigenLocations';
 import {
   absoluteUrl,
   decodeEntities,
@@ -60,8 +66,12 @@ export const kleinanzeigenAdapter: DiscoveryAdapter = {
   configKeys: [
     {
       key: 'locationIds',
-      required: true,
-      hint: 'Ortsnummern, eine pro Zeile. Aus einer Such-URL ablesen: bei …/c203l9228 ist 9228 die Nummer. Mehrere Orte ersetzen den (gesperrten) Umkreisfilter.',
+      // Optional since the adapter resolves the number from the portal's own
+      // published region navigation (see `prepare`). Setting it by hand still
+      // wins, and is the way to cover several towns at once — the permitted
+      // stand-in for the radius filter robots.txt disallows.
+      required: false,
+      hint: 'Optional. Wird sonst automatisch aus dem Ort des Kandidaten ermittelt. Mehrere Nummern (eine pro Zeile) decken das Umland ab — bei …/c203l9228 ist 9228 die Nummer.',
     },
     {
       key: 'searchUrl',
@@ -75,8 +85,34 @@ export const kleinanzeigenAdapter: DiscoveryAdapter = {
     },
   ],
 
+  /**
+   * Fills in the town's number when nobody configured one.
+   *
+   * This is what made the source produce nothing: the number was mandatory,
+   * the only way to get it was to paste a search URL out of a browser, and so
+   * the source shipped switched off. Reading it from the portal's own region
+   * navigation removes that setup step — and the check matters more than the
+   * convenience, because a search without the number silently returns
+   * nationwide results rather than no results.
+   */
+  async prepare(query, config, fetchPage) {
+    if (resolveLocationIds(config).length > 0) return config;
+    if (!query.city) return null;
+
+    const { id } = await resolveCityId(query.city, async (url) => {
+      const page = await fetchPage(url);
+      return page.body;
+    });
+    if (!id) return null;
+
+    return { ...config, locationIds: [id] };
+  },
+
   buildUrls(query, config) {
     const locationIds = resolveLocationIds(config);
+    // Without a town number Kleinanzeigen answers with the nationwide list, so
+    // an unresolved town must produce no request at all — a flat in Passau for
+    // a nurse starting in Heilbronn is worse than an empty result.
     if (locationIds.length === 0) return [];
 
     const categories = query.includeTemporary
@@ -131,6 +167,8 @@ interface AdPreview {
   imageList?: unknown;
   posterType?: unknown;
   company?: unknown;
+  /** "06.08.2026", "Heute, 19:30", "Gestern, 11:30" — the publication date. */
+  sortingDate?: unknown;
 }
 
 function parseJsonResults(body: string, base: string): DiscoveredListing[] | null {
@@ -170,6 +208,7 @@ function parseJsonResults(body: string, base: string): DiscoveredListing[] | nul
     const postal = typeof ad.locationName === 'string' ? ad.locationName.trim() : '';
     const city = typeof ad.parentLocationName === 'string' ? ad.parentLocationName.trim() : '';
     const company = ad.company as { name?: unknown } | undefined;
+    const posted = parseSortingDate(typeof ad.sortingDate === 'string' ? ad.sortingDate : null);
 
     out.push({
       url,
@@ -180,11 +219,65 @@ function parseJsonResults(body: string, base: string): DiscoveredListing[] | nul
       locationCity: city || null,
       imageUrl: firstImage(ad.imageList),
       contactName: typeof company?.name === 'string' ? company.name : null,
+      postedAt: posted.at,
+      postedAtLabel: posted.label,
       structured: priceIsWarm ? { warmMieteCents: priceCents, rooms, livingSpaceSqm: sqm } : { kaltMieteCents: priceCents, rooms, livingSpaceSqm: sqm },
     });
   }
 
   return out;
+}
+
+/**
+ * Reads Kleinanzeigen's `sortingDate` — the one field on this market that
+ * hands us a real publication date for free, straight from the result list.
+ *
+ * Three shapes occur, verified against the live payload:
+ * `"06.08.2026"`, `"Gestern, 11:30"`, `"Heute, 19:30"`. The relative forms are
+ * the interesting ones, because they are exactly the ads worth writing to
+ * first.
+ *
+ * Returns nulls rather than a guess when the wording is unfamiliar — a wrong
+ * date would silently push a stale ad to the top of the list, which is the
+ * failure this whole field exists to prevent.
+ */
+export function parseSortingDate(
+  raw: string | null,
+  now: Date = new Date(),
+): { at: Date | null; label: string | null } {
+  if (!raw) return { at: null, label: null };
+  const value = raw.trim();
+  if (!value) return { at: null, label: null };
+
+  const time = value.match(/(\d{1,2}):(\d{2})/);
+  const withTime = (base: Date): Date => {
+    if (time) base.setUTCHours(Number(time[1]), Number(time[2]), 0, 0);
+    return base;
+  };
+
+  if (/^heute/i.test(value)) {
+    return { at: withTime(startOfUtcDay(now)), label: `Online seit heute (${value})` };
+  }
+  if (/^gestern/i.test(value)) {
+    const d = startOfUtcDay(new Date(now.getTime() - 86_400_000));
+    return { at: withTime(d), label: `Online seit gestern (${value})` };
+  }
+
+  const dotted = value.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (dotted) {
+    const at = new Date(Date.UTC(Number(dotted[3]), Number(dotted[2]) - 1, Number(dotted[1])));
+    // Reject a rollover (31.02.) and anything implausibly far out.
+    if (at.getUTCDate() !== Number(dotted[1])) return { at: null, label: null };
+    const ageDays = (now.getTime() - at.getTime()) / 86_400_000;
+    if (ageDays < -2 || ageDays > 400) return { at: null, label: null };
+    return { at: withTime(at), label: `Online seit ${value}` };
+  }
+
+  return { at: null, label: null };
+}
+
+function startOfUtcDay(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
 /** `["47,15 m²", "2 Zi."]` → { sqm: 47.15, rooms: 2 }. */
