@@ -139,8 +139,16 @@ const UNIT_MS: Record<string, number> = {
 export function parseRelative(window: string, now: Date): Date | null {
   const w = window.toLowerCase();
 
-  if (/^\W{0,3}(heute|today)\b/.test(w)) return new Date(now.getTime());
-  if (/^\W{0,3}(gestern|yesterday)\b/.test(w)) return new Date(now.getTime() - 86_400_000);
+  // "Heute" means some time today, not this instant. Anchoring it to the start
+  // of the day errs towards older, which is the only safe direction here:
+  // Kleinanzeigen labels everything posted today "Heute", and reading that as
+  // "just now" made 18 ads in a live sweep all claim to be two minutes old.
+  // Understating freshness costs a little urgency; overstating it sends
+  // somebody chasing a nine-hour-old advert believing they are first.
+  if (/^\W{0,3}(heute|today)\b/.test(w)) return startOfUtcDay(now);
+  if (/^\W{0,3}(gestern|yesterday)\b/.test(w)) {
+    return new Date(startOfUtcDay(now).getTime() - 86_400_000);
+  }
 
   const rel = w.match(/^\W{0,3}(?:vor\s+)?(\d{1,3})\s*([a-zä]+)/);
   if (rel) {
@@ -191,6 +199,10 @@ function formatDe(d: Date): string {
   return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`;
 }
 
+function startOfUtcDay(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
 function ageDaysOf(at: Date, now: Date): number {
   return Math.max(0, Math.floor((now.getTime() - at.getTime()) / 86_400_000));
 }
@@ -200,15 +212,26 @@ function plausible(at: Date, now: Date): boolean {
   return diffDays >= -MAX_FUTURE_DAYS && diffDays <= MAX_AGE_DAYS;
 }
 
-function build(at: Date, kind: PostedAtResult['kind'], verb: string, evidence: string, now: Date): PostedAtResult {
+/**
+ * The German label shown next to an ad's date.
+ *
+ * Exported because the date reaches us two ways — read off a detail page here,
+ * or taken straight from a source's result list (see
+ * `domain/discovery/listPostedAt`) — and both should read identically. One
+ * wording, one place.
+ */
+export function postedAtLabel(at: Date, now: Date = new Date(), verb = 'Online seit'): string {
   const ageDays = ageDaysOf(at, now);
-  const human =
-    ageDays === 0 ? 'heute' : ageDays === 1 ? 'gestern' : `vor ${ageDays} Tagen`;
+  const human = ageDays === 0 ? 'heute' : ageDays === 1 ? 'gestern' : `vor ${ageDays} Tagen`;
+  return `${verb} ${formatDe(at)} (${human})`;
+}
+
+function build(at: Date, kind: PostedAtResult['kind'], verb: string, evidence: string, now: Date): PostedAtResult {
   return {
     at,
     kind,
-    ageDays,
-    label: `${verb} ${formatDe(at)} (${human})`,
+    ageDays: ageDaysOf(at, now),
+    label: postedAtLabel(at, now, verb),
     evidence,
   };
 }

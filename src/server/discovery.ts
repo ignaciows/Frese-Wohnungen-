@@ -428,7 +428,7 @@ async function upsertDiscovered(
         // Never overwritten once known: a portal that stops printing the date
         // does not make the ad younger.
         ...(item.postedAt && !existing.postedAt
-          ? { postedAt: item.postedAt, postedAtLabel: item.postedAtLabel ?? null }
+          ? { postedAt: item.postedAt.at, postedAtLabel: item.postedAt.label }
           : {}),
         ...(existing.expired && existing.expiredBySystem
           ? { expired: false, expiredAt: null, expiredBySystem: false }
@@ -460,9 +460,10 @@ async function upsertDiscovered(
         lastListedAt: now,
         lastSeenAt: now,
         missedSweeps: 0,
-        ...(item.postedAt
-          ? { postedAt: item.postedAt, postedAtLabel: item.postedAtLabel ?? null }
-          : {}),
+        // Several sources print the date in the result list itself. Taking it
+        // here gives every ad a posting date immediately, rather than only the
+        // bounded number that get a detail read each sweep.
+        ...(item.postedAt ? { postedAt: item.postedAt.at, postedAtLabel: item.postedAt.label } : {}),
         ...(item.contactEmail ? { contactEmail: item.contactEmail } : {}),
         ...(item.contactName ? { contactName: item.contactName } : {}),
         ...(item.contactFormUrl ? { contactFormUrl: item.contactFormUrl } : {}),

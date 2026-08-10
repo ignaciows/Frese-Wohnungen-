@@ -11,7 +11,6 @@ import {
   listingAge,
   passesAgeFilter,
 } from '@/domain/timing/age';
-import { parseSortingDate } from '@/domain/discovery/adapters/kleinanzeigen';
 import {
   citySlug,
   extractLocationLinks,
@@ -92,30 +91,6 @@ describe('the maximum-age filter', () => {
     expect(note).toContain('ausgeblendet');
     expect(note).toContain('ohne Portal-Datum');
     expect(describeAgeFilter(ages, DEFAULT_AGE_FILTER)).toBeNull();
-  });
-});
-
-describe('reading Kleinanzeigen sortingDate', () => {
-  it('reads the dotted form', () => {
-    expect(parseSortingDate('06.08.2026', NOW).at?.toISOString().slice(0, 10)).toBe('2026-08-06');
-  });
-
-  it('reads "Heute" and "Gestern" with their times — the ads worth writing to first', () => {
-    const today = parseSortingDate('Heute, 19:30', NOW);
-    expect(today.at?.toISOString().slice(0, 10)).toBe('2026-08-10');
-    expect(today.at?.getUTCHours()).toBe(19);
-    expect(parseSortingDate('Gestern, 11:30', NOW).at?.toISOString().slice(0, 10)).toBe('2026-08-09');
-  });
-
-  it('returns nothing rather than a guess on unfamiliar wording', () => {
-    for (const raw of ['', 'vor einer Weile', null]) {
-      expect(parseSortingDate(raw, NOW).at).toBeNull();
-    }
-  });
-
-  it('rejects an impossible or implausible date', () => {
-    expect(parseSortingDate('31.02.2026', NOW).at).toBeNull();
-    expect(parseSortingDate('06.08.2019', NOW).at).toBeNull();
   });
 });
 

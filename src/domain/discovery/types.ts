@@ -65,16 +65,14 @@ export interface DiscoveredListing {
   /** Portal-side enquiry form, when the list view links one. */
   contactFormUrl?: string | null;
   /**
-   * When the portal says the ad was put up, read from the result list itself.
+   * When the source's own result list says the ad went online.
    *
-   * Worth far more than the moment we happened to find it: an ad discovered
-   * today can already be three weeks old, and on this market that is usually
-   * the difference between a viewing and a "leider schon weg". Only set when
-   * the portal actually publishes it — never inferred from the sweep time.
+   * Worth carrying separately from the detail-page reader in
+   * `domain/liveness/postedAt`: several sources state the date right in the
+   * list, so taking it here gives every ad a date immediately instead of only
+   * the handful that get a detail fetch each sweep.
    */
-  postedAt?: Date | null;
-  /** The wording it was read from, shown next to the date. */
-  postedAtLabel?: string | null;
+  postedAt?: { at: Date; label: string } | null;
 }
 
 /** Result of one HTTP call made on an adapter's behalf. */

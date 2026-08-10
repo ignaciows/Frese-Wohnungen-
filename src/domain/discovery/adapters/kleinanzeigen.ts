@@ -40,6 +40,7 @@ import {
   type FetchedPage,
 } from '../types';
 import { resolveCityId } from './kleinanzeigenLocations';
+import { listPostedAt } from '../listPostedAt';
 import {
   absoluteUrl,
   decodeEntities,
@@ -157,6 +158,7 @@ export const kleinanzeigenAdapter: DiscoveryAdapter = {
 /* --------------------------------------------------------------- json --- */
 
 interface AdPreview {
+  sortingDate?: unknown;
   title?: unknown;
   description?: unknown;
   seoLink?: unknown;
@@ -167,8 +169,6 @@ interface AdPreview {
   imageList?: unknown;
   posterType?: unknown;
   company?: unknown;
-  /** "06.08.2026", "Heute, 19:30", "Gestern, 11:30" — the publication date. */
-  sortingDate?: unknown;
 }
 
 function parseJsonResults(body: string, base: string): DiscoveredListing[] | null {
@@ -208,7 +208,6 @@ function parseJsonResults(body: string, base: string): DiscoveredListing[] | nul
     const postal = typeof ad.locationName === 'string' ? ad.locationName.trim() : '';
     const city = typeof ad.parentLocationName === 'string' ? ad.parentLocationName.trim() : '';
     const company = ad.company as { name?: unknown } | undefined;
-    const posted = parseSortingDate(typeof ad.sortingDate === 'string' ? ad.sortingDate : null);
 
     out.push({
       url,
@@ -219,65 +218,15 @@ function parseJsonResults(body: string, base: string): DiscoveredListing[] | nul
       locationCity: city || null,
       imageUrl: firstImage(ad.imageList),
       contactName: typeof company?.name === 'string' ? company.name : null,
-      postedAt: posted.at,
-      postedAtLabel: posted.label,
+      // Kleinanzeigen states the date right in the list — a German date, or
+      // "Heute"/"Gestern" for the newest ads, which are the ones worth acting
+      // on fastest.
+      postedAt: typeof ad.sortingDate === 'string' ? listPostedAt(ad.sortingDate) : null,
       structured: priceIsWarm ? { warmMieteCents: priceCents, rooms, livingSpaceSqm: sqm } : { kaltMieteCents: priceCents, rooms, livingSpaceSqm: sqm },
     });
   }
 
   return out;
-}
-
-/**
- * Reads Kleinanzeigen's `sortingDate` — the one field on this market that
- * hands us a real publication date for free, straight from the result list.
- *
- * Three shapes occur, verified against the live payload:
- * `"06.08.2026"`, `"Gestern, 11:30"`, `"Heute, 19:30"`. The relative forms are
- * the interesting ones, because they are exactly the ads worth writing to
- * first.
- *
- * Returns nulls rather than a guess when the wording is unfamiliar — a wrong
- * date would silently push a stale ad to the top of the list, which is the
- * failure this whole field exists to prevent.
- */
-export function parseSortingDate(
-  raw: string | null,
-  now: Date = new Date(),
-): { at: Date | null; label: string | null } {
-  if (!raw) return { at: null, label: null };
-  const value = raw.trim();
-  if (!value) return { at: null, label: null };
-
-  const time = value.match(/(\d{1,2}):(\d{2})/);
-  const withTime = (base: Date): Date => {
-    if (time) base.setUTCHours(Number(time[1]), Number(time[2]), 0, 0);
-    return base;
-  };
-
-  if (/^heute/i.test(value)) {
-    return { at: withTime(startOfUtcDay(now)), label: `Online seit heute (${value})` };
-  }
-  if (/^gestern/i.test(value)) {
-    const d = startOfUtcDay(new Date(now.getTime() - 86_400_000));
-    return { at: withTime(d), label: `Online seit gestern (${value})` };
-  }
-
-  const dotted = value.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-  if (dotted) {
-    const at = new Date(Date.UTC(Number(dotted[3]), Number(dotted[2]) - 1, Number(dotted[1])));
-    // Reject a rollover (31.02.) and anything implausibly far out.
-    if (at.getUTCDate() !== Number(dotted[1])) return { at: null, label: null };
-    const ageDays = (now.getTime() - at.getTime()) / 86_400_000;
-    if (ageDays < -2 || ageDays > 400) return { at: null, label: null };
-    return { at: withTime(at), label: `Online seit ${value}` };
-  }
-
-  return { at: null, label: null };
-}
-
-function startOfUtcDay(d: Date): Date {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
 /** `["47,15 m²", "2 Zi."]` → { sqm: 47.15, rooms: 2 }. */
