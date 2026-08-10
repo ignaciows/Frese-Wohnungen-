@@ -111,28 +111,81 @@ stabile, öffentlich erkennbare Expose-URL.
 
 ---
 
-# Automatische Link-Prüfung (tote Anzeigen)
+# Textprüfung: Ist die Anzeige noch online?
 
-Suchagent-Mails bringen neue Anzeigen herein — dieser Teil sorgt dafür, dass
-alte wieder verschwinden.
+Suchagent-Mails und die automatische Suche bringen neue Anzeigen herein —
+dieser Teil sorgt dafür, dass tote wieder verschwinden.
 
-## Was passiert
+## Warum der Status-Code nicht reicht
 
-In Abständen (Standard: alle 12 Stunden pro Anzeige) ruft die App jede
-importierte Anzeige einmal auf und schaut ausschließlich, **ob die Seite noch
-existiert**. Ergebnis pro Anzeige:
+Deutsche Portale antworten bei einer zurückgezogenen Anzeige so gut wie nie
+mit `404`:
 
-| Ergebnis | Bedeutung | Folge |
-| --- | --- | --- |
-| `ALIVE` | Seite erreichbar | Aktualitäts-Uhr wird zurückgesetzt |
-| `GONE` | 404/410, Weiterleitung auf die Suche, oder „nicht mehr verfügbar" im Text | zählt Richtung Ablauf |
-| `BLOCKED` | Portal blockiert oder drosselt den Abruf | **keine Folge** |
-| `UNKNOWN` | Timeout, DNS, Serverfehler | **keine Folge** |
+- **ImmoScout24** liefert „Angebot nicht gefunden" als ganz normale Seite.
+- **Kleinanzeigen** leitet auf die Suche um — Endstatus `200`.
+- **WG-Gesucht** rendert einen Hinweis in eine sonst intakte Seite.
+
+Wer auf einen Status-Code wartet, meldet eine Anzeige also genau so lange als
+in Ordnung, bis eine Kollegin sie öffnet und dort liest, dass sie weg ist. Die
+App **liest deshalb den Seitentext** — das ist der eigentliche Motor:
+
+- Abschaltungs-Formulierungen („Angebot nicht gefunden", „bereits vermietet",
+  „Inserat wurde beendet", …), nach Verlässlichkeit gewichtet;
+- Anzeichen für eine lebende Anzeige: Kaltmiete/Wohnfläche/Kaution, Preis,
+  schema.org-Auszeichnung, Kontaktmöglichkeit;
+- das **Einstelldatum**, das die Anzeige über sich selbst nennt
+  („Online seit dem 04.08.2026", „Eingestellt am …", „Online seit 3 Tagen",
+  `datePosted` in den strukturierten Daten).
+
+Der Status-Code ist dabei nur noch **ein Signal unter mehreren**.
+
+## Das Ergebnis ist ein Prozentwert
+
+Textlesen ist nie sicher, deshalb ist die Antwort keine Ja/Nein-Aussage,
+sondern `onlineConfidence` = 0–100 („diese Anzeige ist zu 70 % noch online").
+
+| Band | Standard | Bedeutung | Folge |
+| --- | --- | --- | --- |
+| `ALIVE` | ≥ 70 % | bestätigt aktiv | Aktualitäts-Uhr wird zurückgesetzt |
+| „zu prüfen" (`UNKNOWN`) | 26–69 % | **nicht eindeutig lesbar** | bleibt sichtbar, eigener Reiter, sinkt im Ranking |
+| `GONE` | ≤ 25 % | die Seite sagt es selbst | zählt Richtung Ablauf |
+| `BLOCKED` | — | Portal lässt das Auslesen nicht zu (401/403/429, Bot-Wall) | **keine Folge**, letzter Wert bleibt stehen |
+
+Beide Schwellen sind in den Einstellungen verstellbar.
+
+**Das mittlere Band ist Absicht.** Eine Anzeige, die die App nicht sicher lesen
+konnte, wird *nicht* stillschweigend ausgeblendet — sie landet im Reiter
+„Zu prüfen". Eine falsch versteckte Wohnung sieht sonst nie wieder jemand. Wer
+lieber eine kürzere, dafür bestätigte Liste möchte, schaltet in den
+Einstellungen **„Nur bestätigt aktive Anzeigen zeigen"** ein.
 
 Erst nach **zwei aufeinanderfolgenden eindeutigen** `GONE`-Ergebnissen wandert
 eine Anzeige in den Reiter „Abgelaufen". Alles Uneindeutige setzt den Zähler
 zurück. Ein blockierendes Portal kann also niemals eine gute Wohnung
 aussortieren.
+
+## Wann geprüft wird
+
+- **Bei jeder Suche.** Öffnet jemand eine Ergebnisliste, werden die Anzeigen
+  *dieses* Kandidaten sofort nachgelesen (Standard: 8 Stück, danach 10 Minuten
+  Pause pro Kandidat). Damit stimmt die Liste in dem Moment, in dem sie
+  gelesen wird.
+- **Im Hintergrund**, pro Anzeige im eingestellten Intervall (Standard 12 h).
+
+## Was das Einstelldatum bewirkt
+
+Das Datum, das die Anzeige über sich selbst nennt, ersetzt das Importdatum als
+Grundlage der Frische-Anzeige — eine heute gefundene Anzeige kann drei Wochen
+alt sein, und genau das entscheidet, ob sich eine Anfrage noch lohnt. Es fließt
+zusätzlich in die Sortierung ein: heute inseriert wird angehoben, älter als
+drei Wochen abgewertet.
+
+## Ehrliche Grenze
+
+**ImmoScout24 beantwortet Abrufe außerhalb eines Browsers mit `401`.** Die App
+kann diese Anzeigen deshalb nicht lesen und sagt das auch so („Portal lässt
+automatische Abrufe nicht zu") — statt zu raten. Für ImmoScout24 bleibt der
+Weg über den Suchagenten per Mail und das manuelle Öffnen.
 
 ## Warum das kein Scraping ist
 

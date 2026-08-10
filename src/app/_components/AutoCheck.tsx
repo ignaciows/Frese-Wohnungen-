@@ -16,7 +16,7 @@ import { maybeRunLivenessSweepAction, maybeRunDiscoverySweepAction } from '@/app
  * costs nothing when a sweep has just run. Neither can disturb the page: a
  * failure is swallowed and the list simply stays as it was.
  */
-export function AutoCheck() {
+export function AutoCheck({ candidateCaseId }: { candidateCaseId?: string } = {}) {
   const router = useRouter();
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -29,13 +29,18 @@ export function AutoCheck() {
       let changed = false;
 
       try {
-        const liveness = await maybeRunLivenessSweepAction();
+        // Scoped to this candidate so the ads actually on screen are the ones
+        // re-read, rather than whatever was oldest across the database.
+        const liveness = await maybeRunLivenessSweepAction(candidateCaseId);
         if (cancelled) return;
         if (liveness.ran && liveness.expired > 0) {
           parts.push(`${liveness.expired} nicht mehr verfügbare Anzeige(n) ausgeblendet`);
           changed = true;
         } else if (liveness.ran && liveness.checked > 0) {
           changed = true;
+        }
+        if (liveness.ran && liveness.limbo > 0) {
+          parts.push(`${liveness.limbo} unklar — im Reiter „Zu prüfen"`);
         }
       } catch {
         // A failed background check must never disturb the page.
@@ -69,7 +74,7 @@ export function AutoCheck() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [router, candidateCaseId]);
 
   if (busy && !note) {
     return (

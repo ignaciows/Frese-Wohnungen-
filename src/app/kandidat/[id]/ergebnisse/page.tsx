@@ -14,8 +14,20 @@ import {
   type BridgingSettings,
   type FreshnessSettings,
 } from '@/domain/timing';
-import { getFreshnessSettings, getBridgingSettings, getOutboundSettings } from '@/server/settings';
-import { LIVE_LISTING, DEAD_LISTING } from '@/server/listingFilters';
+import {
+  getFreshnessSettings,
+  getBridgingSettings,
+  getOutboundSettings,
+  getLivenessSettings,
+} from '@/server/settings';
+import { DEAD_LISTING, liveListingFilter, limboListingFilter } from '@/server/listingFilters';
+import {
+  bandOf,
+  describeBand,
+  livenessScoreFactor,
+  type LivenessPolicy,
+  type LivenessSignal,
+} from '@/domain/liveness';
 import { markListingExpiredAction, checkListingNowAction, setFollowUpAction } from '@/app/actions';
 
 export const dynamic = 'force-dynamic';
@@ -28,8 +40,17 @@ const TABS = [
   { key: 'kontaktiert', label: 'Kontaktiert' },
   { key: 'abgelehnt', label: 'Abgelehnt' },
   { key: 'wiedervorlage', label: 'Wiedervorlage' },
+  { key: 'zu-pruefen', label: 'Zu prüfen' },
   { key: 'abgelaufen', label: 'Abgelaufen' },
 ] as const;
+
+/** Compatibility decides the group; the score only orders within it. */
+const COMPAT_RANK: Record<string, number> = {
+  COMPATIBLE: 0,
+  NEAR_MATCH: 1,
+  INSUFFICIENT_DATA: 2,
+  INCOMPATIBLE: 3,
+};
 
 type MatchStatusValue = 'NEW' | 'FAVORITE' | 'IN_PROGRESS' | 'CONTACTED' | 'REJECTED' | 'EXPIRED';
 
@@ -61,6 +82,8 @@ export default async function ErgebnissePage({
   const sp = await searchParams;
   const tab = sp.tab ?? 'alle';
 
+  const liveness = await getLivenessSettings();
+
   const [matchList, counts, message, profile, freshnessSettings, bridging] = await Promise.all([
     prisma.candidateListingMatch.findMany({
       where: {
@@ -77,7 +100,12 @@ export default async function ErgebnissePage({
         ...(tab === 'kontaktiert' || tab === 'in-arbeit'
           ? {}
           : {
-              listing: tab === 'abgelaufen' ? DEAD_LISTING : LIVE_LISTING,
+              listing:
+                tab === 'abgelaufen'
+                  ? DEAD_LISTING
+                  : tab === 'zu-pruefen'
+                    ? limboListingFilter(liveness)
+                    : liveListingFilter(liveness),
             }),
       },
       orderBy: [{ compatibility: 'asc' }, { score: 'desc' }],
@@ -105,8 +133,20 @@ export default async function ErgebnissePage({
     where: { candidateCaseId: id, followUpAt: { not: null } },
   });
 
+  const limboCount = await prisma.candidateListingMatch.count({
+    where: { candidateCaseId: id, listing: limboListingFilter(liveness) },
+  });
+
   type MatchRow = (typeof matchList)[number];
-  const matches: MatchRow[] = matchList;
+  // Order inside each compatibility group by the score the detector's reading
+  // adjusts: a confirmed-live ad posted this morning outranks an equally good
+  // one nobody could verify. The reading only reorders — it never removes,
+  // which is what keeps a misread ad reachable.
+  const matches: MatchRow[] = [...matchList].sort((a, b) => {
+    const rank = (COMPAT_RANK[a.compatibility] ?? 9) - (COMPAT_RANK[b.compatibility] ?? 9);
+    if (rank !== 0) return rank;
+    return effectiveScore(b, liveness) - effectiveScore(a, liveness);
+  });
 
   const byStatus = Object.fromEntries(counts.map((c) => [c.status, c._count]));
   const tabCount = (key: string) => {
@@ -125,6 +165,8 @@ export default async function ErgebnissePage({
         return (byStatus.REJECTED ?? 0) + (byStatus.EXPIRED ?? 0);
       case 'wiedervorlage':
         return followUpCount;
+      case 'zu-pruefen':
+        return limboCount;
       case 'abgelaufen':
         return expiredCount;
       default:
@@ -139,13 +181,13 @@ export default async function ErgebnissePage({
     where: {
       candidateCaseId: id,
       compatibility: { in: ['COMPATIBLE', 'NEAR_MATCH'] },
-      listing: LIVE_LISTING,
+      listing: liveListingFilter(liveness),
     },
   });
 
   return (
     <div className="stack">
-      <AutoCheck />
+      <AutoCheck candidateCaseId={id} />
       {sp.error ? (
         <Callout tone="danger">
           {sp.error === 'ALREADY_CONTACTED_SAME_CANDIDATE'
@@ -235,10 +277,19 @@ export default async function ErgebnissePage({
                       ? 'bad'
                       : '';
               const reasons = Array.isArray(m.reasons) ? (m.reasons as string[]) : [];
+              // The date the ad prints about itself beats the date we happened
+              // to import it: an ad found this morning can already be three
+              // weeks old, and that is exactly what decides whether it is worth
+              // writing to.
               const fresh = evaluateFreshness(
-                { firstSeenAt: l.importedAt, lastSeenAt: l.lastSeenAt, expired: l.expired },
+                {
+                  firstSeenAt: l.postedAt ?? l.importedAt,
+                  lastSeenAt: l.postedAt ? null : l.lastSeenAt,
+                  expired: l.expired,
+                },
                 freshnessSettings,
               );
+              const band = bandOf(l, liveness);
               const timing = evaluateMoveInTiming(
                 l.availableFrom,
                 arrival,
@@ -269,8 +320,25 @@ export default async function ErgebnissePage({
                       </span>
                       <span className="chip">{l.rooms != null ? `${l.rooms} Zi.` : 'Zi. ?'}</span>
                       {l.locationCity ? <span className="chip">{l.locationCity}</span> : null}
-                      {l.lastCheckStatus === 'GONE' ? (
-                        <span className="badge danger">Link tot</span>
+                      {band === 'DEAD' ? (
+                        <span className="badge danger" title={l.lastCheckReason ?? undefined}>
+                          Nicht mehr verfügbar
+                        </span>
+                      ) : band === 'LIMBO' ? (
+                        <span className="badge warning" title={l.lastCheckReason ?? undefined}>
+                          ? {l.onlineConfidence} % online — zu prüfen
+                        </span>
+                      ) : band === 'CONFIRMED' ? (
+                        <span className="badge success" title={l.lastCheckReason ?? undefined}>
+                          ✓ {l.onlineConfidence} % online
+                        </span>
+                      ) : (
+                        <span className="badge">Noch nicht geprüft</span>
+                      )}
+                      {l.postedAt ? (
+                        <span className="chip" title={l.postedAtLabel ?? undefined}>
+                          Inseriert {formatDate(l.postedAt)}
+                        </span>
                       ) : null}
                       {fresh.state === 'NEW' ? (
                         <span className="badge success">● Neu</span>
@@ -326,12 +394,25 @@ export default async function ErgebnissePage({
               arrival={arrival}
               freshnessSettings={freshnessSettings}
               bridging={bridging}
+              liveness={liveness}
             />
           ) : null}
         </div>
       )}
     </div>
   );
+}
+
+/**
+ * The preference score after the detector's reading is applied. Kept out of the
+ * stored score on purpose: the stored score answers "does this flat fit the
+ * candidate", which does not change when a portal blocks us for an afternoon.
+ */
+function effectiveScore(
+  match: { score: number; listing: { onlineConfidence: number | null; postedAt: Date | null } },
+  policy: LivenessPolicy,
+): number {
+  return match.score * livenessScoreFactor(match.listing, policy);
 }
 
 interface DetailMatch {
@@ -364,6 +445,10 @@ interface DetailMatch {
     lastCheckedAt: Date | null;
     lastCheckStatus: string | null;
     lastCheckReason: string | null;
+    onlineConfidence: number | null;
+    livenessSignals: unknown;
+    postedAt: Date | null;
+    postedAtLabel: string | null;
     /// Only set when the ad itself publishes an address; decides whether the
     /// enquiry can be sent from here or has to go through the portal form.
     contactEmail: string | null;
@@ -379,6 +464,7 @@ async function DetailPane({
   arrival,
   freshnessSettings,
   bridging,
+  liveness,
 }: {
   candidateId: string;
   match: DetailMatch;
@@ -387,6 +473,7 @@ async function DetailPane({
   arrival: Date | null;
   freshnessSettings: FreshnessSettings;
   bridging: BridgingSettings;
+  liveness: LivenessPolicy;
 }) {
   const l = match.listing;
   // Whether the send button can appear at all. Read here rather than threaded
@@ -448,6 +535,7 @@ async function DetailPane({
             arrival={arrival}
             freshnessSettings={freshnessSettings}
             bridging={bridging}
+            liveness={liveness}
           />
 
           {blockers.length > 0 ? (
@@ -609,16 +697,26 @@ function TimingBlock({
   arrival,
   freshnessSettings,
   bridging,
+  liveness,
 }: {
   listing: DetailMatch['listing'];
   arrival: Date | null;
   freshnessSettings: FreshnessSettings;
   bridging: BridgingSettings;
+  liveness: LivenessPolicy;
 }) {
   const fresh = evaluateFreshness(
-    { firstSeenAt: listing.importedAt, lastSeenAt: listing.lastSeenAt, expired: listing.expired },
+    {
+      firstSeenAt: listing.postedAt ?? listing.importedAt,
+      lastSeenAt: listing.postedAt ? null : listing.lastSeenAt,
+      expired: listing.expired,
+    },
     freshnessSettings,
   );
+  const band = bandOf(listing, liveness);
+  const signals = Array.isArray(listing.livenessSignals)
+    ? (listing.livenessSignals as LivenessSignal[])
+    : [];
   const timing = evaluateMoveInTiming(
     listing.availableFrom,
     arrival,
@@ -634,6 +732,13 @@ function TimingBlock({
         <span className={`badge ${fresh.state === 'NEW' ? 'success' : fresh.state === 'STALE' ? 'warning' : ''}`}>
           Anzeige: {fresh.label}
         </span>
+        {listing.postedAt ? (
+          <span className="chip" title={listing.postedAtLabel ?? undefined}>
+            {listing.postedAtLabel ?? `Inseriert ${formatDate(listing.postedAt)}`}
+          </span>
+        ) : (
+          <span className="chip subtle">Kein Einstelldatum auf der Seite</span>
+        )}
         {listing.expired ? (
           <span className="badge danger">
             Abgelaufen{listing.expiredBySystem ? ' (automatisch erkannt)' : ''}
@@ -641,28 +746,47 @@ function TimingBlock({
         ) : null}
       </div>
 
+      {/* What the text detector read, and how sure it is. Shown as evidence
+          rather than as a verdict, because it is a reading of prose and a
+          colleague opening the ad is the final word. */}
       <div className="row-wrap small">
-        {listing.lastCheckStatus ? (
-          <span
-            className={`badge ${
-              listing.lastCheckStatus === 'ALIVE'
-                ? 'success'
-                : listing.lastCheckStatus === 'GONE'
-                  ? 'danger'
-                  : 'warning'
-            }`}
-          >
-            Link-Prüfung: {listing.lastCheckStatus}
-          </span>
-        ) : (
-          <span className="badge">Noch nicht geprüft</span>
-        )}
+        <span
+          className={`badge ${
+            band === 'CONFIRMED' ? 'success' : band === 'DEAD' ? 'danger' : band === 'LIMBO' ? 'warning' : ''
+          }`}
+        >
+          Textprüfung: {describeBand(band, listing.onlineConfidence)}
+        </span>
         {listing.lastCheckedAt ? (
           <span className="subtle">zuletzt {formatDate(listing.lastCheckedAt)}</span>
+        ) : null}
+        {listing.lastCheckStatus === 'BLOCKED' ? (
+          <span className="subtle">Portal blockiert das Auslesen</span>
         ) : null}
       </div>
       {listing.lastCheckReason ? (
         <p className="small subtle">{listing.lastCheckReason}</p>
+      ) : null}
+      {signals.length > 0 ? (
+        <details>
+          <summary className="small muted" style={{ cursor: 'pointer' }}>
+            Woran das erkannt wurde ({signals.length})
+          </summary>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+            {signals.map((s, i) => (
+              <li key={i} className="small subtle">
+                {s.side === 'GONE' ? '−' : s.side === 'ALIVE' ? '+' : '?'} {s.label}{' '}
+                ({Math.round(s.weight * 100)} %)
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+      {band === 'LIMBO' ? (
+        <p className="small subtle">
+          Die Seite war nicht eindeutig zu lesen. Die Anzeige bleibt bewusst sichtbar — bitte einmal
+          öffnen und prüfen.
+        </p>
       ) : null}
       <form action={checkListingNowAction}>
         <input type="hidden" name="listingId" value={listing.id} />

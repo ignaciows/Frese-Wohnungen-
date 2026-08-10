@@ -569,6 +569,22 @@ model Listing {
   /// Consecutive confident "gone" verdicts. Reset by anything inconclusive, so
   /// a blocked portal can never expire a listing on its own.
   goneStreak      Int       @default(0)
+  /// 0..100 — how likely the ad is to still be online, as read from the page
+  /// text. Null means never checked. The middle band is deliberately kept
+  /// visible ("zu prüfen") rather than hidden, because the reading is a
+  /// heuristic and a wrongly hidden flat is one nobody ever hears about.
+  onlineConfidence Int?
+  /// The individual observations behind that number, so the UI can explain
+  /// itself instead of asking to be believed.
+  livenessSignals  Json?
+
+  /// --- what the ad says about itself ---
+  /// Publication date read from the page ("Online seit dem 04.08.2026"). Far
+  /// more useful than importedAt: an ad found today can already be three weeks
+  /// old, and three-week-old flats are usually gone.
+  postedAt      DateTime?
+  /// The wording it was read from, shown next to the date.
+  postedAtLabel String?
 
   importedById String
   importedAt   DateTime @default(now())
@@ -591,6 +607,8 @@ model Listing {
   @@index([sourceListingId])
   /// The default results query: live ads, newest discovery first.
   @@index([expired, lastListedAt])
+  /// "Confirmed live first, then newest ad" — the order the result list uses.
+  @@index([onlineConfidence, postedAt])
 }
 
 enum FactSource {

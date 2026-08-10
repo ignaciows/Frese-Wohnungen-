@@ -641,13 +641,27 @@ export async function checkListingNowAction(formData: FormData) {
   revalidatePath('/', 'layout');
 }
 
-const LivenessSettingsInput = z.object({
-  enabled: z.coerce.boolean().default(false),
-  checkIntervalHours: z.coerce.number().int().min(1).max(168),
-  expireAfterConsecutiveGone: z.coerce.number().int().min(1).max(5),
-  maxPerRun: z.coerce.number().int().min(1).max(500),
-  perHostDelayMs: z.coerce.number().int().min(500).max(30000),
-});
+const LivenessSettingsInput = z
+  .object({
+    enabled: z.coerce.boolean().default(false),
+    checkIntervalHours: z.coerce.number().int().min(1).max(168),
+    expireAfterConsecutiveGone: z.coerce.number().int().min(1).max(5),
+    maxPerRun: z.coerce.number().int().min(1).max(500),
+    perHostDelayMs: z.coerce.number().int().min(500).max(30000),
+    aliveAtOrAbove: z.coerce.number().int().min(51).max(100),
+    goneAtOrBelow: z.coerce.number().int().min(0).max(49),
+    showOnlyConfirmedActive: z.coerce.boolean().default(false),
+    checkOnSearch: z.coerce.boolean().default(false),
+    checkOnSearchLimit: z.coerce.number().int().min(1).max(50),
+    maxBytesPerPage: z.coerce.number().int().min(16_000).max(1_000_000),
+  })
+  // An overlap would make an ad simultaneously confirmed and gone, and the
+  // first band checked would silently win. Rejected rather than reconciled,
+  // because guessing which one the admin meant is worse than saying no.
+  .refine((v) => v.goneAtOrBelow < v.aliveAtOrAbove, {
+    message: 'Die Schwelle für „aktiv" muss über der für „nicht mehr verfügbar" liegen.',
+    path: ['aliveAtOrAbove'],
+  });
 
 export async function saveLivenessSettingsAction(formData: FormData) {
   const user = await requireAdmin();
@@ -724,13 +738,22 @@ export async function updateCandidateAction(formData: FormData) {
  * results, throttled through a stored timestamp so concurrent viewers cannot
  * stampede the portals.
  */
-export async function maybeRunLivenessSweepAction() {
+/**
+ * Re-reads the ads on screen whenever somebody opens a result list.
+ *
+ * This is what makes the list true at the moment it is read rather than true
+ * whenever a cron last ran — the original complaint was opening ads that had
+ * been dead for hours. The throttle is per candidate, not global, so looking at
+ * the next candidate checks *their* ads instead of being skipped because
+ * somebody else's list was refreshed a minute ago.
+ */
+export async function maybeRunLivenessSweepAction(candidateCaseId?: string) {
   await requireUser();
   const { getLivenessSettings } = await import('@/server/settings');
   const policy = await getLivenessSettings();
-  if (!policy.enabled) return { ran: false as const };
+  if (!policy.enabled || !policy.checkOnSearch) return { ran: false as const };
 
-  const KEY = 'livenessLastRun';
+  const KEY = candidateCaseId ? `livenessLastRun:${candidateCaseId}` : 'livenessLastRun';
   const row = await prisma.appSetting.findUnique({ where: { key: KEY } });
   const last = row ? new Date((row.valueJson as { at?: string }).at ?? 0).getTime() : 0;
   const throttleMs = 10 * 60 * 1000;
@@ -745,9 +768,17 @@ export async function maybeRunLivenessSweepAction() {
 
   const { runLivenessChecks } = await import('@/server/liveness');
   // Small batch: this happens while a colleague waits, not in a cron window.
-  const summary = await runLivenessChecks({ limit: 8 });
+  const summary = await runLivenessChecks({
+    limit: policy.checkOnSearchLimit,
+    candidateCaseId,
+  });
   revalidatePath('/', 'layout');
-  return { ran: true as const, checked: summary.checked, expired: summary.expired };
+  return {
+    ran: true as const,
+    checked: summary.checked,
+    expired: summary.expired,
+    limbo: summary.limbo,
+  };
 }
 
 /* ------------------------------------------------------- Wiedervorlage --- */

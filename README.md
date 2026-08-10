@@ -108,6 +108,13 @@ Diagnose-Skripte (nur Entwicklung, nicht Teil der App):
   Feed-, schema.org-, Linklisten- und Sitemap-Verfahren rein per
   Konfiguration). Details, Grenzen und die robots.txt-Auswertung stehen in
   `docs/DISCOVERY.md`.
+- **Anzeigen prüfen**: Vor jeder Ergebnisliste liest die App die Anzeigenseiten
+  im Text nach — Abschaltungs-Formulierungen („Angebot nicht gefunden",
+  „bereits vermietet"), Anzeigendaten und das Einstelldatum („Online seit dem
+  04.08.2026"). Der Status-Code allein taugt nicht: die großen Portale liefern
+  eine gelöschte Anzeige als ganz normale `200`-Seite aus. Ergebnis ist ein
+  Prozentwert; Anzeigen dazwischen landen im Reiter **„Zu prüfen"** statt
+  stillschweigend zu verschwinden. Details in `docs/EMAIL_INGEST.md`.
 - **Anfragen senden**: Wo eine Anzeige selbst eine E-Mail-Adresse
   veröffentlicht, geht die Anfrage direkt aus der App raus. Der Kontakt wird
   dabei *vor* dem Versand erfasst — eine erfasste, nicht zugestellte Anfrage

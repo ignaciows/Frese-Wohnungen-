@@ -430,14 +430,20 @@ export default async function SettingsPage({
         {/* ------------------------------------------ link liveness --- */}
         <form action={saveLivenessSettingsAction} className="card" style={{ marginTop: 18 }}>
           <div className="card-head">
-            <h2>Automatische Link-Prüfung</h2>
+            <h2>Textprüfung: Ist die Anzeige noch online?</h2>
             {liveness.enabled ? <span className="badge success">aktiv</span> : <span className="badge">aus</span>}
           </div>
           <div className="card-body stack">
             <p className="small muted">
-              Die App ruft in Abständen die bereits importierten Anzeigen auf und prüft nur, ob die Seite noch
-              existiert. Tote Anzeigen wandern automatisch in den Reiter „Abgelaufen“, damit niemand mehr auf
-              ein totes Inserat klickt.
+              Die App ruft eine bereits importierte Anzeige auf und <strong>liest den Seitentext</strong> —
+              Formulierungen wie „Angebot nicht gefunden“ oder „bereits vermietet“, das Einstelldatum
+              („Online seit …“), Preis- und Kontaktfelder. Der Status-Code allein reicht nicht: die großen
+              Portale liefern eine gelöschte Anzeige als ganz normale Seite aus.
+            </p>
+            <p className="small muted">
+              Ergebnis ist ein <strong>Prozentwert</strong>, keine Ja/Nein-Antwort. Anzeigen dazwischen
+              verschwinden nicht, sondern landen im Reiter „Zu prüfen“ — die Texterkennung kann sich irren,
+              und eine still ausgeblendete Wohnung sieht niemand je wieder.
             </p>
             <div className="checkline">
               <input
@@ -448,7 +454,82 @@ export default async function SettingsPage({
                 defaultChecked={liveness.enabled}
                 disabled={!isAdmin}
               />
-              <label htmlFor="livenessEnabled">Link-Prüfung aktiv</label>
+              <label htmlFor="livenessEnabled">Textprüfung aktiv</label>
+            </div>
+            <div className="checkline">
+              <input
+                id="checkOnSearch"
+                name="checkOnSearch"
+                type="checkbox"
+                value="true"
+                defaultChecked={liveness.checkOnSearch}
+                disabled={!isAdmin}
+              />
+              <label htmlFor="checkOnSearch">
+                Bei jedem Öffnen einer Ergebnisliste sofort nachprüfen
+              </label>
+            </div>
+            <div className="checkline">
+              <input
+                id="showOnlyConfirmedActive"
+                name="showOnlyConfirmedActive"
+                type="checkbox"
+                value="true"
+                defaultChecked={liveness.showOnlyConfirmedActive}
+                disabled={!isAdmin}
+              />
+              <label htmlFor="showOnlyConfirmedActive">
+                Nur bestätigt aktive Anzeigen zeigen (unklare ausblenden)
+              </label>
+            </div>
+            <p className="field-hint">
+              Aus = unklare Anzeigen bleiben sichtbar und sind als „zu prüfen“ markiert. Ein = die Liste
+              zeigt ausschließlich bestätigte Anzeigen — dabei fällt gelegentlich auch eine gute Wohnung
+              weg, deren Portal das Auslesen blockiert.
+            </p>
+
+            <div className="grid-3">
+              <div>
+                <label htmlFor="aliveAtOrAbove">„Aktiv“ ab (%)</label>
+                <input
+                  id="aliveAtOrAbove"
+                  name="aliveAtOrAbove"
+                  type="number"
+                  min={51}
+                  max={100}
+                  className="input"
+                  defaultValue={liveness.aliveAtOrAbove}
+                  disabled={!isAdmin}
+                />
+              </div>
+              <div>
+                <label htmlFor="goneAtOrBelow">„Weg“ bis (%)</label>
+                <input
+                  id="goneAtOrBelow"
+                  name="goneAtOrBelow"
+                  type="number"
+                  min={0}
+                  max={49}
+                  className="input"
+                  defaultValue={liveness.goneAtOrBelow}
+                  disabled={!isAdmin}
+                />
+                <p className="field-hint">Dazwischen: „zu prüfen“</p>
+              </div>
+              <div>
+                <label htmlFor="checkOnSearchLimit">Anzeigen pro Suchaufruf</label>
+                <input
+                  id="checkOnSearchLimit"
+                  name="checkOnSearchLimit"
+                  type="number"
+                  min={1}
+                  max={50}
+                  className="input"
+                  defaultValue={liveness.checkOnSearchLimit}
+                  disabled={!isAdmin}
+                />
+                <p className="field-hint">Klein halten — es wird gewartet</p>
+              </div>
             </div>
             <div className="grid-3">
               <div>
@@ -492,30 +573,49 @@ export default async function SettingsPage({
                 />
               </div>
             </div>
-            <div>
-              <label htmlFor="perHostDelayMs">Pause zwischen Abrufen desselben Portals (ms)</label>
-              <input
-                id="perHostDelayMs"
-                name="perHostDelayMs"
-                type="number"
-                min={500}
-                max={30000}
-                step={500}
-                className="input"
-                style={{ maxWidth: 200 }}
-                defaultValue={liveness.perHostDelayMs}
-                disabled={!isAdmin}
-              />
-              <p className="field-hint">
-                Höflichkeit gegenüber den Portalen — nicht kleiner als nötig einstellen.
-              </p>
+            <div className="grid-2">
+              <div>
+                <label htmlFor="perHostDelayMs">Pause zwischen Abrufen desselben Portals (ms)</label>
+                <input
+                  id="perHostDelayMs"
+                  name="perHostDelayMs"
+                  type="number"
+                  min={500}
+                  max={30000}
+                  step={500}
+                  className="input"
+                  defaultValue={liveness.perHostDelayMs}
+                  disabled={!isAdmin}
+                />
+                <p className="field-hint">
+                  Höflichkeit gegenüber den Portalen — nicht kleiner als nötig einstellen.
+                </p>
+              </div>
+              <div>
+                <label htmlFor="maxBytesPerPage">Gelesene Textmenge je Seite (Bytes)</label>
+                <input
+                  id="maxBytesPerPage"
+                  name="maxBytesPerPage"
+                  type="number"
+                  min={16000}
+                  max={1000000}
+                  step={10000}
+                  className="input"
+                  defaultValue={liveness.maxBytesPerPage}
+                  disabled={!isAdmin}
+                />
+                <p className="field-hint">
+                  Der Hinweis „nicht mehr verfügbar“ steht oben, das Einstelldatum oft weit unten.
+                </p>
+              </div>
             </div>
             <div className="callout">
               <span className="callout-icon" aria-hidden>i</span>
               <div>
-                Blockiert ein Portal den Abruf oder antwortet es nicht, gilt das Ergebnis als{' '}
-                <strong>unklar</strong> — die Anzeige bleibt unverändert. Automatisch abgelaufen wird nur bei
-                eindeutigen Treffern (404/410 oder „nicht mehr verfügbar“), und erst nach mehreren Läufen.
+                Blockiert ein Portal den Abruf oder antwortet es nicht, wird <strong>nichts</strong>{' '}
+                überschrieben — der zuletzt gelesene Prozentwert bleibt stehen, und die Anzeige kann
+                dadurch nie automatisch verschwinden. Abgelaufen wird nur, wenn der Seitentext selbst es
+                mehrfach hintereinander sagt.
               </div>
             </div>
           </div>
