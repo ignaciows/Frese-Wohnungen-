@@ -37,6 +37,30 @@ describe('plausibility gate', () => {
     }
   });
 
+  it('rejects a menu entry built from the same words an advert uses (live examples)', () => {
+    // These two survived the first version of the gate and reached the pool:
+    // both contain "Wohnung"/"wohnen", so the wording check waved them past,
+    // and only the failed detail read eventually removed them.
+    for (const title of [
+      'Wohnungsangebote finden',
+      'Wohnen im Alter in Berlin - Gewobag',
+      'Alle Wohnungen im Überblick',
+      'Zurück zur Suche',
+      'Betreutes Wohnen',
+      'Wohnungssuche',
+    ]) {
+      expect(isPlausibleHousing({ title }).plausible, title).toBe(false);
+    }
+  });
+
+  it('never rejects an advert on wording when it came with a figure', () => {
+    // The measurement shortcut runs first on purpose. A real advert titled in
+    // a menu-ish way must still get through — a missed flat costs more than a
+    // stray row, and the figure proves it is an advert.
+    expect(accept({ title: 'Wohnen im Alter in Berlin', structured: { rooms: 2 } })).toBe(true);
+    expect(accept({ title: 'Wohnungsangebote finden', structured: { kaltMieteCents: 65000 } })).toBe(true);
+  });
+
   it('rejects other things that are let but are not homes', () => {
     for (const title of ['Tiefgaragenplatz zu vermieten', 'Bürofläche 120 m²', 'Ladenlokal in der Innenstadt', 'Grundstück am Waldrand']) {
       expect(isPlausibleHousing({ title }).plausible, title).toBe(false);

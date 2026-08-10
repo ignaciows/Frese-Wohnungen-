@@ -241,6 +241,11 @@ export async function runDiscoverySweep(
     const seenUrls = new Set<string>();
     let sourceOk = false;
     let sourceBlocked = false;
+    // Counted across every query for this source, because the verdict "this
+    // source only returns links we already know are unreadable" is about the
+    // source, not about one city's search.
+    let sourceFound = 0;
+    let sourceUnreadable = 0;
 
     for (const planned of queries) {
       if (crawler.budgetLeft <= 0) {
@@ -256,6 +261,7 @@ export async function runDiscoverySweep(
       let created = 0;
       let updated = 0;
       let rejected = 0;
+      let unreadable = 0;
 
       try {
         if (adapter.prepare) {
@@ -320,6 +326,12 @@ export async function runDiscoverySweep(
             if (result === 'created') created++;
             else if (result === 'updated') updated++;
             else if (result === 'rejected') rejected++;
+            else if (result === 'unreadable') {
+              // Still an update as far as the row is concerned; counted apart
+              // so the source can be told what it is really contributing.
+              updated++;
+              unreadable++;
+            }
           }
         }
       } catch (err) {
@@ -329,6 +341,8 @@ export async function runDiscoverySweep(
 
       if (status === 'OK') sourceOk = true;
       if (status === 'BLOCKED' || status === 'ROBOTS_DENIED') sourceBlocked = true;
+      sourceFound += found;
+      sourceUnreadable += unreadable;
 
       summary.found += found;
       summary.created += created;
@@ -364,7 +378,9 @@ export async function runDiscoverySweep(
     if (sourceOk) {
       summary.sourcesSucceeded++;
       summary.retired += await retireUnseen(source.id, seenUrls, settings);
-      await noteSourceStatus(source.id, 'OK', null);
+      const verdict = describeYield(sourceFound, sourceUnreadable);
+      await noteSourceStatus(source.id, 'OK', verdict);
+      if (verdict) summary.notes.push(`${source.name}: ${verdict}`);
     } else if (sourceBlocked) {
       summary.sourcesBlocked++;
       await noteSourceStatus(source.id, 'BLOCKED', 'Portal blockiert automatische Abrufe.');
@@ -397,7 +413,7 @@ async function upsertDiscovered(
   sourceId: string,
   item: DiscoveredListing,
   importedById: string,
-): Promise<'created' | 'updated' | 'skipped' | 'rejected'> {
+): Promise<'created' | 'updated' | 'skipped' | 'rejected' | 'unreadable'> {
   const canonicalUrl = normaliseUrl(item.url);
   const now = new Date();
 
@@ -428,6 +444,7 @@ async function upsertDiscovered(
   }
 
   if (existing) {
+    const permanentlyUnreadable = existing.expired && existing.lastCheckStatus === 'UNREADABLE';
     // Seeing an ad in the result list again is proof it is live. If we had
     // retired it ourselves, that verdict was wrong — undo it.
     await prisma.listing.update({
@@ -457,7 +474,7 @@ async function upsertDiscovered(
           : {}),
       },
     });
-    return 'updated';
+    return permanentlyUnreadable ? 'unreadable' : 'updated';
   }
 
   try {
@@ -780,6 +797,36 @@ async function enrichNewListings(
 }
 
 /* ------------------------------------------------------------ helpers --- */
+
+/**
+ * What a successful sweep actually contributed, in one sentence — or null when
+ * there is nothing worth saying.
+ *
+ * A sweep can succeed and still be useless. Immowelt returns thirty-one links
+ * every time; every one of them leads to a page rendered by JavaScript that we
+ * cannot read, so all thirty-one were retired long ago and are re-found,
+ * re-recognised and re-ignored on every pass. The source reported "OK" with no
+ * note, which reads as "this is working" on the Quellen page and is the exact
+ * shape of the complaint that the tool shows too few flats: it looks healthy
+ * and delivers nothing.
+ *
+ * Saying so does not fix the portal — that needs a rendering fetcher — but it
+ * turns an invisible dead end into a visible one, which is the difference
+ * between a colleague waiting for results that will never come and a colleague
+ * who knows to look elsewhere.
+ */
+export function describeYield(found: number, unreadable: number): string | null {
+  if (found === 0) {
+    return 'Suchlauf erfolgreich, aber ohne Treffer — Suchbegriffe oder Ort passen möglicherweise nicht.';
+  }
+  if (unreadable === 0) return null;
+  if (unreadable >= found) {
+    return `Alle ${found} Treffer sind bereits als unlesbar aussortiert — diese Quelle liefert nur Platzhalter-Links (Seite wird per JavaScript aufgebaut). Sie trägt derzeit nichts zum Pool bei.`;
+  }
+  // Below half is ordinary attrition and not worth a warning.
+  if (unreadable * 2 < found) return null;
+  return `${unreadable} von ${found} Treffern sind unlesbare Platzhalter — von dieser Quelle kommt nur ein Bruchteil an.`;
+}
 
 async function noteSourceStatus(sourceId: string, status: string, note: string | null): Promise<void> {
   await prisma.source.update({

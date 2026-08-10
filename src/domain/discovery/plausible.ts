@@ -72,6 +72,33 @@ const HOUSING_WORDS =
 const PLACEHOLDER_TITLE = /titel folgt bei detailpr(ü|ue)fung/i;
 
 /**
+ * Menu entries that talk *about* flats without being one.
+ *
+ * The wording check cannot catch these on its own, because they are made of
+ * exactly the words a real advert uses: a live Gewobag sweep brought back
+ * "Wohnungsangebote finden" and "Wohnen im Alter in Berlin", both of which
+ * contain "Wohnung"/"wohnen" and so sailed through. They then sat in the pool
+ * until the detail read failed and retired them — visible to a colleague in
+ * between, and costing a detail fetch each.
+ *
+ * What separates them is grammar rather than vocabulary: an advert names a
+ * thing, a menu entry issues an instruction or names a whole category. These
+ * are only consulted once no room count, size or rent has been found, so an
+ * advert carrying any figure at all is never judged on its wording.
+ */
+const NAVIGATION_TITLE = [
+  // Ends in an instruction: "Wohnungsangebote finden", "Jetzt bewerben".
+  /\b(finden|suchen|entdecken|ansehen|anzeigen|erfahren|bewerben|registrieren|anmelden|merken|vormerken|abonnieren)\s*$/i,
+  // Names the index rather than an entry in it.
+  /\b(wohnungsangebote|wohnungssuche|wohnungsb(ö|oe)rse|mietangebote|immobiliensuche|objektsuche|angebotssuche)\b/i,
+  /\balle[nrs]?\s+(wohnungen|angebote|objekte|immobilien)\b/i,
+  /\bzur(ü|ue)ck\s+zur\b/i,
+  // A form of living, i.e. a category page on a landlord's site.
+  /\bwohnen\s+im\s+alter\b/i,
+  /\b(betreutes|studentisches|seniorengerechtes|barrierefreies|gemeinschaftliches)\s+wohnen\b/i,
+];
+
+/**
  * URL shapes that only ever belong to one advert's detail page.
  *
  * This matters for the link-list adapter: plenty of portals wrap the advert
@@ -115,6 +142,16 @@ export function isPlausibleHousing(input: PlausibilityInput): PlausibilityResult
   // A number from the result list is the strongest signal there is: navigation
   // never comes with a room count or a rent.
   if (hasMeasurement) return { plausible: true, reason: '' };
+
+  // Checked here, after the measurement shortcut: an advert with a rent or a
+  // room count is never rejected on wording, however menu-like it reads.
+  const navigation = NAVIGATION_TITLE.find((p) => p.test(title));
+  if (navigation) {
+    return {
+      plausible: false,
+      reason: `Menü- oder Übersichtsseite, keine einzelne Anzeige (Titel „${title}")`,
+    };
+  }
 
   const text = `${title}\n${description}`;
   if (HOUSING_WORDS.test(text)) {

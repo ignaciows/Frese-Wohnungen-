@@ -12,7 +12,7 @@
 
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ensureMigrated, truncateAll } from './setup';
-import { retireUnseen } from '@/server/discovery';
+import { describeYield, retireUnseen } from '@/server/discovery';
 import { DEFAULT_DISCOVERY } from '@/server/settings';
 
 let prisma: typeof import('@/lib/prisma').prisma;
@@ -303,5 +303,37 @@ describe('entries that never become readable', () => {
     const row = await prisma.listing.findUniqueOrThrow({ where: { id: dead.id } });
     expect(row.lastCheckStatus).toBe('UNREADABLE');
     expect(row.expired).toBe(true);
+  });
+});
+
+/**
+ * The counterpart to retiring the links: saying so on the source.
+ *
+ * Retirement is invisible from the Quellen page — a portal whose every hit is
+ * a dead placeholder still reported "OK", found 31, and contributed nothing.
+ * That combination is indistinguishable from working, which is why the tool
+ * looked healthy while showing almost no flats.
+ */
+describe('what a sweep actually contributed', () => {
+  it('says so when every hit is a placeholder we already gave up on', () => {
+    const note = describeYield(31, 31);
+    expect(note).toMatch(/Platzhalter/);
+    expect(note).toMatch(/31/);
+  });
+
+  it('warns once placeholders are the majority, not before', () => {
+    // Half and above is a warning; below half is ordinary attrition and a
+    // note on every source every sweep would be noise nobody reads.
+    expect(describeYield(10, 5)).toMatch(/5 von 10/);
+    expect(describeYield(10, 4)).toBeNull();
+  });
+
+  it('stays quiet about a healthy source', () => {
+    expect(describeYield(20, 0)).toBeNull();
+  });
+
+  it('flags a successful sweep that found nothing at all', () => {
+    // Distinct from "the market is empty": far likelier the query is wrong.
+    expect(describeYield(0, 0)).toMatch(/ohne Treffer/);
   });
 });

@@ -230,10 +230,17 @@ function SourceDiscoveryForm({
           <strong>{source.name}</strong>
           {adapter ? <span className="small muted">{adapter.description}</span> : null}
           {source.discoveryStatus ? (
-            <span className={source.discoveryStatus === 'OK' ? 'badge success' : 'badge danger'}>
-              {source.discoveryStatus}
-              {source.discoveryNote ? ` — ${source.discoveryNote}` : ''}
-            </span>
+            <>
+              {/* A note on an "OK" source is always bad news — it only exists
+                  to say the sweep succeeded and still brought nothing back.
+                  Inside a green badge it read as reassurance. */}
+              <span className={statusTone(source.discoveryStatus, source.discoveryNote)}>
+                {statusLabel(source.discoveryStatus)}
+              </span>
+              {source.discoveryNote ? (
+                <span className="small muted">{source.discoveryNote}</span>
+              ) : null}
+            </>
           ) : null}
           {gaps.length > 0 && source.discoveryEnabled ? (
             <span className="badge danger">Fehlende Konfiguration: {gaps.join(', ')}</span>
@@ -310,6 +317,34 @@ function SourceDiscoveryForm({
       </div>
     </form>
   );
+}
+
+/**
+ * The stored status is a machine word — OK, BLOCKED, ROBOTS_DENIED. Printed
+ * raw it tells a colleague nothing about what to do next, so it is said in
+ * plain German instead.
+ */
+function statusLabel(status: string): string {
+  switch (status) {
+    case 'OK':
+      return 'Läuft';
+    case 'BLOCKED':
+      return 'Portal blockiert uns';
+    case 'ROBOTS_DENIED':
+      return 'Portal verbietet automatische Abrufe';
+    case 'ERROR':
+      return 'Fehler';
+    case 'NEVER_RUN':
+      return 'Noch nie gelaufen';
+    default:
+      return status;
+  }
+}
+
+/** Green only when the source is genuinely delivering; a note means it is not. */
+function statusTone(status: string, note: string | null): string {
+  if (status !== 'OK') return 'badge danger';
+  return note ? 'badge warning' : 'badge success';
 }
 
 function adapterHints(key: string) {
