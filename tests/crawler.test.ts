@@ -81,9 +81,29 @@ describe('block detection', () => {
     expect(isBlockPage('<html><body>Please complete the CAPTCHA to continue</body></html>')).toBe(true);
     expect(isBlockPage('<title>Just a moment...</title>')).toBe(true);
     expect(isBlockPage('<html><body>Zugriff verweigert</body></html>')).toBe(true);
+    expect(isBlockPage('<html><body>Checking your browser before accessing…</body></html>')).toBe(true);
   });
 
   it('does not mistake an ordinary results page for a wall', () => {
     expect(isBlockPage('<html><body>27 Mietwohnungen in Heilbronn</body></html>')).toBe(false);
+  });
+
+  it('ignores a weak hint buried in a full-size page', () => {
+    // The regression this exists for: WG-Gesucht's cookie-consent script names
+    // "recaptcha.net" among the domains it ignores, on a page full of adverts.
+    // Treating that as a wall silently removed a working source from every
+    // sweep.
+    const realPage = readFileSync(join(__dirname, 'fixtures', 'wggesucht-consent-head.html'), 'utf8');
+    expect(realPage.toLowerCase().slice(0, 4000)).toContain('captcha');
+    expect(isBlockPage(realPage)).toBe(false);
+  });
+
+  it('still trusts a weak hint on a page too small to be content', () => {
+    expect(isBlockPage('<html><body>captcha required</body></html>')).toBe(true);
+  });
+
+  it('a strong marker counts even on a large page', () => {
+    const big = '<html><body>Sind Sie ein Mensch?' + 'x'.repeat(80_000) + '</body></html>';
+    expect(isBlockPage(big)).toBe(true);
   });
 });

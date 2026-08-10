@@ -934,7 +934,14 @@ const SourceDiscoveryInput = z.object({
   discoveryEnabled: z.coerce.boolean().default(false),
   /** Free-form JSON, or the adapter's keys as individual fields. */
   config: z.string().max(8000).optional().nullable(),
+  pollIntervalMinutes: z.string().max(8).optional().nullable(),
 });
+
+/** Blank or nonsensical means "use the global interval", not "every 0 minutes". */
+function pollMinutes(raw: string | null | undefined): number | null {
+  const value = raw?.trim() ? Number(raw) : NaN;
+  return Number.isFinite(value) && value >= 5 ? Math.round(value) : null;
+}
 
 export async function saveSourceDiscoveryAction(formData: FormData) {
   await requireAdmin();
@@ -959,6 +966,7 @@ export async function saveSourceDiscoveryAction(formData: FormData) {
       discoveryAdapter: parsed.discoveryAdapter?.trim() || null,
       discoveryEnabled: parsed.discoveryEnabled,
       discoveryConfig: config as never,
+      pollIntervalMinutes: pollMinutes(parsed.pollIntervalMinutes),
       // A configuration change invalidates the previous verdict.
       discoveryStatus: null,
       discoveryNote: null,
@@ -1192,4 +1200,126 @@ export async function runDiscoverySweepFormAction() {
     ? summary.skippedReason
     : `${summary.created} neu, ${summary.updated} bestätigt, ${summary.retired} entfernt (${summary.requests} Abrufe).`;
   redirect(`/einstellungen?gespeichert=${encodeURIComponent(note)}`);
+}
+
+/* ------------------------------------------------- add any source by URL */
+
+/**
+ * Probes a website and reports how — or whether — it can be read
+ * automatically. This is what makes the long tail of municipal landlords,
+ * cooperatives and regional agents addable without a developer.
+ */
+export async function probeSourceAction(formData: FormData) {
+  await requireAdmin();
+  const url = z.string().url().max(500).parse(String(formData.get('url') ?? '').trim());
+  const { probeSource } = await import('@/server/sourceProbe');
+  const report = await probeSource(url);
+  return report;
+}
+
+const NewSourceInput = z.object({
+  name: z.string().min(2).max(120),
+  websiteUrl: z.string().url().max(500),
+  category: z
+    .enum([
+      'MARKETPLACE',
+      'GENERAL_PORTAL',
+      'FURNISHED',
+      'INSTITUTIONAL_LANDLORD',
+      'COOPERATIVE',
+      'MUNICIPAL',
+      'TEMPORARY',
+      'SOCIAL_LOCAL',
+      'DIRECTORY',
+    ])
+    .default('GENERAL_PORTAL'),
+  discoveryAdapter: z.string().max(40).optional().nullable(),
+  config: z.string().max(8000).optional().nullable(),
+  pollIntervalMinutes: z.coerce.number().int().min(5).max(10080).optional().nullable(),
+  enable: z.coerce.boolean().default(false),
+});
+
+/** Creates a source from the probe result (or by hand). */
+export async function createSourceAction(formData: FormData) {
+  await requireAdmin();
+  const parsed = NewSourceInput.parse(Object.fromEntries(formData));
+
+  let config: Record<string, unknown> = {};
+  if (parsed.config?.trim()) {
+    try {
+      const decoded = JSON.parse(parsed.config) as unknown;
+      if (decoded && typeof decoded === 'object' && !Array.isArray(decoded)) {
+        config = decoded as Record<string, unknown>;
+      }
+    } catch {
+      return { ok: false as const, error: 'Konfiguration ist kein gültiges JSON.' };
+    }
+  }
+
+  // A readable, stable key derived from the name; collisions get a suffix
+  // rather than silently overwriting somebody else's source.
+  const base =
+    parsed.name
+      .toLowerCase()
+      .replace(/ä/g, 'ae')
+      .replace(/ö/g, 'oe')
+      .replace(/ü/g, 'ue')
+      .replace(/ß/g, 'ss')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 40) || 'quelle';
+  let key = base;
+  for (let i = 2; await prisma.source.findUnique({ where: { key } }); i++) {
+    key = `${base}-${i}`;
+  }
+
+  await prisma.source.create({
+    data: {
+      key,
+      name: parsed.name,
+      websiteUrl: parsed.websiteUrl,
+      category: parsed.category,
+      priority: 200,
+      integrationMode: 'CUSTOM_SOURCE',
+      // Added by hand after a probe, so the admin has seen what it does.
+      termsReviewStatus: 'MANUAL_ONLY',
+      housingTypes: ['APARTMENT'],
+      discoveryAdapter: parsed.discoveryAdapter?.trim() || null,
+      discoveryEnabled: parsed.enable,
+      discoveryConfig: config as never,
+      pollIntervalMinutes: parsed.pollIntervalMinutes ?? null,
+    },
+  });
+
+  revalidatePath('/', 'layout');
+  return { ok: true as const, key };
+}
+
+export async function createSourceFormAction(formData: FormData) {
+  const result = await createSourceAction(formData);
+  redirect(
+    result.ok
+      ? `/einstellungen?gespeichert=${encodeURIComponent(`Quelle „${formData.get('name')}" angelegt.`)}`
+      : `/einstellungen?fehler=${encodeURIComponent(result.error)}`,
+  );
+}
+
+const SourcePollInput = z.object({
+  sourceId: z.string().min(1),
+  pollIntervalMinutes: z.string().max(8).optional().nullable(),
+});
+
+export async function saveSourcePollAction(formData: FormData) {
+  await requireAdmin();
+  const parsed = SourcePollInput.parse(Object.fromEntries(formData));
+  const raw = parsed.pollIntervalMinutes?.trim();
+  const minutes = raw ? Number(raw) : null;
+  await prisma.source.update({
+    where: { id: parsed.sourceId },
+    data: {
+      pollIntervalMinutes:
+        minutes != null && Number.isFinite(minutes) && minutes >= 5 ? Math.round(minutes) : null,
+    },
+  });
+  revalidatePath('/einstellungen');
 }

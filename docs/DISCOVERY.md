@@ -16,18 +16,104 @@ Dinge: neue Anzeigen, bestätigte Anzeigen, verschwundene Anzeigen.
 
 ## Was tatsächlich funktioniert — und was nicht
 
-| Quelle | Automatisch lesbar | Anmerkung |
-| --- | --- | --- |
-| Kleinanzeigen | **ja** | Ergebnisliste wird direkt gelesen. Einschränkungen unten. |
-| WG-Gesucht | **ja** | Braucht einmalig die Such-URL aus dem Browser. |
-| ImmoScout24 | nein | Antwortet serverseitigen Abrufen mit HTTP 401. Bleibt beim E-Mail-Suchauftrag. |
-| Immowelt / Immonet | nein | Antwortet mit HTTP 403. Bleibt beim E-Mail-Suchauftrag. |
-| beliebige weitere | **ja, per Konfiguration** | Über die generischen Verfahren, siehe unten. |
+Am 2026-08-10 wurden 46 deutsche Wohnungsquellen live geprüft. Das Ergebnis ist
+ernüchternd und gehört hierher, weil es die Grenze der Methode zeigt:
 
-Geprüft am 2026-08-10 gegen die Live-Seiten. Ein Portal, das automatische
-Abrufe sperrt, wird nicht umgangen — es wird als `BLOCKED` protokolliert und in
-der App auch so angezeigt, damit eine leere Liste nie mit „kein Angebot"
-verwechselt wird.
+| Ergebnis | Anzahl | Bedeutung |
+| --- | --- | --- |
+| automatisch lesbar | 8 | Feed, schema.org oder Linkliste greifen. |
+| kein Muster erkennbar | 28 | Die Seite baut ihre Ergebnisliste erst im Browser zusammen (JavaScript). Per Abruf ist dort nichts zu sehen. |
+| blockiert | 7 | Das Portal weist automatische Abrufe ab (HTTP 401/403). |
+| robots.txt untersagt | 1 | Pfad ist gesperrt. |
+
+**Die 28 „kein Muster" sind der eigentliche Engpass, nicht die Sperren.** Große
+Anbieter liefern heute eine leere Seite plus JavaScript; ohne einen echten
+Browser sieht ein Abruf dort gar nichts. Genau dafür gibt es den
+E-Mail-Suchauftrag: praktisch jedes dieser Portale verschickt neue Treffer per
+Mail, wenn man dort eine gespeicherte Suche anlegt — und die App liest dieses
+Postfach bereits aus. Für gesperrte und JavaScript-Portale ist das der Weg,
+der funktioniert.
+
+Konkret einsatzbereit:
+
+| Quelle | Verfahren | Anmerkung |
+| --- | --- | --- |
+| Kleinanzeigen | eigener Adapter | Ergebnisliste direkt lesbar. Einschränkungen unten. |
+| WG-Gesucht | eigener Adapter | Such-URL aus dem Browser einmalig einfügen. |
+| Telegram (öffentliche Kanäle) | eigener Adapter | Ohne Konto lesbar, siehe unten. |
+| Immowelt | Linkliste | `/expose/`-Links; Details kommen von der Anzeigenseite. |
+| immobilo, Mr. Lodge | Linkliste | dito. |
+| degewo, Gewobag (Berlin) | Linkliste | Kommunale Gesellschaften. |
+| GdW | Feed | Verbandsseite — Rechercheeinstieg zu Genossenschaften, keine Anzeigenquelle. |
+| ImmoScout24 | — | HTTP 401. E-Mail-Suchauftrag. |
+| Immonet, immobilien.de, wohnungsboerse, markt.de, SAGA, ABG | — | HTTP 403. E-Mail-Suchauftrag. |
+
+Ein Portal, das automatische Abrufe sperrt, wird nicht umgangen — es wird als
+`BLOCKED` protokolliert und in der App auch so angezeigt, damit eine leere
+Liste nie mit „kein Angebot" verwechselt wird.
+
+## Telegram
+
+Ein spürbarer Teil des Marktes — möblierte Wohnungen, Zwischenmieten,
+Nachmieter — läuft nur über Telegram und ist binnen Stunden weg.
+
+Gelesen wird die **öffentliche Web-Ansicht** eines Kanals (`t.me/s/NAME`), die
+Telegram für jeden veröffentlicht. **Kein Konto, keine Anmeldung, kein
+API-Schlüssel, kein Beitritt, keine gesendete Nachricht.** In den Einstellungen
+werden nur die Kanalnamen eingetragen.
+
+Grenzen, damit die Erwartung stimmt:
+
+- **Nur öffentliche Kanäle.** Private Gruppen und Einladungslinks sind so nicht
+  lesbar. Dafür bräuchte es ein echtes Telegram-Konto samt MTProto-Zugangsdaten
+  — eine eigene Entscheidung mit eigenen Risiken, bewusst nicht gebaut.
+- **Freitext.** Ein Kanalbeitrag hat kein Preisfeld. Alles kommt aus dem
+  deutschen Parser; ein nachlässig geschriebener Beitrag ergibt eine dünne
+  Anzeige.
+- **Gesuche werden aussortiert.** Die Hälfte solcher Beiträge sind Leute, die
+  selbst suchen. Die kommen nicht in den Bestand.
+
+Kanäle findet man in Telegram über „Wohnung <Stadt>", „WG <Stadt>",
+„Zwischenmiete <Stadt>"; ob ein Kanal öffentlich ist, zeigt ein Blick auf
+`t.me/s/NAME` im Browser.
+
+## Eine beliebige Seite hinzufügen
+
+Unter „Einstellungen → Quelle hinzufügen" genügt die Adresse der
+Ergebnisliste. Die App ruft die Seite ab, prüft robots.txt, sucht nach Feed,
+schema.org-Daten, Sitemap und wiederkehrenden Link-Mustern und schlägt eine
+fertige Konfiguration vor — samt Angabe, worauf sie beruht.
+
+Findet sie nichts, sagt sie das ebenfalls, statt eine Quelle anzulegen, die
+für immer stillschweigend nichts liefert.
+
+## Wie oft geprüft wird
+
+Pro Quelle einstellbar, weil sich Quellen sehr unterschiedlich schnell
+bewegen: ein Marktplatz, auf dem eine gute Wohnung binnen einer Stunde weg ist,
+verdient alle 10–15 Minuten eine Anfrage; ein kommunaler Vermieter, der
+zweimal im Monat etwas einstellt, nicht — und ihn trotzdem im Minutentakt zu
+fragen, verbraucht genau das Anfrage-Budget, das der schnelle braucht.
+
+Der globale Mindestabstand bremst nur bis zur schnellsten eingestellten
+Quelle, sonst wäre die Einstellung Dekoration. Für echten Minutentakt ruft ein
+Cron `POST /api/discovery/run` alle paar Minuten auf; jede Quelle kommt dann
+gemäß ihrem eigenen Abstand dran.
+
+## Was aussortiert wird
+
+Die generischen Verfahren erkaufen Breite mit Unschärfe. Auf einen
+Vermieter-Auftritt angesetzt liefert eine Linkliste auch die Navigation mit —
+ein Lauf gegen Gewobag brachte „Lagerraum", „Gewerberäume", „E-Stellplatz" und
+„Immobilien Archiv" neben den echten Wohnungen zurück.
+
+Deshalb muss ein Treffer eine niedrige Hürde nehmen, bevor er in den Bestand
+kommt: nichts, was erkennbar **kein** Wohnraum ist, und mindestens ein
+positives Signal dafür, dass es einer ist — eine Zimmerzahl, eine Fläche, eine
+Miete, ein Wort wie „Wohnung", oder eine Adresse, die strukturell eine
+Anzeigenseite ist (`/expose/…`). Die Hürde ist bewusst niedrig: eine dünne,
+aber echte Anzeige muss durchkommen, denn eine verpasste Wohnung kostet mehr
+als eine überflüssige Zeile.
 
 ## Kleinanzeigen: was die robots.txt erlaubt
 

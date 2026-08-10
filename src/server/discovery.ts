@@ -24,6 +24,7 @@ import { Crawler } from './crawler';
 import { getAdapter } from '@/domain/discovery/registry';
 import { missingConfig } from '@/domain/discovery/registry';
 import { parseDetailPage } from '@/domain/discovery/adapters/generic';
+import { isPlausibleHousing } from '@/domain/discovery/plausible';
 import {
   DEFAULT_QUERY,
   type AdapterConfig,
@@ -212,9 +213,21 @@ export async function runDiscoverySweep(
   const importedById = await systemUserId();
   summary.ran = true;
 
+  const now = Date.now();
+
   for (const source of sources) {
     const adapter = getAdapter(source.discoveryAdapter);
     if (!adapter) continue;
+
+    // Sources move at very different speeds. A marketplace where a good flat
+    // is gone within the hour is worth asking every few minutes; a municipal
+    // landlord that posts twice a month is not, and asking anyway spends the
+    // request budget that the fast source needs. An explicit run
+    // (`force`, or a hand-picked source list) always goes ahead.
+    if (!options.force && !options.sourceIds && source.pollIntervalMinutes != null && source.lastDiscoveredAt) {
+      const dueIn = source.pollIntervalMinutes * 60_000 - (now - source.lastDiscoveredAt.getTime());
+      if (dueIn > 0) continue;
+    }
 
     const baseConfig = (source.discoveryConfig ?? {}) as AdapterConfig;
     const gaps = missingConfig(source.discoveryAdapter, baseConfig);
@@ -242,6 +255,7 @@ export async function runDiscoverySweep(
       let found = 0;
       let created = 0;
       let updated = 0;
+      let rejected = 0;
 
       try {
         if (adapter.prepare) {
@@ -305,6 +319,7 @@ export async function runDiscoverySweep(
             const result = await upsertDiscovered(source.id, item, importedById);
             if (result === 'created') created++;
             else if (result === 'updated') updated++;
+            else if (result === 'rejected') rejected++;
           }
         }
       } catch (err) {
@@ -329,7 +344,10 @@ export async function runDiscoverySweep(
           found,
           created,
           updated,
-          message,
+          message:
+            rejected > 0
+              ? `${message ? message + ' — ' : ''}${rejected} Treffer verworfen (kein Wohnraum).`
+              : message,
           finishedAt: new Date(),
           durationMs: Date.now() - runStart,
         },
@@ -372,7 +390,7 @@ async function upsertDiscovered(
   sourceId: string,
   item: DiscoveredListing,
   importedById: string,
-): Promise<'created' | 'updated' | 'skipped'> {
+): Promise<'created' | 'updated' | 'skipped' | 'rejected'> {
   const canonicalUrl = normaliseUrl(item.url);
   const now = new Date();
 
@@ -380,6 +398,21 @@ async function upsertDiscovered(
     where: { canonicalUrl },
     select: { id: true, expired: true, expiredBySystem: true },
   });
+
+  if (!existing) {
+    // Generic adapters buy breadth at the cost of precision: pointed at a
+    // landlord's site, a link-list happily returns the navigation too. Judge
+    // new items before they enter the pool — a list you have to mentally
+    // filter is the thing this tool exists to remove. Anything already known
+    // is left alone, because a colleague may have corrected it by hand.
+    const verdict = isPlausibleHousing({
+      title: item.title,
+      description: item.description,
+      structured: item.structured,
+      url: item.url,
+    });
+    if (!verdict.plausible) return 'rejected';
+  }
 
   if (existing) {
     // Seeing an ad in the result list again is proof it is live. If we had
@@ -637,13 +670,26 @@ export async function maybeRunDiscoverySweep(): Promise<DiscoverySweepSummary> {
     return { ...EMPTY, skippedReason: 'Automatische Suche ist ausgeschaltet.' };
   }
 
+  // Throttle against the *fastest* source, not a single global interval.
+  // Otherwise a Telegram channel set to ten minutes would still only be read
+  // every ninety, and the per-source setting would be decoration.
+  const fastest = await prisma.source.aggregate({
+    where: { active: true, discoveryEnabled: true, pollIntervalMinutes: { not: null } },
+    _min: { pollIntervalMinutes: true },
+  });
+  const throttleMinutes = Math.min(
+    settings.sweepIntervalMinutes,
+    fastest._min.pollIntervalMinutes ?? settings.sweepIntervalMinutes,
+  );
+
   const last = await prisma.discoveryRun.findFirst({
     orderBy: { startedAt: 'desc' },
     select: { startedAt: true },
   });
-  if (last && Date.now() - last.startedAt.getTime() < settings.sweepIntervalMinutes * 60_000) {
+  if (last && Date.now() - last.startedAt.getTime() < throttleMinutes * 60_000) {
     return { ...EMPTY, skippedReason: 'Zuletzt vor Kurzem gesucht.' };
   }
 
+  // Not forced: each source's own interval still decides whether it is asked.
   return runDiscoverySweep();
 }

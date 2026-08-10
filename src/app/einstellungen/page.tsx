@@ -33,6 +33,7 @@ import { formatDateTime } from '@/lib/labels';
 import { listAccounts } from '@/server/portalAccounts';
 import { credentialKeyConfigured } from '@/lib/crypto';
 import { AccountsSection, DiscoverySection } from './_sections';
+import { AddSource } from './_AddSource';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,6 +89,7 @@ export default async function SettingsPage({
         discoveryStatus: true,
         discoveryNote: true,
         lastDiscoveredAt: true,
+        pollIntervalMinutes: true,
       },
     }),
     prisma.discoveryRun.findMany({
@@ -136,6 +138,22 @@ export default async function SettingsPage({
           }))}
           isAdmin={isAdmin}
         />
+
+        {isAdmin ? (
+          <AddSource
+            categories={[
+              { value: 'MARKETPLACE', label: 'Marktplatz' },
+              { value: 'GENERAL_PORTAL', label: 'Allgemeines Portal' },
+              { value: 'FURNISHED', label: 'Möbliert' },
+              { value: 'INSTITUTIONAL_LANDLORD', label: 'Großer Vermieter' },
+              { value: 'COOPERATIVE', label: 'Genossenschaft' },
+              { value: 'MUNICIPAL', label: 'Kommunal' },
+              { value: 'TEMPORARY', label: 'Übergangswohnen' },
+              { value: 'SOCIAL_LOCAL', label: 'Lokal/Sozial' },
+              { value: 'DIRECTORY', label: 'Verzeichnis' },
+            ]}
+          />
+        ) : null}
 
         <AccountsSection
           accounts={accounts}

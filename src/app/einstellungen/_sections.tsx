@@ -24,6 +24,7 @@ export interface SourceRow {
   discoveryStatus: string | null;
   discoveryNote: string | null;
   lastDiscoveredAt: Date | null;
+  pollIntervalMinutes: number | null;
 }
 
 /* ============================================== automatic discovery ==== */
@@ -290,7 +291,19 @@ function SourceDiscoveryForm({
         </ul>
       ) : null}
 
-      <div className="row" style={{ marginTop: 10 }}>
+      <div className="row" style={{ marginTop: 10, gap: 8, alignItems: 'flex-end' }}>
+        <div style={{ maxWidth: 190 }}>
+          <label htmlFor={`poll-${source.id}`}>Prüfabstand (Minuten)</label>
+          <input
+            id={`poll-${source.id}`}
+            name="pollIntervalMinutes"
+            type="number"
+            min={5}
+            className="input"
+            defaultValue={source.pollIntervalMinutes ?? ''}
+            placeholder="Standard"
+          />
+        </div>
         <button className="btn sm" type="submit">
           Speichern
         </button>

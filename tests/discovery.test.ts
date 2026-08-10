@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 
 import { kleinanzeigenAdapter, extractLocationId, resolveLocationIds } from '@/domain/discovery/adapters/kleinanzeigen';
 import { wgGesuchtAdapter, looksLikeWgGesuchtSearchUrl } from '@/domain/discovery/adapters/wggesucht';
+import { telegramAdapter, normaliseChannelName } from '@/domain/discovery/adapters/telegram';
 import { feedAdapter, jsonLdAdapter, linkListAdapter, sitemapAdapter, parseDetailPage } from '@/domain/discovery/adapters/generic';
 import { getAdapter, missingConfig } from '@/domain/discovery/registry';
 import { DEFAULT_QUERY, fillTemplate, type FetchedPage } from '@/domain/discovery/types';
@@ -313,3 +314,81 @@ describe('registry', () => {
     expect(missingConfig(null, {})).toEqual([]);
   });
 });
+
+/* ------------------------------------------------------------ telegram --- */
+
+describe('telegram adapter', () => {
+  const tgPage = (body: string) => page(body, 'https://t.me/s/wohnungenberlin');
+  const fixtureBody = () => fixture('telegram-channel.html');
+
+  it('reads real channel posts into listings', () => {
+    const items = telegramAdapter.parse(tgPage(fixtureBody()), {});
+    expect(items.length).toBeGreaterThanOrEqual(2);
+    expect(items[0].url).toMatch(/^https:\/\/t\.me\/wohnungenberlin\/\d+$/);
+    // The title is the first line that actually says something.
+    expect(items[0].title.length).toBeGreaterThan(10);
+    expect(items[0].description).toContain('m²');
+    expect(items[0].contactName).toBe('Telegram-Kanal @wohnungenberlin');
+  });
+
+  it('leaves every measurement to the German parser', () => {
+    // A channel post has no price or size field; guessing here would mean two
+    // competing extractors, and the tested one is the parser.
+    const items = telegramAdapter.parse(tgPage(fixtureBody()), {});
+    expect(items[0].structured).toEqual({});
+  });
+
+  it('skips people looking for a flat', () => {
+    const seeking = messageHtml('Suche dringend 2-Zimmer-Wohnung in Berlin, bis 900€ warm. Danke!');
+    expect(telegramAdapter.parse(tgPage(seeking), {})).toHaveLength(0);
+    // …unless that is explicitly wanted.
+    expect(telegramAdapter.parse(tgPage(seeking), { includeSeeking: true })).toHaveLength(1);
+  });
+
+  it('keeps an offer that merely mentions seeking a successor', () => {
+    const offer = messageHtml('2-Zimmer-Wohnung in Heilbronn, 68 m², 780 € warm. Wir suchen einen Nachmieter ab 1.10.');
+    expect(telegramAdapter.parse(tgPage(offer), {})).toHaveLength(1);
+  });
+
+  it('ignores chatter that is not about a flat at all', () => {
+    expect(telegramAdapter.parse(tgPage(messageHtml('Guten Morgen zusammen, schönes Wochenende!')), {})).toHaveLength(0);
+  });
+
+  it('can require a city so a nationwide channel does not flood the pool', () => {
+    const body = messageHtml('3-Zimmer-Wohnung in Hamburg, 85 m², 1200 € warm');
+    expect(telegramAdapter.parse(tgPage(body), { requireCity: 'Heilbronn' })).toHaveLength(0);
+    expect(telegramAdapter.parse(tgPage(body), { requireCity: 'Hamburg' })).toHaveLength(1);
+  });
+
+  it('picks a usable title past an emoji banner', () => {
+    const body = messageHtml('🔥🔥🔥\n#angebot\n2-Zimmer-Wohnung in Heilbronn, 68 m², 780 € warm');
+    const items = telegramAdapter.parse(tgPage(body), {});
+    expect(items[0].title).toMatch(/^2-Zimmer-Wohnung/);
+  });
+
+  it('accepts channel names in every shape a colleague might paste', () => {
+    for (const raw of ['wohnungenberlin', '@wohnungenberlin', 'https://t.me/wohnungenberlin', 'https://t.me/s/wohnungenberlin']) {
+      expect(normaliseChannelName(raw)).toBe('wohnungenberlin');
+    }
+    expect(normaliseChannelName('no spaces allowed')).toBeNull();
+    expect(normaliseChannelName('ab')).toBeNull();
+  });
+
+  it('builds one public web-view URL per channel and ignores nonsense', () => {
+    expect(
+      telegramAdapter.buildUrls(query, { channels: '@wohnungenberlin\nmuenchen_wohnungen\nnot valid!' }),
+    ).toEqual(['https://t.me/s/wohnungenberlin', 'https://t.me/s/muenchen_wohnungen']);
+  });
+
+  it('needs channels configured before it does anything', () => {
+    expect(telegramAdapter.buildUrls(query, {})).toEqual([]);
+  });
+});
+
+/** Minimal stand-in for one message in Telegram's public channel view. */
+function messageHtml(text: string): string {
+  const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br/>');
+  return `<div class="tgme_widget_message js-widget_message" data-post="wohnungenberlin/99">
+    <div class="tgme_widget_message_text js-message_text">${escaped}</div>
+  </div>`;
+}

@@ -31,9 +31,13 @@ export async function POST(req: NextRequest) {
   }
 
   const maxRequests = Number(req.nextUrl.searchParams.get('maxRequests') ?? '') || undefined;
+  // Default: honour each source's own poll interval, so this endpoint can be
+  // called every few minutes for the fast sources without hammering the slow
+  // ones. `?force=1` overrides that for a one-off full sweep.
+  const force = req.nextUrl.searchParams.get('force') === '1';
 
   try {
-    const summary = await runDiscoverySweep({ force: true, maxRequests });
+    const summary = await runDiscoverySweep({ force, maxRequests });
     return NextResponse.json({ ok: true, ...summary });
   } catch (err) {
     return NextResponse.json({ ok: false, error: (err as Error).message.slice(0, 300) }, { status: 500 });

@@ -264,6 +264,12 @@ model Source {
   discoveryStatus  String? // OK | BLOCKED | ERROR | NEVER_RUN
   discoveryNote    String?
   lastDiscoveredAt DateTime?
+  /// How often this source is worth asking, in minutes. A fast marketplace
+  /// where flats are gone within the hour earns a short interval; a municipal
+  /// landlord that posts twice a month does not, and polling it every ten
+  /// minutes would spend the request budget on nothing. Null = use the global
+  /// sweep interval.
+  pollIntervalMinutes Int?
 
   /// Housing types this source is relevant for; see domain/sources/housingTypes.ts
   housingTypes  String[] @default([])

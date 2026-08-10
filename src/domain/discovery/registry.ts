@@ -7,11 +7,13 @@
 import type { DiscoveryAdapter } from './types';
 import { kleinanzeigenAdapter } from './adapters/kleinanzeigen';
 import { wgGesuchtAdapter } from './adapters/wggesucht';
+import { telegramAdapter } from './adapters/telegram';
 import { GENERIC_ADAPTERS } from './adapters/generic';
 
 export const ADAPTERS: DiscoveryAdapter[] = [
   kleinanzeigenAdapter,
   wgGesuchtAdapter,
+  telegramAdapter,
   ...GENERIC_ADAPTERS,
 ];
 
@@ -47,5 +49,5 @@ export function missingConfig(
     .map((k) => k.key);
 }
 
-export { kleinanzeigenAdapter, wgGesuchtAdapter };
+export { kleinanzeigenAdapter, wgGesuchtAdapter, telegramAdapter };
 export * from './types';

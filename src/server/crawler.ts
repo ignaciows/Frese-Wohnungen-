@@ -33,19 +33,39 @@ const DEFAULT_TIMEOUT_MS = 20_000;
 const MAX_BYTES = 1_500_000;
 const MAX_REDIRECTS = 4;
 
-/** Phrases that mean "we were stopped", not "there is nothing here". */
-const BLOCK_MARKERS = [
-  'captcha',
+/**
+ * Wording that appears on a challenge page and essentially nowhere else.
+ *
+ * The bar is deliberately high. An earlier version also matched a bare
+ * "captcha", which turned out to appear inside WG-Gesucht's cookie-consent
+ * configuration (`cmp_block_ignoredomains: ["recaptcha.net", …]`) on a page
+ * carrying 28 perfectly good adverts — so a working source was being marked
+ * blocked and dropped from every sweep. A false "blocked" is expensive and
+ * invisible: the source just quietly stops producing.
+ */
+const STRONG_BLOCK_MARKERS = [
   'sind sie ein mensch',
   'are you a human',
   'access denied',
   'zugriff verweigert',
-  'bot detection',
-  'unusual traffic',
-  '请稍候',
   'cf-browser-verification',
   'just a moment...',
+  'checking your browser before accessing',
+  'attention required! | cloudflare',
+  'please enable javascript and cookies to continue',
 ];
+
+/**
+ * Weaker hints. On their own they mean nothing — real pages discuss captchas,
+ * rate limits and bots — so they only count on a page too small to be content.
+ */
+const WEAK_BLOCK_MARKERS = ['captcha', 'bot detection', 'unusual traffic', 'rate limit'];
+
+/**
+ * A challenge page is small. Anything past this is a real document, whatever
+ * words happen to appear in its scripts.
+ */
+const BLOCK_PAGE_MAX_BYTES = 50_000;
 
 export interface CrawlerOptions {
   perHostDelayMs?: number;
@@ -365,7 +385,10 @@ function blockReason(status: number): string {
 
 export function isBlockPage(body: string): boolean {
   const head = body.slice(0, 4000).toLowerCase();
-  return BLOCK_MARKERS.some((marker) => head.includes(marker));
+  if (STRONG_BLOCK_MARKERS.some((marker) => head.includes(marker))) return true;
+  // Weak hints only count when the response is too small to be a real page.
+  if (body.length > BLOCK_PAGE_MAX_BYTES) return false;
+  return WEAK_BLOCK_MARKERS.some((marker) => head.includes(marker));
 }
 
 async function readCapped(res: Response): Promise<string | null> {
