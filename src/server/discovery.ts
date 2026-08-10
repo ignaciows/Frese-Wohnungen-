@@ -440,7 +440,7 @@ async function upsertDiscovered(
  * only a listing that has been missing from several consecutive *successful*
  * sweeps is retired.
  */
-async function retireUnseen(
+export async function retireUnseen(
   sourceId: string,
   seenUrls: Set<string>,
   settings: DiscoverySettings,

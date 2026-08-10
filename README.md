@@ -7,9 +7,13 @@ Pflichtfelder für das bestehende Firmen-System per Klick kopierbar.
 
 Ausdrückliche Prinzipien:
 
-- **Ehrliche Automatisierung.** Kein Portal wird gescraped oder umgangen. Wo es
-  keine autorisierte Integration gibt, gibt es einen strukturierten manuellen
-  Task — nicht das Ausblenden der Quelle.
+- **Ehrliche Automatisierung.** Quellen werden automatisch durchsucht, aber nur
+  so weit, wie sie es selbst erlauben: die robots.txt wird gelesen und
+  befolgt, es wird einzeln und mit Pausen angefragt, und die App meldet sich
+  mit einer echten Kennung. Sperren werden protokolliert, nicht umgangen — kein
+  CAPTCHA-Bypass, keine getarnten User-Agents, keine Anmelde-Automatik. Wo eine
+  Quelle automatische Abrufe verweigert (ImmoScout24, Immowelt), bleibt der
+  E-Mail-Suchauftrag oder der strukturierte manuelle Task.
 - **Deterministisch statt LLM.** Extraktion, Ranking und Duplikat-Erkennung
   laufen als getesteter deutschsprachiger Parser. Es gibt keinen AI-Pfad, der
   im normalen Betrieb Kosten verursacht.
@@ -19,6 +23,10 @@ Ausdrückliche Prinzipien:
 - **Ein Bildschirm beantwortet die tägliche Frage:** Welche Wohnung als
   nächstes kontaktieren, warum, hat jemand schon losgelegt, und was muss ich
   danach ins Firmen-System übertragen?
+- **Nur, was es noch gibt.** Die Liste zeigt aktive Anzeigen und alles, was
+  bereits angeschrieben wurde. Verschwundene Anzeigen werden automatisch
+  ausgeblendet — aber erst, wenn sie mehrfach hintereinander fehlten, damit
+  eine Störung beim Portal keine gute Wohnung begräbt.
 
 ## Voraussetzungen
 
@@ -86,12 +94,50 @@ Demo-Login nach `npm run db:seed`:
 | `npm run db:seed`          | Quellenkatalog + Demo-Kandidat + 8 Beispiel-Anzeigen.        |
 | `npm run db:reset`         | Datenbank verwerfen und neu migrieren (nur Entwicklung).     |
 
+Diagnose-Skripte (nur Entwicklung, nicht Teil der App):
+
+| Skript                                        | Zweck                                                        |
+| --------------------------------------------- | ------------------------------------------------------------ |
+| `npx tsx scripts/dev-sweep.mts`               | Einen echten Suchlauf ausführen und Ergebnis je Quelle zeigen. |
+| `npx tsx scripts/dev-parse.mts <adapter> <url>` | Eine URL abrufen und zeigen, was der Adapter daraus liest.   |
+
+## Automatische Suche, Kontakt und Aufgaben
+
+- **Anzeigen finden**: Freigeschaltete Quellen werden regelmäßig nach neuen
+  Anzeigen durchsucht (Kleinanzeigen und WG-Gesucht direkt, weitere Seiten über
+  Feed-, schema.org-, Linklisten- und Sitemap-Verfahren rein per
+  Konfiguration). Details, Grenzen und die robots.txt-Auswertung stehen in
+  `docs/DISCOVERY.md`.
+- **Anfragen senden**: Wo eine Anzeige selbst eine E-Mail-Adresse
+  veröffentlicht, geht die Anfrage direkt aus der App raus. Der Kontakt wird
+  dabei *vor* dem Versand erfasst — eine erfasste, nicht zugestellte Anfrage
+  ist sichtbar und wiederholbar, eine gesendete ohne Eintrag führt dazu, dass
+  jemand denselben Vermieter ein zweites Mal anschreibt.
+- **Antworten zuordnen**: Jede Anfrage bekommt eine eindeutige Kennung in der
+  Antwortadresse. Antworten landen automatisch im richtigen Gespräch, ohne
+  Rätselraten am Betreff.
+- **Wiedervorlagen**: Eine gesendete Anfrage legt automatisch „Antwort prüfen"
+  an; eine eingehende Antwort schließt die Aufgabe wieder. Alles Fällige steht
+  unter **Aufgaben & Posteingang**.
+- **Zugangsdaten**: Postfach und Portal-Konten liegen unter „Einstellungen →
+  Konten & Postfach", verschlüsselt mit `CREDENTIAL_KEY`. Ohne diesen Schlüssel
+  speichert die App kein Passwort — statt einer schwächeren Ablage gibt es eine
+  klare Fehlermeldung.
+
 ## Grenzen und ehrliche Zusagen
 
-- **Portal-Konnektoren**: Der Seed markiert alle Portale als `SEARCH_LINK`,
-  `BROWSER_ONLY` oder `REGIONAL_DIRECTORY`. Kein Konnektor ruft im Auslieferungs-
-  zustand echte Portal-Daten ab. Freischaltung erfolgt pro Quelle nach
-  Terms-Prüfung — siehe `docs/PORTAL_INTEGRATIONS.md`.
+- **Gesperrte Portale**: ImmoScout24 (HTTP 401) und Immowelt (HTTP 403) lehnen
+  serverseitige Abrufe ab. Sie werden nicht umgangen; dort bleiben der
+  E-Mail-Suchauftrag und der manuelle Weg.
+- **Kleinanzeigen-Umkreis**: Deren robots.txt sperrt die Umkreis- und
+  Preisfilter. Die App liest die ungefilterte Ortsliste und filtert selbst;
+  mehrere hinterlegte Ortsnummern ersetzen den Radius.
+- **Portal-Anmeldung**: Die App loggt sich nirgends automatisch ein. Ein
+  hinterlegtes Portal-Konto dokumentiert, mit welchem Zugang gearbeitet wird —
+  angemeldet wird sich weiterhin im Portal.
+- **Portal-Konnektoren**: Quellen ohne geprüftes Verfahren bleiben
+  `SEARCH_LINK`, `BROWSER_ONLY` oder `REGIONAL_DIRECTORY`. Freischaltung erfolgt
+  pro Quelle nach Terms-Prüfung — siehe `docs/PORTAL_INTEGRATIONS.md`.
 - **Geokodierung**: Ohne konfigurierten Geokoder werden Entfernungen als
   „unbekannt" angezeigt. Manuell eingetragene Koordinaten funktionieren.
 - **KI**: Standardmäßig deaktiviert. Ein Slot (`AIProvider`) ist vorbereitet,
@@ -101,6 +147,7 @@ Demo-Login nach `npm run db:seed`:
 
 ## Weitere Dokumente
 
+- `docs/DISCOVERY.md` — automatische Suche: Verfahren, robots.txt, Grenzen.
 - `docs/PRODUCT_BRIEF.md` — Nutzer, Problem, Journey, Akzeptanzkriterien.
 - `docs/ARCHITECTURE_DECISION.md` — verglichene Optionen und Begründung.
 - `docs/PORTAL_INTEGRATIONS.md` — pro Quelle: Modus, offizielle Referenz,

@@ -13,9 +13,38 @@ Admin-Rolle, dokumentiert mit Datum + URL der geprüften Nutzungsbedingungen.
 4. Validierte Such-URL + manueller Browser-Flow.
 5. Manueller URL-/Text-Import.
 
+## Automatische Suche — Stand 2026-08-10
+
+Die App durchsucht freigeschaltete Quellen inzwischen selbst. Was dabei gilt,
+steht ausführlich in `docs/DISCOVERY.md`; die Kurzfassung:
+
+- Die **robots.txt jeder Seite wird gelesen und befolgt**, inklusive
+  `Crawl-delay`. Ein gesperrter Pfad wird nicht abgerufen.
+- Es wird **einzeln nacheinander pro Server** angefragt, mit Pause dazwischen
+  und harten Obergrenzen pro Lauf.
+- Die App meldet sich mit einer **echten Kennung** (`FreseWohnungBot/1.0`) samt
+  Kontakthinweis.
+- Eine Sperre wird **protokolliert, nicht umgangen**.
+
+Live geprüft am 2026-08-10:
+
+| Quelle | Ergebnis | Konsequenz |
+| --- | --- | --- |
+| Kleinanzeigen | Ergebnisliste lesbar (HTTP 200) | Adapter aktiv. robots.txt sperrt Preis-, Angebots- und Umkreisfilter sowie die Ortssuche — daher ungefilterte Ortsliste, Filterung im eigenen Ranking, mehrere Ortsnummern statt Radius. |
+| WG-Gesucht | Ergebnisliste lesbar (HTTP 200) | Adapter aktiv. Keine öffentliche Ortssuche, daher wird die Such-URL einmalig eingefügt. |
+| ImmoScout24 | HTTP 401 | Kein automatischer Abruf. E-Mail-Suchauftrag. |
+| Immowelt | HTTP 403 | Kein automatischer Abruf. E-Mail-Suchauftrag. |
+
+Weitere Seiten lassen sich ohne Code über die generischen Verfahren (Feed,
+schema.org, Linkliste, Sitemap) freischalten — jeweils nach derselben
+Terms-Prüfung wie bisher.
+
 ## Verbotenes Verhalten
 
 - CAPTCHA-Umgehung, Bot-Detection-Umgehung, Login-Umgehung.
+- Ignorieren der robots.txt.
+- Getarnte User-Agents, die einen normalen Browser vortäuschen.
+- Automatisches Einloggen in Portal-Konten.
 - Rate-Limit-Umgehung, Proxy-Rotation, Stealth-Browser.
 - Reverse Engineering privater APIs.
 - Scrapen geschlossener Facebook-Gruppen, Weiterverarbeitung privater
@@ -62,7 +91,10 @@ generierte Such-Links sind für alle verfügbar.
 
 - **Umgesetzt**: Quellenkatalog, Filter-Mapping pro Quelle, Rezept-Generator,
   Such-URL-Template-Slot (nur genutzt wenn `searchUrlValidated = true`),
-  manueller Import mit URL-Normalisierung, DB-Snapshot pro Suchlauf.
+  manueller Import mit URL-Normalisierung, DB-Snapshot pro Suchlauf,
+  automatische Suche für freigeschaltete Quellen (robots-konform),
+  automatisches Ausblenden verschwundener Anzeigen, Versand von Anfragen per
+  E-Mail an Adressen, die die Anzeige selbst veröffentlicht.
 - **Geplant (nicht V1)**: OAuth-Empfang von E-Mail-Alerts, ImmoScout24
   Business-API-Client, Browser-Companion für 1-Klick-Import.
 - **Bewusst nicht geplant**: Scraper, Headless-Browser-Automation, JavaScript-

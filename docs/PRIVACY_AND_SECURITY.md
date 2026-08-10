@@ -84,3 +84,50 @@ Falls je ein optionaler AIProvider aktiviert wird (`AI_ENRICHMENT_ENABLED=true`)
 - Ergebnis wird gegen ein Schema validiert; Ausgabe ist als AI-derived
   gekennzeichnet und manuell korrigierbar.
 - Standard bleibt: kein KI-Aufruf im normalen Betrieb.
+
+
+## Zugangsdaten für Portale und Postfach
+
+Damit Anfragen aus der App rausgehen können, speichert das Team ein
+Postfach-Passwort und optional Portal-Zugänge. Dafür gelten strengere Regeln als
+für alles andere in dieser Datenbank.
+
+- **Verschlüsselt mit AES-256-GCM.** Der Schlüssel kommt ausschließlich aus
+  `CREDENTIAL_KEY` in der Serverumgebung, nie aus der Datenbank. Ein
+  Datenbank-Dump allein gibt kein einziges Passwort preis.
+- **Ohne Schlüssel wird nichts gespeichert.** Fehlt `CREDENTIAL_KEY`, weigert
+  sich die App mit einer klaren Meldung, statt auf eine schwächere Ablage
+  auszuweichen.
+- **GCM authentifiziert.** Ein manipulierter Datensatz lässt sich nicht
+  entschlüsseln, statt stillschweigend Unsinn zu liefern.
+- **Frischer Zufalls-IV je Verschlüsselung**, damit zwei gleiche Passwörter
+  nicht am gleichen Chiffrat erkennbar sind.
+- **Einbahnstraße.** Kein Lesepfad gibt ein Geheimnis zurück; die Oberfläche
+  erfährt nur, *ob* eines hinterlegt ist. Entschlüsselt wird an genau zwei
+  Stellen serverseitig: beim Versand und beim Lesen des Postfachs.
+- **Im Audit-Log** steht nur, *dass* ein Zugang geändert wurde — nie der Wert.
+- **Schlüsselwechsel** macht bestehende Einträge unlesbar; sie müssen neu
+  eingetragen werden. Das ist beabsichtigt und der Grund, warum die Fehlermeldung
+  das ausdrücklich sagt.
+
+Nicht gespeichert und nicht geplant: automatisches Einloggen in Portal-Konten.
+Ein hinterlegter Portal-Zugang dokumentiert, mit welchem Konto gearbeitet wird.
+
+## Ausgehende Nachrichten
+
+- Anfragen gehen nur an Adressen, die die Anzeige **selbst veröffentlicht**.
+- Ein teamweites Stundenlimit verhindert Massen-Anfragen.
+- Die Antwortadresse enthält eine zufällige Kennung je Anfrage. Sie ist
+  bewusst zufällig und nicht abgeleitet: sie reist offen durch fremde
+  Mailserver und darf weder auf einen Kandidaten noch auf eine Wohnung
+  schließen lassen.
+- Jede gesendete Nachricht wird im Wortlaut mitgespeichert.
+
+## Ausgehende Abrufe (automatische Suche)
+
+- Es werden nur öffentlich zugängliche Seiten abgerufen, und nur dort, wo die
+  robots.txt es erlaubt.
+- Es werden keine Anmeldungen, Sperren oder CAPTCHAs umgangen.
+- Die App identifiziert sich mit einer echten Kennung samt Kontakthinweis.
+- Adressen aus Nutzereingaben laufen durch dieselbe SSRF-Prüfung wie der
+  Link-Check: keine internen Netze, jede Weiterleitung wird erneut geprüft.
