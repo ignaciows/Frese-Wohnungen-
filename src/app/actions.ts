@@ -16,6 +16,7 @@ import { createSearchRun, updateSourceCheckStatus } from '@/server/searchRuns';
 import { claimListing, confirmContact } from '@/server/contact';
 import { markSystemTransferRegistered } from '@/server/systemTransfer';
 import { syncSeedCatalog } from '@/server/sources';
+import { RANK_VERSION } from '@/domain/ranking';
 
 /** "" -> null, otherwise a Date. Empty date inputs post as empty strings. */
 const optionalDate = z
@@ -751,6 +752,31 @@ export async function updateCandidateAction(formData: FormData) {
  * results, throttled through a stored timestamp so concurrent viewers cannot
  * stampede the portals.
  */
+/**
+ * Re-scores a candidate's matches when the ranking rules have changed since
+ * they were computed.
+ *
+ * Scores are stored, so a rule change does not reach the ads already in the
+ * pool — they keep whatever verdict the old rules gave them until something
+ * touches them again. That is how a Köln candidate went on showing a Bad
+ * Rappenau flat at 86 points and "Passend" after the location check landed.
+ * Comparing the stored rank version against the current one makes the fix
+ * arrive by opening the page, rather than by remembering to re-save a profile.
+ */
+export async function maybeRescoreAction(candidateCaseId: string) {
+  await requireUser();
+  const stale = await prisma.candidateListingMatch.findFirst({
+    where: { candidateCaseId, rankVersion: { not: RANK_VERSION } },
+    select: { id: true },
+  });
+  if (!stale) return { rescored: false as const };
+
+  const { recomputeAllForCandidate } = await import('@/server/ranking');
+  await recomputeAllForCandidate(candidateCaseId);
+  revalidatePath('/', 'layout');
+  return { rescored: true as const };
+}
+
 /**
  * Re-reads the ads on screen whenever somebody opens a result list.
  *

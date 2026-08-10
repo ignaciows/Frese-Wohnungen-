@@ -33,6 +33,11 @@ function toRankingListing(l: Awaited<ReturnType<typeof loadListing>>, profile: R
     fixedTerm: l.fixedTerm,
     distanceKm,
     commuteMinutes,
+    // Read even when a distance exists: the postcode check only runs as a
+    // fallback, but carrying the values costs nothing and keeps the two paths
+    // from disagreeing about what a listing's location is.
+    locationPostal: l.locationPostal,
+    locationCity: l.locationCity,
   };
 }
 
@@ -54,6 +59,8 @@ function profileFromDb(p: {
   furnished: 'REQUIRED' | 'PREFERRED' | 'EITHER';
   wbsStatus: 'AVAILABLE' | 'NOT_AVAILABLE' | 'UNKNOWN';
   temporaryMode: boolean;
+  workplacePostalCode?: string | null;
+  workplaceCity?: string | null;
 }): RankingProfile {
   return {
     workplaceLat: p.workplaceLat,
@@ -68,6 +75,8 @@ function profileFromDb(p: {
     furnished: p.furnished,
     wbsStatus: p.wbsStatus,
     temporaryMode: p.temporaryMode,
+    workplacePostalCode: p.workplacePostalCode ?? null,
+    workplaceCity: p.workplaceCity ?? null,
   };
 }
 

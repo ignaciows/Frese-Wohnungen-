@@ -17,6 +17,9 @@ import type { Furnishing, PropertyType, TriState } from '../parser';
 export interface RankingProfile {
   workplaceLat: number | null;
   workplaceLon: number | null;
+  /** The postcode-based location check falls back on these without a geocoder. */
+  workplacePostalCode?: string | null;
+  workplaceCity?: string | null;
   maxWarmmieteCents: number;
   maxCommuteMinutes: number | null;
   radiusKm: number | null;
@@ -45,7 +48,12 @@ export interface RankingListing {
   fixedTerm: TriState;
   distanceKm: number | null;
   commuteMinutes: number | null;
+  /** Used to sanity-check location when no distance can be computed. */
+  locationPostal?: string | null;
+  locationCity?: string | null;
 }
+
+import { postalProximity, cityMismatch } from './postalDistance';
 
 export type Compatibility = 'COMPATIBLE' | 'NEAR_MATCH' | 'INCOMPATIBLE' | 'INSUFFICIENT_DATA';
 
@@ -83,7 +91,10 @@ export const DEFAULT_WEIGHTS: RankingWeights = {
   completeness: 5,
 };
 
-export const RANK_VERSION = 'rank-2026-08-04';
+// Bumped when the location check landed: every match scored before this was
+// scored without any check that the flat is near the job, so those scores are
+// not comparable with new ones.
+export const RANK_VERSION = 'rank-2026-08-10';
 
 const APARTMENT_TYPES = new Set<PropertyType>(['APARTMENT']);
 const HARD_INCOMPATIBLE_TYPES = new Set<PropertyType>([
@@ -231,8 +242,25 @@ export function classify(listing: RankingListing, profile: RankingProfile): {
     } else if (listing.distanceKm > profile.radiusKm) {
       softFlags.push('Entfernung über Zielwert');
     }
-  } else if (profile.workplaceLat != null && profile.workplaceLon != null && listing.distanceKm == null) {
-    infoFlags.push('Entfernung unbekannt');
+  } else {
+    // No commute time and no geocoded distance — the normal case here, because
+    // this deployment runs without a geocoder. Fall back to the postcode, which
+    // cannot confirm that a flat is close but can reliably tell that it is not:
+    // a different postal zone is hundreds of kilometres, essentially always.
+    // Without this, a Köln candidate was shown Bad Rappenau flats at 86 points
+    // and "Passend", because an unknown distance scored as merely neutral.
+    const postal = postalProximity(profile.workplacePostalCode, listing.locationPostal);
+    if (postal.proximity === 'FAR') {
+      blockers.push(postal.label!);
+    } else if (postal.proximity === 'NEARBY_ZONE') {
+      softFlags.push(postal.label!);
+    } else if (postal.proximity === 'UNKNOWN') {
+      infoFlags.push(
+        cityMismatch(profile.workplaceCity, listing.locationCity)
+          ? `Anderer Ort (${listing.locationCity}) — Entfernung unbekannt`
+          : 'Entfernung unbekannt',
+      );
+    }
   }
 
   // Insufficient-data escalation: type unknown + no rooms + no cost → we cannot

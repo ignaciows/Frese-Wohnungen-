@@ -222,3 +222,65 @@ describe('ranking: unresolvable-but-harmless data', () => {
     expect(r.compatibility).toBe('NEAR_MATCH');
   });
 });
+
+/* ------------------------------------------------- location sanity check --- */
+
+describe('telling a far-away flat from a nearby one without a geocoder', () => {
+  // The bug this covers, straight off the live site: a candidate working in
+  // Köln (50xxx) was shown a flat in Bad Rappenau (74906) rated 86 points and
+  // labelled "Passend", because an unknown distance scored as merely neutral.
+  const koeln = {
+    ...baseProfile,
+    workplaceLat: null,
+    workplaceLon: null,
+    workplacePostalCode: '50667',
+    workplaceCity: 'Köln',
+    radiusKm: 25,
+  };
+  const flat = {
+    ...baseListing,
+    distanceKm: null,
+    commuteMinutes: null,
+    rooms: 2,
+    effectiveMonthlyCents: 78000,
+    monthlyTotalComplete: true,
+    furnishing: 'FURNISHED' as const,
+    fittedKitchen: 'UNKNOWN' as const,
+  };
+
+  it('rules out a flat in a different postal zone', () => {
+    const r = rank({ ...flat, locationPostal: '74906', locationCity: 'Bad Rappenau' }, koeln);
+    expect(r.compatibility).toBe('INCOMPATIBLE');
+    expect(r.blockers.join(' ')).toContain('andere Gegend');
+    expect(r.score).toBe(0);
+  });
+
+  it('flags a different region in the same zone without ruling it out', () => {
+    // 57xxx is the same leading digit as 50xxx: far enough to check, close
+    // enough that rejecting it outright would lose real options.
+    const r = rank({ ...flat, locationPostal: '57462', locationCity: 'Olpe' }, koeln);
+    expect(r.compatibility).not.toBe('INCOMPATIBLE');
+    expect(r.reasons.join(' ')).toContain('PLZ-Region');
+  });
+
+  it('leaves a flat in the same region alone', () => {
+    const r = rank({ ...flat, locationPostal: '50937', locationCity: 'Köln' }, koeln);
+    expect(r.compatibility).toBe('COMPATIBLE');
+  });
+
+  it('never rejects on a town name alone — a suburb has a different name', () => {
+    // Leverkusen is 15 minutes from Köln. Without a postcode we may say we do
+    // not know, but we must not rule it out.
+    const r = rank({ ...flat, locationPostal: null, locationCity: 'Leverkusen' }, koeln);
+    expect(r.compatibility).not.toBe('INCOMPATIBLE');
+  });
+
+  it('still prefers a real geocoded distance when there is one', () => {
+    // Postcodes disagree, but the measured distance is short and wins.
+    const r = rank(
+      { ...flat, distanceKm: 8, locationPostal: '74906', locationCity: 'Bad Rappenau' },
+      koeln,
+    );
+    expect(r.compatibility).toBe('COMPATIBLE');
+  });
+});

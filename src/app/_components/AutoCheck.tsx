@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { maybeRunLivenessSweepAction, maybeRunDiscoverySweepAction } from '@/app/actions';
+import {
+  maybeRunLivenessSweepAction,
+  maybeRunDiscoverySweepAction,
+  maybeRescoreAction,
+} from '@/app/actions';
 
 /**
  * Brings the list up to date when somebody opens it.
@@ -27,6 +31,22 @@ export function AutoCheck({ candidateCaseId }: { candidateCaseId?: string } = {}
     (async () => {
       const parts: string[] = [];
       let changed = false;
+
+      // Before anything else: if the ranking rules changed since these matches
+      // were scored, the list on screen is wrong in a way no amount of link
+      // checking would fix.
+      if (candidateCaseId) {
+        try {
+          const r = await maybeRescoreAction(candidateCaseId);
+          if (cancelled) return;
+          if (r.rescored) {
+            parts.push('Bewertungen nach geänderten Regeln neu berechnet');
+            changed = true;
+          }
+        } catch {
+          // Never block the page on a re-score.
+        }
+      }
 
       try {
         // Scoped to this candidate so the ads actually on screen are the ones
