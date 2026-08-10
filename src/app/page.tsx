@@ -121,8 +121,11 @@ export default async function DashboardPage() {
                   <div className="row-between" style={{ alignItems: 'flex-start' }}>
                     <div className="grow stack-sm">
                       <div className="row-wrap">
-                        <span className={`badge ${tier.tone}`}>
-                          {tier.icon} {tier.label} · {Math.round(p.score)}
+                        {/* The word carries the judgement; "· 76" alongside it
+                            invites the reader to work out what 76 means, and
+                            nothing on this screen tells them. */}
+                        <span className={`badge ${tier.tone}`} title={`Dringlichkeit ${Math.round(p.score)}/100`}>
+                          {tier.icon} {tier.label}
                         </span>
                         <h2>{c.displayName}</h2>
                         <span className="badge">{c.reference}</span>
@@ -132,8 +135,8 @@ export default async function DashboardPage() {
                       <div className="row-wrap small muted">
                         <span>{c.searchProfile?.workplaceCity || c.searchProfile?.workplaceAddress || '—'}</span>
                         <span aria-hidden>·</span>
-                        <span>
-                          Markt {difficultyLabel(p.market.difficulty)} ({Math.round(p.market.difficulty)}/100)
+                        <span title={`Marktschwierigkeit ${Math.round(p.market.difficulty)}/100`}>
+                          Markt {difficultyLabel(p.market.difficulty)}
                         </span>
                         <span aria-hidden>·</span>
                         <span>seit {p.daysWaiting} Tagen in Suche</span>
@@ -171,11 +174,9 @@ export default async function DashboardPage() {
                         <span className="chip">zuletzt {formatDate(c.updatedAt)}</span>
                       </div>
 
-                      {p.reasons.length > 0 ? (
-                        <div className="small subtle truncate" style={{ maxWidth: 620 }}>
-                          {p.reasons.slice(0, 2).join(' · ')}
-                        </div>
-                      ) : null}
+                      {/* The reasons were "35 Tage bis zum Einzug · Seit 24
+                          Tagen in der Suche" — the same two facts already
+                          printed two lines above, in the same card. */}
                     </div>
 
                     <span className="btn soft nowrap">{next.label} →</span>
