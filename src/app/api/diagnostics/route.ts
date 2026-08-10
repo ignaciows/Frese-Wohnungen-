@@ -5,6 +5,8 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { credentialKeyConfigured } from '@/lib/crypto';
+import { LIVE_LISTING } from '@/server/listingFilters';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,6 +75,24 @@ export async function GET() {
       : 'Nicht konfiguriert (optional) — siehe docs/EMAIL_INGEST.md',
   };
 
+  // Without this the Portalkonten page cannot store a password, so "Anfrage
+  // aus dem Tool senden" is unavailable — a confusing failure to hit blind.
+  report.checks.CREDENTIAL_KEY = {
+    ok: true,
+    detail: credentialKeyConfigured()
+      ? 'Konfiguriert — Portalkonten können gespeichert werden'
+      : 'FEHLT (optional) — ohne CREDENTIAL_KEY (≥32 Zeichen) lassen sich keine Portal-Zugangsdaten speichern',
+  };
+
+  // The scheduled sweep posts to /api/discovery/run with this token. No token,
+  // no automatic refresh — the pool simply stops growing, silently.
+  report.checks.INGEST_TOKEN = {
+    ok: true,
+    detail: (process.env.INGEST_TOKEN ?? '').trim().length > 0
+      ? 'Konfiguriert — automatische Suchläufe können ausgelöst werden'
+      : 'FEHLT (optional) — ohne INGEST_TOKEN kann der Zeitplan keinen Suchlauf starten',
+  };
+
   try {
     const [userCount, sourceCount, candidateCount] = await Promise.all([
       prisma.user.count(),
@@ -119,6 +139,39 @@ export async function GET() {
         ok: false,
         detail:
           'Schema ist älter als der Code — Migrationen wurden nicht angewendet. In der Console: npx prisma migrate deploy',
+      };
+    }
+
+    // "Why do I only see a handful of ads?" is answered by three numbers:
+    // how many sources are switched on, how many live ads are in the pool, and
+    // when a sweep last finished. Without them the only way to tell an empty
+    // pool from a broken sweep is to read the server log.
+    try {
+      const [enabledSources, liveListings, lastRun] = await Promise.all([
+        prisma.source.count({ where: { discoveryEnabled: true } }),
+        prisma.listing.count({ where: LIVE_LISTING }),
+        prisma.discoveryRun.findFirst({
+          where: { finishedAt: { not: null } },
+          orderBy: { startedAt: 'desc' },
+          select: { startedAt: true, status: true },
+        }),
+      ]);
+      const lastSweep = lastRun
+        ? `letzter Suchlauf ${lastRun.startedAt.toISOString().slice(0, 16).replace('T', ' ')} UTC (${lastRun.status})`
+        : 'noch nie gelaufen';
+      report.checks.discovery = {
+        // No enabled source means the automatic search cannot find anything,
+        // which is a real fault however healthy the rest looks.
+        ok: enabledSources > 0,
+        detail:
+          enabledSources === 0
+            ? 'Keine Quelle freigeschaltet — unter Einstellungen → Quellen mindestens eine aktivieren'
+            : `${enabledSources} Quelle(n) aktiv, ${liveListings} aktive Anzeige(n) im Pool, ${lastSweep}`,
+      };
+    } catch (err) {
+      report.checks.discovery = {
+        ok: false,
+        detail: `Suchlauf-Status nicht lesbar — ${(err as Error).message.slice(0, 120)}`,
       };
     }
   } catch (err) {
