@@ -11,7 +11,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { kleinanzeigenAdapter, extractLocationId, resolveLocationIds } from '@/domain/discovery/adapters/kleinanzeigen';
+import {
+  kleinanzeigenAdapter,
+  extractLocationId,
+  resolveLocationIds,
+  droppedCategory,
+} from '@/domain/discovery/adapters/kleinanzeigen';
 import { wgGesuchtAdapter, looksLikeWgGesuchtSearchUrl } from '@/domain/discovery/adapters/wggesucht';
 import { telegramAdapter, normaliseChannelName } from '@/domain/discovery/adapters/telegram';
 import { feedAdapter, jsonLdAdapter, linkListAdapter, sitemapAdapter, parseDetailPage } from '@/domain/discovery/adapters/generic';
@@ -126,6 +131,118 @@ describe('kleinanzeigen adapter', () => {
     // "0" is the portal's id for all of Germany.
     expect(resolveLocationIds({ locationIds: ['0'] })).toEqual([]);
     expect(kleinanzeigenAdapter.buildUrls(query, { locationIds: ['0'] })).toEqual([]);
+  });
+
+  /**
+   * The source is shared by every candidate, so anything `prepare` decides
+   * once and stores on it is handed to the next candidate's city as well.
+   *
+   * That is what happened: Heilbronn's number was on the source, `prepare` saw
+   * a number and returned early, and a nurse starting in Cologne was searched
+   * in Heilbronn under Cologne's own name. Kleinanzeigen answered a slug and
+   * id that disagreed by dropping the category too, so 103 Heilbronn lamps,
+   * tyres and dining chairs entered the pool as flats.
+   */
+  describe('resolving the town for each candidate', () => {
+    const noFetch = async () => {
+      throw new Error('should not fetch');
+    };
+    const fetchReturning = (body: string) => async () =>
+      ({ url: '', body, status: 200, blocked: false }) as FetchedPage;
+
+    it('does not reuse one town’s number for a different town', async () => {
+      const config = { locationIds: ['9228'] }; // Heilbronn, from an earlier run.
+
+      const prepared = await kleinanzeigenAdapter.prepare!(
+        { ...query, city: 'Köln', postalCode: '50937' },
+        config,
+        // Resolution walks the portal's own region navigation.
+        fetchReturning('<a href="/s-wohnung-mieten/koeln/c203l1234">Köln</a>'),
+      );
+
+      expect(resolveLocationIds(prepared!)).toEqual(['1234']);
+      expect(resolveLocationIds(prepared!)).not.toContain('9228');
+    });
+
+    it('honours a hand-entered number for the town it was entered for', async () => {
+      // The manual list is how the surrounding villages get covered, so it has
+      // to keep working — just not for everywhere else.
+      const config = { locationIds: ['9228', '9229'], locationCity: 'Heilbronn' };
+
+      const prepared = await kleinanzeigenAdapter.prepare!(
+        { ...query, city: 'Heilbronn' },
+        config,
+        noFetch,
+      );
+
+      expect(resolveLocationIds(prepared!)).toEqual(['9228', '9229']);
+    });
+
+    it('remembers a town it already looked up', async () => {
+      // Resolving walks a page per federal state; repeating that for every
+      // candidate on every sweep would eat most of the request budget.
+      const config = { locationIdsByCity: { koeln: '1234' } };
+
+      const prepared = await kleinanzeigenAdapter.prepare!(
+        { ...query, city: 'Köln' },
+        config,
+        noFetch,
+      );
+
+      expect(resolveLocationIds(prepared!)).toEqual(['1234']);
+    });
+
+    it('gives up rather than search the wrong place', async () => {
+      const prepared = await kleinanzeigenAdapter.prepare!(
+        { ...query, city: 'Kleinkleckersdorf' },
+        {},
+        fetchReturning('<html>keine Treffer</html>'),
+      );
+      // Null makes the sweep skip the source; an empty search is recoverable,
+      // a confidently wrong one is not.
+      expect(prepared).toBeNull();
+    });
+  });
+
+  /**
+   * Pinned against the live site on 2026-08-10. Category 201 was requested for
+   * "Temporäres Wohnen" and does not exist; the portal answers 200 and
+   * redirects to the town's entire marketplace, which parsed into 103 jeans,
+   * VW wheel caps and job adverts entering the pool as flats.
+   */
+  describe('a category that redirects away', () => {
+    it('throws the page away rather than parse a whole marketplace as flats', () => {
+      const requested = 'https://www.kleinanzeigen.de/s-wohnung-mieten/koeln/c201l945';
+      expect(droppedCategory(requested, 'https://www.kleinanzeigen.de/s-koeln/l945')).toBe(true);
+
+      const marketplace: FetchedPage = {
+        ...page(fixture('kleinanzeigen-search.json'), requested),
+        finalUrl: 'https://www.kleinanzeigen.de/s-koeln/l945',
+      };
+      // The body parses fine — that is exactly the problem this guards.
+      expect(kleinanzeigenAdapter.parse(marketplace, {}).length).toBe(0);
+    });
+
+    it('leaves an honest redirect alone', () => {
+      const url = 'https://www.kleinanzeigen.de/s-wohnung-mieten/koeln/c203l945';
+      // Same category, canonicalised host or trailing path: still our search.
+      expect(droppedCategory(url, url)).toBe(false);
+      expect(droppedCategory(url, `${url}/`)).toBe(false);
+      // Nothing to compare against is not evidence of a problem.
+      expect(droppedCategory(url, null)).toBe(false);
+      expect(droppedCategory('https://www.kleinanzeigen.de/s-wohnung-mieten/c203', url)).toBe(false);
+    });
+
+    it('no longer asks for the category that does not exist', () => {
+      const urls = kleinanzeigenAdapter.buildUrls(
+        { ...query, includeTemporary: true, maxPages: 1 },
+        { locationIds: ['945'] },
+      );
+      expect(urls.some((u) => u.includes('c201'))).toBe(false);
+      // Temporary lets live in 199 alongside the WG rooms, so they are not lost.
+      expect(urls.some((u) => u.includes('c199'))).toBe(true);
+      expect(urls.some((u) => u.includes('c203'))).toBe(true);
+    });
   });
 
   it('digs the location id out of a pasted search URL', () => {

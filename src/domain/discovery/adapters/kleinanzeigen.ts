@@ -39,7 +39,13 @@ import {
   type DiscoveryQuery,
   type FetchedPage,
 } from '../types';
-import { resolveCityId } from './kleinanzeigenLocations';
+import {
+  cachedLocationId,
+  citySlug,
+  LOCATION_CACHE_KEY,
+  resolveCityId,
+  withCachedLocationId,
+} from './kleinanzeigenLocations';
 import { listPostedAt } from '../listPostedAt';
 import {
   absoluteUrl,
@@ -52,10 +58,21 @@ import {
 } from '../html';
 
 const BASE = 'https://www.kleinanzeigen.de';
-/** 203 = Mietwohnungen, 199 = WG-Zimmer, 201 = Temporäres Wohnen. */
+/**
+ * 203 = Mietwohnungen, 199 = WG-Zimmer & Wohnen auf Zeit.
+ *
+ * There is no third number. 201 was used here for "Temporäres Wohnen" and does
+ * not exist: every path built with it — `/s-wohnung-mieten/koeln/c201l945`,
+ * `/s-wohnen-auf-zeit/koeln/c201l945` — answers 200 after quietly redirecting
+ * to `/s-koeln/l945`, which is the whole of Cologne's marketplace. The result
+ * list parsed cleanly, so a sweep for a Cologne candidate brought back a
+ * hundred and three jeans, VW wheel caps and job adverts as flats.
+ *
+ * Temporary lets are not lost with it: they sit in 199, which returns the
+ * Zwischenmiete and Monteurzimmer adverts under its own name.
+ */
 const CATEGORY_FLATS = 'c203';
 const CATEGORY_WG = 'c199';
-const CATEGORY_TEMPORARY = 'c201';
 /** robots.txt disallows `/*​/seite:N*` from page 60 upward; we never go near it. */
 const MAX_PAGE = 20;
 
@@ -72,7 +89,12 @@ export const kleinanzeigenAdapter: DiscoveryAdapter = {
       // wins, and is the way to cover several towns at once — the permitted
       // stand-in for the radius filter robots.txt disallows.
       required: false,
-      hint: 'Optional. Wird sonst automatisch aus dem Ort des Kandidaten ermittelt. Mehrere Nummern (eine pro Zeile) decken das Umland ab — bei …/c203l9228 ist 9228 die Nummer.',
+      hint: 'Optional. Wird sonst automatisch aus dem Ort jedes Kandidaten ermittelt. Mehrere Nummern (eine pro Zeile) decken das Umland ab — bei …/c203l9228 ist 9228 die Nummer. Nur zusammen mit „locationCity" ausfüllen, sonst gilt sie für keinen Ort.',
+    },
+    {
+      key: 'locationCity',
+      required: false,
+      hint: 'Zu welchem Ort die oben eingetragenen Nummern gehören, z. B. „Heilbronn". Ohne diese Angabe werden die Nummern ignoriert und der Ort jedes Kandidaten einzeln ermittelt — sonst bekämen Kandidaten aus anderen Städten die Wohnungen dieses Ortes.',
     },
     {
       key: 'searchUrl',
@@ -97,16 +119,39 @@ export const kleinanzeigenAdapter: DiscoveryAdapter = {
    * nationwide results rather than no results.
    */
   async prepare(query, config, fetchPage) {
-    if (resolveLocationIds(config).length > 0) return config;
-    if (!query.city) return null;
+    const city = query.city?.trim() || null;
+    const configured = resolveLocationIds(config);
 
-    const { id } = await resolveCityId(query.city, async (url) => {
+    if (configured.length > 0) {
+      // A hand-entered list of numbers is a deliberate override — but it was
+      // entered while thinking of one particular town, and the source is
+      // shared by every candidate. Reusing it for all of them is how a nurse
+      // starting in Cologne came to be shown Heilbronn: the first candidate's
+      // number had been stored on the source, `prepare` saw it and returned
+      // early, and every later city was searched in Heilbronn under its own
+      // name. So the override only counts for the town it was entered for.
+      const forCity = cfgString(config, 'locationCity');
+      if (!city || (forCity && citySlug(forCity) === citySlug(city))) return config;
+    }
+
+    if (!city) return null;
+
+    // Resolving costs a page per federal state walked, so the answer is kept
+    // per city rather than re-walked for every candidate on every sweep.
+    const cached = cachedLocationId(config, city);
+    if (cached) return { ...config, locationIds: [cached] };
+
+    const { id } = await resolveCityId(city, async (url) => {
       const page = await fetchPage(url);
       return page.body;
     });
     if (!id) return null;
 
-    return { ...config, locationIds: [id] };
+    return {
+      ...config,
+      locationIds: [id],
+      [LOCATION_CACHE_KEY]: withCachedLocationId(config, city, id),
+    };
   },
 
   buildUrls(query, config) {
@@ -116,9 +161,8 @@ export const kleinanzeigenAdapter: DiscoveryAdapter = {
     // a nurse starting in Heilbronn is worse than an empty result.
     if (locationIds.length === 0) return [];
 
-    const categories = query.includeTemporary
-      ? [CATEGORY_FLATS, CATEGORY_WG, CATEGORY_TEMPORARY]
-      : config.includeWgRooms === true
+    const categories =
+      query.includeTemporary || config.includeWgRooms === true
         ? [CATEGORY_FLATS, CATEGORY_WG]
         : [CATEGORY_FLATS];
 
@@ -142,6 +186,12 @@ export const kleinanzeigenAdapter: DiscoveryAdapter = {
 
   parse(page) {
     if (!page.body) return [];
+    // A category that does not exist is not answered with an error. The portal
+    // redirects to the town's whole marketplace and returns 200, and the page
+    // parses perfectly — into jeans, wheel caps and job adverts. Comparing the
+    // category we asked for with the one we ended up on is the only signal
+    // that this happened.
+    if (droppedCategory(page.url, page.finalUrl)) return [];
     // Kleinanzeigen content-negotiates: the same permitted URL answers with a
     // JSON view when the request accepts JSON. That view is both richer and
     // far less brittle than the markup, so it is the primary path — but the
@@ -325,6 +375,23 @@ export function extractLocationId(url: string | null): string | null {
   if (!url) return null;
   const m = url.match(/\/c\d+l(\d+)/);
   return m ? m[1] : null;
+}
+
+/** The `c<category>l<location>` token a search URL is addressed by. */
+const CATEGORY_IN_PATH = /\/c(\d+)l\d+/;
+
+/**
+ * True when a redirect moved us off the category we asked for.
+ *
+ * Exported for the test that pins the live behaviour: asking for
+ * `/s-wohnung-mieten/koeln/c201l945` lands on `/s-koeln/l945`, and everything
+ * downstream would treat that town-wide marketplace as a list of flats.
+ */
+export function droppedCategory(requested: string, final: string | null): boolean {
+  if (!final) return false;
+  const wanted = requested.match(CATEGORY_IN_PATH)?.[1];
+  if (!wanted) return false;
+  return final.match(CATEGORY_IN_PATH)?.[1] !== wanted;
 }
 
 function slug(city: string): string {

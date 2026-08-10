@@ -67,6 +67,31 @@ export interface ResolveResult {
   note: string;
 }
 
+/** Config key holding the town numbers already worked out, keyed by city slug. */
+export const LOCATION_CACHE_KEY = 'locationIdsByCity';
+
+/** Reads the cached town number for a city, if one was resolved before. */
+export function cachedLocationId(
+  config: Record<string, unknown>,
+  city: string,
+): string | null {
+  const cache = config[LOCATION_CACHE_KEY];
+  if (!cache || typeof cache !== 'object') return null;
+  const v = (cache as Record<string, unknown>)[citySlug(city)];
+  return typeof v === 'string' && /^\d+$/.test(v) ? v : null;
+}
+
+/** Returns the cache with this city's number added. */
+export function withCachedLocationId(
+  config: Record<string, unknown>,
+  city: string,
+  id: string,
+): Record<string, string> {
+  const existing = config[LOCATION_CACHE_KEY];
+  const base = existing && typeof existing === 'object' ? (existing as Record<string, string>) : {};
+  return { ...base, [citySlug(city)]: id };
+}
+
 /**
  * Two hops: the nationwide page lists the federal states, a state page lists
  * its towns. `fetchBody` is injected so this stays testable and so the caller's

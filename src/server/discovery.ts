@@ -25,6 +25,8 @@ import { getAdapter } from '@/domain/discovery/registry';
 import { missingConfig } from '@/domain/discovery/registry';
 import { parseDetailPage } from '@/domain/discovery/adapters/generic';
 import { isPlausibleHousing } from '@/domain/discovery/plausible';
+import { LOCATION_CACHE_KEY } from '@/domain/discovery/adapters/kleinanzeigenLocations';
+import { checkBatchLocation } from '@/domain/discovery/locationSanity';
 import {
   DEFAULT_QUERY,
   type AdapterConfig,
@@ -271,6 +273,7 @@ export async function runDiscoverySweep(
             message = 'Quelle konnte den Ort nicht auflösen — Suche würde sonst bundesweit laufen.';
           } else {
             config = prepared;
+            await rememberLookups(source.id, baseConfig, prepared);
           }
         }
 
@@ -314,6 +317,21 @@ export async function runDiscoverySweep(
             // An empty page means we walked past the last result; going
             // further just wastes requests on the portal's 404 handler.
             if (parsed.length === 0) break;
+          }
+
+          // Before anything is written: did this source answer about the town
+          // we asked about? A wrong internal town number returns a full page of
+          // real adverts from somewhere else, and every later stage treats them
+          // as good data. Rejecting the batch here is the only place the
+          // mistake is still visible.
+          const sanity = checkBatchLocation(
+            planned.query.postalCode,
+            collected.map((c) => c.locationPostal),
+          );
+          if (!sanity.ok) {
+            status = 'ERROR';
+            message = sanity.note;
+            collected.length = 0;
           }
 
           for (const item of collected) {
@@ -826,6 +844,30 @@ export function describeYield(found: number, unreadable: number): string | null 
   // Below half is ordinary attrition and not worth a warning.
   if (unreadable * 2 < found) return null;
   return `${unreadable} von ${found} Treffern sind unlesbare Platzhalter — von dieser Quelle kommt nur ein Bruchteil an.`;
+}
+
+/**
+ * Keeps whatever `prepare` had to look up, so the next sweep does not repeat it.
+ *
+ * Resolving one town costs a page per federal state walked, and with several
+ * candidates in several cities that is most of a sweep's request budget spent
+ * re-learning the same answers. Only the cache key is written back — never the
+ * working copy of `locationIds`, which is per-query and would otherwise be
+ * frozen onto the source and handed to the next candidate's city, which is the
+ * bug this whole change exists to remove.
+ */
+async function rememberLookups(
+  sourceId: string,
+  before: AdapterConfig,
+  after: AdapterConfig,
+): Promise<void> {
+  const learned = after[LOCATION_CACHE_KEY];
+  if (!learned) return;
+  if (JSON.stringify(learned) === JSON.stringify(before[LOCATION_CACHE_KEY])) return;
+  await prisma.source.update({
+    where: { id: sourceId },
+    data: { discoveryConfig: { ...before, [LOCATION_CACHE_KEY]: learned } as never },
+  });
 }
 
 async function noteSourceStatus(sourceId: string, status: string, note: string | null): Promise<void> {
