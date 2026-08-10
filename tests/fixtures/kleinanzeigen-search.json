@@ -1,0 +1,361 @@
+{
+ "searchForm": {
+  "priceLabelMessageKey": "Kaltmiete"
+ },
+ "result": {
+  "numFound": 265,
+  "resultList": [
+   {
+    "sponsoredAdPresent": false,
+    "organicAdPreview": {
+     "id": 3443198600,
+     "availabilityRadiusInKm": 0,
+     "distanceInKilometers": 0,
+     "exactDistance": 0.0,
+     "highlight": false,
+     "topAd": true,
+     "hasVirtualTour": false,
+     "hasVideos": false,
+     "hasStore": true,
+     "thinContent": false,
+     "placeholderImagePresent": false,
+     "newSavedSearchAd": false,
+     "newFollowUserAd": false,
+     "preciseDistance": true,
+     "priorityAd": true,
+     "newConstructionUnit": false,
+     "newConstructionProject": false,
+     "buyNowEnabled": false,
+     "title": "Traumhafte 2-Zimmer Wohnung im Heilbronner Zentrum zu vermieten!",
+     "description": "Diese schöne 2-Zimmer-Wohnung befindet sich unweit vom Heilbronner Stadtzentrum.\nAuf Ihrem...",
+     "seoLink": "/s-anzeige/traumhafte-2-zimmer-wohnung-im-heilbronner-zentrum-zu-vermieten-/3443198600-203-9245",
+     "price": "895 €",
+     "userId": 125003646,
+     "posterType": "COMMERCIAL",
+     "company": {
+      "name": "Neufeld Immobilien GmbH",
+      "logo": "https://img.kleinanzeigen.de/api/v1/prod-user/images/09/0940e033-d016-495c-a530-7ed133543cb7?rule=$_2.JPG"
+     },
+     "childrenDisplay": [],
+     "lastElementCta": {
+      "numberOfChildren": 0,
+      "showType": "NONE",
+      "shouldShowCta": false
+     },
+     "seoContent": "{\"creditText\":\"Kleinanzeigen\",\"title\":\"Traumhafte 2-Zimmer Wohnung im Heilbronner Zentrum zu vermieten!\",\"description\":\"Diese schöne 2-Zimmer-Wohnung befindet sich unweit vom Heilbronner Stadtzentrum.\\nAuf Ihrem Tiefgaragenstellplatz angekommen, gelangen Sie über den Aufzug bequem zu Ihrer Wohnungstüre.\\nEin Highlight der Wohnung ist definitiv der offen gestaltete Wo...\",\"contentUrl\":\"https://img.kleinanzeigen.de/api/v1/prod-ads/images/be/be2e1b66-4842-422c-a5c8-12237d06ee28?rule=$_59.AUTO\",\"representativeOfPage\":false,\"@context\":\"https://schema.org\",\"@type\":\"ImageObject\"}",
+     "sortingDate": "05.08.2026",
+     "locationName": "74072",
+     "parentLocationName": "Heilbronn",
+     "thumbnailAltText": "Traumhafte 2-Zimmer Wohnung im Heilbronner Zentrum zu vermieten! Baden-Württemberg - Heilbronn Vorschau",
+     "appliedFeatures": [
+      "TOP_AD",
+      "PRIORITY_AD"
+     ],
+     "shippingAvailableValue": "",
+     "storeLink": {
+      "url": "/pro/neufeld-immobilien",
+      "displayText": "Neufeld Immobilien GmbH"
+     },
+     "attributes": [
+      "47,15 m²",
+      "2 Zi."
+     ],
+     "imageList": [
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/be/be2e1b66-4842-422c-a5c8-12237d06ee28?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/be/be2e1b66-4842-422c-a5c8-12237d06ee28?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/be/be2e1b66-4842-422c-a5c8-12237d06ee28?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/be/be2e1b66-4842-422c-a5c8-12237d06ee28?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/be/be2e1b66-4842-422c-a5c8-12237d06ee28?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/ca/ca650907-20e6-4990-aa92-0d0406dce169?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/ca/ca650907-20e6-4990-aa92-0d0406dce169?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/ca/ca650907-20e6-4990-aa92-0d0406dce169?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/ca/ca650907-20e6-4990-aa92-0d0406dce169?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/ca/ca650907-20e6-4990-aa92-0d0406dce169?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/77/775d29fa-5c04-48fa-abbd-ac22e72d88bf?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/77/775d29fa-5c04-48fa-abbd-ac22e72d88bf?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/77/775d29fa-5c04-48fa-abbd-ac22e72d88bf?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/77/775d29fa-5c04-48fa-abbd-ac22e72d88bf?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/77/775d29fa-5c04-48fa-abbd-ac22e72d88bf?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/bd/bd980b1b-3043-4410-8713-18f5b7c6d003?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/bd/bd980b1b-3043-4410-8713-18f5b7c6d003?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/bd/bd980b1b-3043-4410-8713-18f5b7c6d003?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/bd/bd980b1b-3043-4410-8713-18f5b7c6d003?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/bd/bd980b1b-3043-4410-8713-18f5b7c6d003?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/38/38febaf6-72a1-4037-ba71-258085f14eb1?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/38/38febaf6-72a1-4037-ba71-258085f14eb1?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/38/38febaf6-72a1-4037-ba71-258085f14eb1?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/38/38febaf6-72a1-4037-ba71-258085f14eb1?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/38/38febaf6-72a1-4037-ba71-258085f14eb1?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/1b/1bc78f01-b1f5-481c-8663-75a1369ff3de?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/1b/1bc78f01-b1f5-481c-8663-75a1369ff3de?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/1b/1bc78f01-b1f5-481c-8663-75a1369ff3de?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/1b/1bc78f01-b1f5-481c-8663-75a1369ff3de?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/1b/1bc78f01-b1f5-481c-8663-75a1369ff3de?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/14/1474c0fc-b478-4e5a-851a-aac83ec90274?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/14/1474c0fc-b478-4e5a-851a-aac83ec90274?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/14/1474c0fc-b478-4e5a-851a-aac83ec90274?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/14/1474c0fc-b478-4e5a-851a-aac83ec90274?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/14/1474c0fc-b478-4e5a-851a-aac83ec90274?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/8e/8ef8584d-84b3-4c27-b5fa-cdd617322aeb?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/8e/8ef8584d-84b3-4c27-b5fa-cdd617322aeb?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/8e/8ef8584d-84b3-4c27-b5fa-cdd617322aeb?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/8e/8ef8584d-84b3-4c27-b5fa-cdd617322aeb?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/8e/8ef8584d-84b3-4c27-b5fa-cdd617322aeb?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/8f/8f770279-5742-4277-bfae-8742383e5815?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/8f/8f770279-5742-4277-bfae-8742383e5815?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/8f/8f770279-5742-4277-bfae-8742383e5815?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/8f/8f770279-5742-4277-bfae-8742383e5815?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/8f/8f770279-5742-4277-bfae-8742383e5815?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/17/1790a31e-1371-4d20-ab4d-1d228381bdaa?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/17/1790a31e-1371-4d20-ab4d-1d228381bdaa?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/17/1790a31e-1371-4d20-ab4d-1d228381bdaa?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/17/1790a31e-1371-4d20-ab4d-1d228381bdaa?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/17/1790a31e-1371-4d20-ab4d-1d228381bdaa?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/c0/c023aa29-78b4-461a-a401-5315ac7456cf?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/c0/c023aa29-78b4-461a-a401-5315ac7456cf?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/c0/c023aa29-78b4-461a-a401-5315ac7456cf?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/c0/c023aa29-78b4-461a-a401-5315ac7456cf?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/c0/c023aa29-78b4-461a-a401-5315ac7456cf?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e8/e886b35c-041e-4778-8bd3-a2089bcfdb5c?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e8/e886b35c-041e-4778-8bd3-a2089bcfdb5c?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e8/e886b35c-041e-4778-8bd3-a2089bcfdb5c?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e8/e886b35c-041e-4778-8bd3-a2089bcfdb5c?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e8/e886b35c-041e-4778-8bd3-a2089bcfdb5c?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/1a/1a9b6b07-5e94-4860-b180-a175ee9715ea?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/1a/1a9b6b07-5e94-4860-b180-a175ee9715ea?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/1a/1a9b6b07-5e94-4860-b180-a175ee9715ea?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/1a/1a9b6b07-5e94-4860-b180-a175ee9715ea?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/1a/1a9b6b07-5e94-4860-b180-a175ee9715ea?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/b8/b89f71d2-9b21-4c21-bd4c-c260e4dcbdde?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/b8/b89f71d2-9b21-4c21-bd4c-c260e4dcbdde?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/b8/b89f71d2-9b21-4c21-bd4c-c260e4dcbdde?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/b8/b89f71d2-9b21-4c21-bd4c-c260e4dcbdde?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/b8/b89f71d2-9b21-4c21-bd4c-c260e4dcbdde?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/96/96c72af8-dd3a-47c5-8079-c4c50d789e39?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/96/96c72af8-dd3a-47c5-8079-c4c50d789e39?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/96/96c72af8-dd3a-47c5-8079-c4c50d789e39?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/96/96c72af8-dd3a-47c5-8079-c4c50d789e39?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/96/96c72af8-dd3a-47c5-8079-c4c50d789e39?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/38/38a8cc7f-305b-423a-9d33-bb7fd7ea89af?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/38/38a8cc7f-305b-423a-9d33-bb7fd7ea89af?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/38/38a8cc7f-305b-423a-9d33-bb7fd7ea89af?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/38/38a8cc7f-305b-423a-9d33-bb7fd7ea89af?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/38/38a8cc7f-305b-423a-9d33-bb7fd7ea89af?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/c0/c0a83591-62d4-41f3-9b0c-2a95f85ef82e?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/c0/c0a83591-62d4-41f3-9b0c-2a95f85ef82e?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/c0/c0a83591-62d4-41f3-9b0c-2a95f85ef82e?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/c0/c0a83591-62d4-41f3-9b0c-2a95f85ef82e?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/c0/c0a83591-62d4-41f3-9b0c-2a95f85ef82e?rule=$_35.AUTO"
+      }
+     ]
+    }
+   },
+   {
+    "sponsoredAdPresent": false,
+    "organicAdPreview": {
+     "id": 3443193678,
+     "availabilityRadiusInKm": 0,
+     "distanceInKilometers": 0,
+     "exactDistance": 0.0,
+     "highlight": false,
+     "topAd": true,
+     "hasVirtualTour": false,
+     "hasVideos": false,
+     "hasStore": true,
+     "thinContent": false,
+     "placeholderImagePresent": false,
+     "newSavedSearchAd": false,
+     "newFollowUserAd": false,
+     "preciseDistance": true,
+     "priorityAd": true,
+     "newConstructionUnit": false,
+     "newConstructionProject": false,
+     "buyNowEnabled": false,
+     "title": "Stylische 2,5-Zimmer Penthouse-Wohnung in erstklassiger Lage zu vermieten!",
+     "description": "Diese helle 3-Zimmer-Penthousewohnung befindet sich unweit vom Heilbronner Stadtzentrum. Auf Ihrem...",
+     "seoLink": "/s-anzeige/stylische-2-5-zimmer-penthouse-wohnung-in-erstklassiger-lage-zu-vermieten-/3443193678-203-9245",
+     "price": "1.406 €",
+     "userId": 125003646,
+     "posterType": "COMMERCIAL",
+     "company": {
+      "name": "Neufeld Immobilien GmbH",
+      "logo": "https://img.kleinanzeigen.de/api/v1/prod-user/images/09/0940e033-d016-495c-a530-7ed133543cb7?rule=$_2.JPG"
+     },
+     "childrenDisplay": [],
+     "lastElementCta": {
+      "numberOfChildren": 0,
+      "showType": "NONE",
+      "shouldShowCta": false
+     },
+     "seoContent": "{\"creditText\":\"Kleinanzeigen\",\"title\":\"Stylische 2,5-Zimmer Penthouse-Wohnung in erstklassiger Lage zu vermieten!\",\"description\":\"Diese helle 3-Zimmer-Penthousewohnung befindet sich unweit vom Heilbronner Stadtzentrum. Auf Ihrem Tiefgaragenstellplatz angekommen, gelangen Sie über den Aufzug bequem zu Ihrer Wohnungstüre.\\nEin Highlight der Wohnung ist definitiv der offen gesta...\",\"contentUrl\":\"https://img.kleinanzeigen.de/api/v1/prod-ads/images/98/98bfd578-b299-41bc-aaba-b184aca21d55?rule=$_59.AUTO\",\"representativeOfPage\":false,\"@context\":\"https://schema.org\",\"@type\":\"ImageObject\"}",
+     "sortingDate": "05.08.2026",
+     "locationName": "74072",
+     "parentLocationName": "Heilbronn",
+     "thumbnailAltText": "Stylische 2,5-Zimmer Penthouse-Wohnung in erstklassiger Lage zu vermieten! Baden-Württemberg - Heilbronn Vorschau",
+     "appliedFeatures": [
+      "TOP_AD",
+      "PRIORITY_AD"
+     ],
+     "shippingAvailableValue": "",
+     "storeLink": {
+      "url": "/pro/neufeld-immobilien",
+      "displayText": "Neufeld Immobilien GmbH"
+     },
+     "attributes": [
+      "73,96 m²",
+      "2,5 Zi."
+     ],
+     "imageList": [
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/98/98bfd578-b299-41bc-aaba-b184aca21d55?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/98/98bfd578-b299-41bc-aaba-b184aca21d55?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/98/98bfd578-b299-41bc-aaba-b184aca21d55?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/98/98bfd578-b299-41bc-aaba-b184aca21d55?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/98/98bfd578-b299-41bc-aaba-b184aca21d55?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/c8/c821700b-426d-4ac9-b0c6-e1843ce46dfc?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/c8/c821700b-426d-4ac9-b0c6-e1843ce46dfc?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/c8/c821700b-426d-4ac9-b0c6-e1843ce46dfc?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/c8/c821700b-426d-4ac9-b0c6-e1843ce46dfc?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/c8/c821700b-426d-4ac9-b0c6-e1843ce46dfc?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/a5/a5ad713b-b3d7-446b-9959-3a65dbf33dfd?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/a5/a5ad713b-b3d7-446b-9959-3a65dbf33dfd?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/a5/a5ad713b-b3d7-446b-9959-3a65dbf33dfd?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/a5/a5ad713b-b3d7-446b-9959-3a65dbf33dfd?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/a5/a5ad713b-b3d7-446b-9959-3a65dbf33dfd?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/90/90ffb180-b31f-464d-88a7-94b4b4c2a51d?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/90/90ffb180-b31f-464d-88a7-94b4b4c2a51d?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/90/90ffb180-b31f-464d-88a7-94b4b4c2a51d?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/90/90ffb180-b31f-464d-88a7-94b4b4c2a51d?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/90/90ffb180-b31f-464d-88a7-94b4b4c2a51d?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/4f/4f602b0a-f725-4a93-838c-d717fad9df02?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/4f/4f602b0a-f725-4a93-838c-d717fad9df02?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/4f/4f602b0a-f725-4a93-838c-d717fad9df02?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/4f/4f602b0a-f725-4a93-838c-d717fad9df02?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/4f/4f602b0a-f725-4a93-838c-d717fad9df02?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/6a/6adba1f9-46e9-41d8-b457-1bdd2994b9e9?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/6a/6adba1f9-46e9-41d8-b457-1bdd2994b9e9?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/6a/6adba1f9-46e9-41d8-b457-1bdd2994b9e9?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/6a/6adba1f9-46e9-41d8-b457-1bdd2994b9e9?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/6a/6adba1f9-46e9-41d8-b457-1bdd2994b9e9?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/46/46fb28f3-9229-4acb-bf5b-5b7f90574afb?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/46/46fb28f3-9229-4acb-bf5b-5b7f90574afb?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/46/46fb28f3-9229-4acb-bf5b-5b7f90574afb?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/46/46fb28f3-9229-4acb-bf5b-5b7f90574afb?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/46/46fb28f3-9229-4acb-bf5b-5b7f90574afb?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e0/e05b74d3-361e-4489-85c6-411c1b2be4f9?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e0/e05b74d3-361e-4489-85c6-411c1b2be4f9?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e0/e05b74d3-361e-4489-85c6-411c1b2be4f9?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e0/e05b74d3-361e-4489-85c6-411c1b2be4f9?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e0/e05b74d3-361e-4489-85c6-411c1b2be4f9?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/93/9307017d-1291-4c96-951e-5b34c54a2828?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/93/9307017d-1291-4c96-951e-5b34c54a2828?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/93/9307017d-1291-4c96-951e-5b34c54a2828?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/93/9307017d-1291-4c96-951e-5b34c54a2828?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/93/9307017d-1291-4c96-951e-5b34c54a2828?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/2a/2a638b6a-78a5-484a-9bd5-969dde256970?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/2a/2a638b6a-78a5-484a-9bd5-969dde256970?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/2a/2a638b6a-78a5-484a-9bd5-969dde256970?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/2a/2a638b6a-78a5-484a-9bd5-969dde256970?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/2a/2a638b6a-78a5-484a-9bd5-969dde256970?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/d2/d231c3d9-09d6-4768-8d47-2af77d9bcd8a?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/d2/d231c3d9-09d6-4768-8d47-2af77d9bcd8a?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/d2/d231c3d9-09d6-4768-8d47-2af77d9bcd8a?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/d2/d231c3d9-09d6-4768-8d47-2af77d9bcd8a?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/d2/d231c3d9-09d6-4768-8d47-2af77d9bcd8a?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/7b/7b034178-25d7-400f-ae37-ec64654e700f?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/7b/7b034178-25d7-400f-ae37-ec64654e700f?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/7b/7b034178-25d7-400f-ae37-ec64654e700f?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/7b/7b034178-25d7-400f-ae37-ec64654e700f?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/7b/7b034178-25d7-400f-ae37-ec64654e700f?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/98/98925948-0941-4de8-b69c-6d42d4316660?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/98/98925948-0941-4de8-b69c-6d42d4316660?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/98/98925948-0941-4de8-b69c-6d42d4316660?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/98/98925948-0941-4de8-b69c-6d42d4316660?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/98/98925948-0941-4de8-b69c-6d42d4316660?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e8/e8615da6-ce0b-4881-a10c-a58553781332?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e8/e8615da6-ce0b-4881-a10c-a58553781332?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e8/e8615da6-ce0b-4881-a10c-a58553781332?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e8/e8615da6-ce0b-4881-a10c-a58553781332?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e8/e8615da6-ce0b-4881-a10c-a58553781332?rule=$_35.AUTO"
+      },
+      {
+       "xLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e0/e0fbe1ad-047b-4d06-b7a5-b4e69849add1?rule=$_59.AUTO",
+       "adTableThumbnailPrioUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e0/e0fbe1ad-047b-4d06-b7a5-b4e69849add1?rule=$_1.AUTO",
+       "adTableThumbnailPrioRetinaUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e0/e0fbe1ad-047b-4d06-b7a5-b4e69849add1?rule=$_12.AUTO",
+       "adTableThumbnailUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e0/e0fbe1ad-047b-4d06-b7a5-b4e69849add1?rule=$_2.AUTO",
+       "adTableThumbnailLargeUrl": "https://img.kleinanzeigen.de/api/v1/prod-ads/images/e0/e0fbe1ad-047b-4d06-b7a5-b4e69849add1?rule=$_35.AUTO"
+      }
+     ]
+    }
+   },
+   {
+    "sponsoredAdPresent": true,
+    "sponsoredAd": {
+     "positionName": "srpb-result-list-2"
+    }
+   }
+  ]
+ },
+ "pager": {
+  "lastPageNum": 11
+ }
+}

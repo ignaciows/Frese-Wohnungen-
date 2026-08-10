@@ -89,7 +89,8 @@ export default async function KontaktePage({
       direction: m.direction,
       body: m.body,
       occurredAt: m.occurredAt.toISOString(),
-      recordedByName: m.recordedBy.name,
+      // No recorder means the mailbox collected this reply on its own.
+      recordedByName: m.recordedBy?.name ?? 'Automatisch aus dem Postfach',
     })),
   }));
 

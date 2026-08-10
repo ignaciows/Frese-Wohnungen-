@@ -34,6 +34,13 @@ export interface SeedSource {
     | 'REGIONAL_DIRECTORY'
     | 'CUSTOM_SOURCE';
   temporaryOnly?: boolean;
+  /**
+   * Which discovery adapter *can* read this source (see domain/discovery).
+   * Declaring one is a statement about the code, not permission to run it:
+   * a sweep only happens once an admin also flips `discoveryEnabled` and
+   * supplies the adapter's configuration.
+   */
+  discoveryAdapter?: string;
   housingTypes: string[];
   coverage: Array<{ kind: 'NATIONWIDE' | 'STATE' | 'CITY' | 'POSTAL_PREFIX'; value: string }>;
   aliases?: string[];
@@ -159,11 +166,13 @@ export const SEED_SOURCES: SeedSource[] = [
     category: 'MARKETPLACE',
     priority: 25,
     integrationMode: 'SEARCH_LINK',
+    discoveryAdapter: 'kleinanzeigen',
     housingTypes: ['APARTMENT'],
     coverage: [{ kind: 'NATIONWIDE', value: '' }],
     aliases: ['eBay Kleinanzeigen'],
     filterMappings: bigMarketplaceMapping,
-    notes: 'Kein offizieller Vermietungs-API-Zugriff — Suche + manueller Import.',
+    notes:
+      'Kein offizieller Vermietungs-API-Zugriff. Die Ergebnisliste ist automatisch lesbar; robots.txt sperrt allerdings Preis-, Umkreis- und Angebotsfilter sowie die Ortssuche — deshalb wird die ungefilterte Ortsliste gelesen und in der App gefiltert. Ortsnummern in den Einstellungen hinterlegen (mehrere Orte ersetzen den Umkreis).',
   },
   {
     key: 'wg-gesucht',
@@ -173,6 +182,7 @@ export const SEED_SOURCES: SeedSource[] = [
     category: 'MARKETPLACE',
     priority: 40,
     integrationMode: 'SEARCH_LINK',
+    discoveryAdapter: 'wggesucht',
     housingTypes: ['APARTMENT'],
     coverage: [{ kind: 'NATIONWIDE', value: '' }],
     aliases: ['wg-suche.de'],

@@ -52,6 +52,8 @@ model User {
   messagesUpdated  ApplicationMessage[]
   appointments     Appointment[]
   sharedDecisions  SharedHousingSuggestion[]
+  portalAccounts   PortalAccount[]
+  tasksCompleted   FollowUpTask[]
 }
 
 // ------------------------------------------------------- candidate case
@@ -102,6 +104,8 @@ model CandidateCase {
   sharedAsA          SharedHousingSuggestion[] @relation("SharedCaseA")
   sharedAsB          SharedHousingSuggestion[] @relation("SharedCaseB")
   weeklySummaries    WeeklySummary[]
+  followUpTasks      FollowUpTask[]
+  notifications      Notification[]
 
   @@index([status])
 }
@@ -244,6 +248,23 @@ model Source {
   manualImportInstructions String?
   notes                    String?
 
+  /// --- automatic discovery ---
+  /// Which adapter fetches this source's own result list. Null = no automatic
+  /// discovery; the source keeps its manual task and search link.
+  /// See domain/discovery/adapters for the registry.
+  discoveryAdapter String?
+  /// Off by default. An admin turns discovery on per source after checking that
+  /// source's terms — the same gate the rest of the catalogue already uses.
+  discoveryEnabled Boolean @default(false)
+  /// Adapter-specific configuration: feed URL, search-path template, link
+  /// pattern. Data-driven so a new site can be added without a deploy.
+  discoveryConfig  Json?
+  /// Set when a sweep was blocked or errored, so the UI can be honest about
+  /// which sources are actually producing results.
+  discoveryStatus  String? // OK | BLOCKED | ERROR | NEVER_RUN
+  discoveryNote    String?
+  lastDiscoveredAt DateTime?
+
   /// Housing types this source is relevant for; see domain/sources/housingTypes.ts
   housingTypes  String[] @default([])
   /// Only offered when the candidate's temporary/emergency mode is enabled.
@@ -255,11 +276,45 @@ model Source {
   filterMappings SourceFilterMapping[]
   sourceChecks   SourceCheck[]
   listings       Listing[]
+  discoveryRuns  DiscoveryRun[]
+  portalAccounts PortalAccount[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([active, priority])
+  @@index([discoveryEnabled])
+}
+
+/// One automatic sweep of one source. Append-only, so "why did nothing new turn
+/// up today" always has an answer — including the honest one, that the portal
+/// blocked us.
+model DiscoveryRun {
+  id       String  @id @default(cuid())
+  sourceId String
+  adapter  String
+  /// Which candidate's criteria produced the query, when the sweep was scoped
+  /// to one. Null for source-wide sweeps (feeds, sitemaps).
+  candidateCaseId String?
+  /// The resolved query (city, radius, price cap…) and the URL actually called.
+  query    Json
+
+  /// OK | BLOCKED | ERROR | SKIPPED | ROBOTS_DENIED
+  status   String
+  found    Int     @default(0)
+  created  Int     @default(0)
+  updated  Int     @default(0)
+  retired  Int     @default(0)
+  message  String?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId, startedAt])
+  @@index([startedAt])
 }
 
 model SourceAlias {
@@ -468,12 +523,34 @@ model Listing {
   /// Free-form warnings surfaced in the UI (schufa, income proof, restrictions...).
   warnings String[] @default([])
 
+  /// --- how to reach the landlord without opening the portal ---
+  /// Only ever filled from what the ad itself publishes. Empty is normal and
+  /// simply means this ad has to be answered through the portal form.
+  contactEmail String?
+  contactName  String?
+  contactPhone String?
+  /// Portal-side contact/enquiry form, when the ad exposes one.
+  contactFormUrl String?
+
   extractorVersion String    @default("")
   /// Last time a source confirmed this ad still exists (e.g. it reappeared in
   /// a search-agent mail). Drives the freshness badge.
   lastSeenAt       DateTime?
   expired          Boolean   @default(false)
   expiredAt        DateTime?
+
+  /// --- automatic discovery bookkeeping ---
+  /// DISCOVERY | EMAIL | MANUAL — how this ad entered the system.
+  origin       String    @default("MANUAL")
+  firstSeenAt  DateTime  @default(now())
+  /// Last time a discovery sweep found this ad in the source's *own* result
+  /// list. Deliberately separate from lastSeenAt: disappearing from the result
+  /// list is the earliest, cheapest signal that an ad is gone.
+  lastListedAt DateTime?
+  /// Consecutive sweeps of this source that did not contain the ad. Only ever
+  /// incremented by a sweep that itself succeeded, so a blocked portal cannot
+  /// quietly retire its whole inventory.
+  missedSweeps Int       @default(0)
   /// Set when the automatic link check retired the ad, so the UI can say
   /// whether a human or the system marked it gone.
   expiredBySystem  Boolean   @default(false)
@@ -501,9 +578,13 @@ model Listing {
   contactAttempts ContactAttempt[]
   duplicateLinks  DuplicateMember[]
   appointments    Appointment[]
+  followUpTasks   FollowUpTask[]
+  notifications   Notification[]
 
   @@index([sourceId])
   @@index([sourceListingId])
+  /// The default results query: live ads, newest discovery first.
+  @@index([expired, lastListedAt])
 }
 
 enum FactSource {
@@ -627,6 +708,20 @@ model ContactAttempt {
   /// Set when an admin-permitted duplicate contact was forced through.
   overrideReason  String?
 
+  /// --- sending from inside the tool ---
+  /// Where the message actually went, when we sent it ourselves.
+  sentToAddress String?
+  /// PENDING | SENT | FAILED | MANUAL — MANUAL means a colleague sent it in the
+  /// portal and only recorded it here.
+  deliveryStatus String  @default("MANUAL")
+  deliveryError  String?
+  /// Unique token embedded in the reply-to address (plus addressing), so an
+  /// answer landing in the shared mailbox can be matched back to this attempt
+  /// without guessing from the subject line.
+  threadToken    String? @unique
+  /// Message-ID of the mail we sent, used to match replies by In-Reply-To.
+  outboundMessageId String?
+
   /// Reply tracking. AWAITING until a colleague records an answer.
   outcome     ResponseOutcome @default(AWAITING)
   outcomeAt   DateTime?
@@ -639,6 +734,8 @@ model ContactAttempt {
   outcomeBy      User?            @relation("ContactOutcomeBy", fields: [outcomeById], references: [id])
   systemTransfer SystemTransfer?
   messages       ContactMessage[]
+  followUpTasks  FollowUpTask[]
+  notifications  Notification[]
 
   /// DB-level guarantee: one candidate can only be registered against a listing once.
   @@unique([listingId, candidateCaseId])
@@ -654,13 +751,24 @@ model ContactMessage {
   direction        MessageDirection
   body             String
   occurredAt       DateTime         @default(now())
-  recordedById     String
+  /// Null when the message was collected automatically from the mailbox rather
+  /// than typed by a colleague.
+  recordedById     String?
   createdAt        DateTime         @default(now())
 
+  /// --- automatic mailbox collection ---
+  subject      String?
+  fromAddress  String?
+  /// RFC Message-ID. Unique so re-reading the mailbox never duplicates a reply.
+  externalId   String? @unique
+  /// Unread replies are what the notification badge counts.
+  readAt       DateTime?
+
   contactAttempt ContactAttempt @relation(fields: [contactAttemptId], references: [id], onDelete: Cascade)
-  recordedBy     User           @relation(fields: [recordedById], references: [id])
+  recordedBy     User?          @relation(fields: [recordedById], references: [id])
 
   @@index([contactAttemptId, occurredAt])
+  @@index([direction, readAt])
 }
 
 /// Tracks the manual copy of the three fields into the separate company system.
@@ -860,6 +968,129 @@ model MarketRegion {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ------------------------------------------------- accounts & messaging
+
+enum AccountKind {
+  /// A login the team holds on a housing portal.
+  PORTAL
+  /// The shared mailbox Anfragen are sent from and replies arrive in.
+  MAILBOX
+}
+
+/// A per-site account the team owns, so contacting can happen from inside the
+/// tool instead of in five separate portal tabs.
+///
+/// Secrets are stored encrypted (AES-256-GCM, key from CREDENTIAL_KEY) and are
+/// never sent back to the browser — the UI only ever learns whether a secret is
+/// set. See docs/PRIVACY_AND_SECURITY.md.
+model PortalAccount {
+  id       String      @id @default(cuid())
+  kind     AccountKind @default(PORTAL)
+  /// Catalogue source this account belongs to, when there is one.
+  sourceId String?
+  /// Stable key even for sites outside the catalogue.
+  siteKey  String
+  label    String
+
+  loginName String?
+  /// AES-256-GCM ciphertext of the password / app password / API token.
+  secretEnc String?
+  /// Second secret for the rare case that IMAP and SMTP differ.
+  secondarySecretEnc String?
+  /// Non-secret extras: host, port, profile URL, alert address, free notes.
+  meta Json?
+
+  /// Address landlord replies come back to for this portal.
+  replyToAddress String?
+
+  active         Boolean   @default(true)
+  /// UNVERIFIED | OK | FAILED
+  status         String    @default("UNVERIFIED")
+  statusNote     String?
+  lastVerifiedAt DateTime?
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  source    Source? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  createdBy User?   @relation(fields: [createdById], references: [id])
+
+  @@unique([siteKey, label])
+  @@index([kind, active])
+}
+
+enum TaskKind {
+  /// "You wrote three days ago — has anyone answered?"
+  CHECK_REPLY
+  /// Wiedervorlage on a listing that was parked rather than rejected.
+  REVIEW_LISTING
+  CUSTOM
+}
+
+enum TaskState {
+  OPEN
+  DONE
+  DISMISSED
+}
+
+/// The daily to-do list. Created automatically when a message goes out, so
+/// "check whether they replied" never depends on somebody remembering.
+model FollowUpTask {
+  id               String @id @default(cuid())
+  candidateCaseId  String
+  listingId        String?
+  contactAttemptId String?
+
+  kind   TaskKind
+  title  String
+  note   String?
+  dueAt  DateTime
+  state  TaskState @default(OPEN)
+
+  completedAt   DateTime?
+  completedById String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  candidateCase  CandidateCase   @relation(fields: [candidateCaseId], references: [id], onDelete: Cascade)
+  listing        Listing?        @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  contactAttempt ContactAttempt? @relation(fields: [contactAttemptId], references: [id], onDelete: Cascade)
+  completedBy    User?           @relation(fields: [completedById], references: [id])
+
+  /// One open reply-check per contact attempt; re-running the job never piles
+  /// duplicates onto the same conversation.
+  @@unique([contactAttemptId, kind])
+  @@index([state, dueAt])
+  @@index([candidateCaseId, state])
+}
+
+/// In-app notification. Deliberately not an email: the point is that everything
+/// shows up in one place.
+model Notification {
+  id   String @id @default(cuid())
+  /// REPLY_RECEIVED | TASK_DUE | LISTING_RETIRED | DISCOVERY_RESULT | DISCOVERY_PROBLEM
+  kind String
+
+  title String
+  body  String?
+  /// In-app link to whatever this is about.
+  url   String?
+
+  candidateCaseId  String?
+  listingId        String?
+  contactAttemptId String?
+
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  candidateCase  CandidateCase?  @relation(fields: [candidateCaseId], references: [id], onDelete: Cascade)
+  listing        Listing?        @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  contactAttempt ContactAttempt? @relation(fields: [contactAttemptId], references: [id], onDelete: Cascade)
+
+  @@index([readAt, createdAt])
 }
 
 /// Small admin-editable key/value settings (copy format, ranking weights).

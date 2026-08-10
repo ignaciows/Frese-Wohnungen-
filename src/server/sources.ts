@@ -33,6 +33,7 @@ export async function syncSeedCatalog(): Promise<{ createdSources: number; updat
         category: s.category,
         priority: s.priority,
         integrationMode: s.integrationMode,
+        discoveryAdapter: s.discoveryAdapter ?? null,
         termsReviewStatus: 'MANUAL_ONLY',
         housingTypes: s.housingTypes,
         temporaryOnly: s.temporaryOnly ?? false,
@@ -46,6 +47,10 @@ export async function syncSeedCatalog(): Promise<{ createdSources: number; updat
         category: s.category,
         priority: s.priority,
         integrationMode: s.integrationMode,
+        // Which adapter *can* read the source is a fact about the code, so the
+        // catalogue owns it. Whether it actually runs (discoveryEnabled) and
+        // how it is configured stay with the admin and are never overwritten.
+        discoveryAdapter: s.discoveryAdapter ?? null,
         housingTypes: s.housingTypes,
         temporaryOnly: s.temporaryOnly ?? false,
         manualRecipe: s.manualRecipe ?? null,

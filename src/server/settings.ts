@@ -26,7 +26,85 @@ export const SETTING_KEYS = {
   bridging: 'bridging',
   liveness: 'liveness',
   telegram: 'telegram',
+  discovery: 'discovery',
+  outbound: 'outbound',
+  followUp: 'followUp',
 } as const;
+
+export interface DiscoverySettings {
+  /** Master switch for every automatic sweep. */
+  enabled: boolean;
+  /** A sweep only runs again after this many minutes, however often it is triggered. */
+  sweepIntervalMinutes: number;
+  /** Total HTTP requests one sweep may make, across all sources. */
+  maxRequestsPerRun: number;
+  /** Minimum gap between two requests to the same host. */
+  perHostDelayMs: number;
+  /** Result pages walked per source per query. */
+  maxPagesPerSource: number;
+  /**
+   * Detail pages fetched per sweep to fill in the fields a result list omits.
+   * Zero disables enrichment entirely.
+   */
+  enrichPerRun: number;
+  /**
+   * Consecutive successful sweeps an ad may be missing from its source's own
+   * result list before it is retired. Two, so one hiccup never buries a flat.
+   */
+  retireAfterMissedSweeps: number;
+  /** Skip ads whose rent is more than this factor above the candidate's cap. */
+  priceSlack: number;
+}
+
+export const DEFAULT_DISCOVERY: DiscoverySettings = {
+  enabled: true,
+  sweepIntervalMinutes: 90,
+  maxRequestsPerRun: 120,
+  perHostDelayMs: 4000,
+  maxPagesPerSource: 2,
+  enrichPerRun: 25,
+  retireAfterMissedSweeps: 2,
+  priceSlack: 1.25,
+};
+
+export interface OutboundSettings {
+  /** Allow the app to send Anfragen itself. Off until a mailbox is configured. */
+  enabled: boolean;
+  /** Display name on outgoing mail. */
+  fromName: string;
+  /**
+   * Sending address. Replies are matched via plus-addressing on this address,
+   * so the mailbox must accept `name+token@domain`.
+   */
+  fromAddress: string;
+  /** Subject template; {title} and {city} are substituted. */
+  subjectTemplate: string;
+  /** Never send more than this many Anfragen per hour, across the whole team. */
+  maxPerHour: number;
+}
+
+export const DEFAULT_OUTBOUND: OutboundSettings = {
+  enabled: false,
+  fromName: 'Frese Recruiting GmbH',
+  fromAddress: '',
+  subjectTemplate: 'Anfrage zu Ihrer Wohnung: {title}',
+  maxPerHour: 20,
+};
+
+export interface FollowUpSettings {
+  /** Days after sending an Anfrage before "has anyone answered?" appears. */
+  checkReplyAfterDays: number;
+  /** Second nudge this many days after the first, if still unanswered. */
+  secondCheckAfterDays: number;
+  /** Create the reply-check task automatically on every contact. */
+  autoCreate: boolean;
+}
+
+export const DEFAULT_FOLLOW_UP: FollowUpSettings = {
+  checkReplyAfterDays: 3,
+  secondCheckAfterDays: 4,
+  autoCreate: true,
+};
 
 export interface SourceRecheckSettings {
   /** A source counts as "due again" this many days after it was last checked. */
@@ -90,6 +168,18 @@ export function getLivenessSettings(): Promise<LivenessPolicy> {
 
 export function getTelegramSettings(): Promise<NotificationSettings> {
   return readSetting(SETTING_KEYS.telegram, DEFAULT_TELEGRAM);
+}
+
+export function getDiscoverySettings(): Promise<DiscoverySettings> {
+  return readSetting(SETTING_KEYS.discovery, DEFAULT_DISCOVERY);
+}
+
+export function getOutboundSettings(): Promise<OutboundSettings> {
+  return readSetting(SETTING_KEYS.outbound, DEFAULT_OUTBOUND);
+}
+
+export function getFollowUpSettings(): Promise<FollowUpSettings> {
+  return readSetting(SETTING_KEYS.followUp, DEFAULT_FOLLOW_UP);
 }
 
 export async function writeSetting(key: string, value: object, userId: string): Promise<void> {

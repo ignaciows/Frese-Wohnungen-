@@ -111,7 +111,7 @@ export async function loadTouchpoints(candidateCaseId: string, limit = 200): Pro
         (m.direction === 'OUTGOING' ? 'Nachricht von uns' : 'Nachricht vom Vermieter') +
         ` — ${m.contactAttempt.listing.title}`,
       detail: m.body.slice(0, 160),
-      who: m.recordedBy.name,
+      who: m.recordedBy?.name ?? 'Automatisch aus dem Postfach',
     });
   }
 
