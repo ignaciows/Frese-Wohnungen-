@@ -64,6 +64,15 @@ export interface DiscoveredListing {
   contactName?: string | null;
   /** Portal-side enquiry form, when the list view links one. */
   contactFormUrl?: string | null;
+  /**
+   * When the source's own result list says the ad went online.
+   *
+   * Worth carrying separately from the detail-page reader in
+   * `domain/liveness/postedAt`: several sources state the date right in the
+   * list, so taking it here gives every ad a date immediately instead of only
+   * the handful that get a detail fetch each sweep.
+   */
+  postedAt?: { at: Date; label: string } | null;
 }
 
 /** Result of one HTTP call made on an adapter's behalf. */

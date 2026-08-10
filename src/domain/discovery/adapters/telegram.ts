@@ -32,6 +32,7 @@ import {
   type FetchedPage,
 } from '../types';
 import { decodeEntities, firstMatch, splitByMarker, textOf } from '../html';
+import { listPostedAt } from '../listPostedAt';
 
 const BASE = 'https://t.me';
 
@@ -126,6 +127,9 @@ export const telegramAdapter: DiscoveryAdapter = {
         locationPostal: postalIn(text),
         imageUrl: firstMatch(block, /background-image:url\('([^']+)'\)/),
         contactName: `Telegram-Kanal @${channel}`,
+        // Telegram timestamps every post to the second — the most exact
+        // posting date any source gives us.
+        postedAt: listPostedAt(firstMatch(block, /datetime="([^"]+)"/)),
         // Everything measurable is left to the German parser: a post has no
         // price field, and guessing one from free text twice would be worse
         // than doing it once, properly, where it is already tested.

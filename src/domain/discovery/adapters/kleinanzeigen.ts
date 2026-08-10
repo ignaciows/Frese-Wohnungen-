@@ -34,6 +34,7 @@ import {
   type DiscoveryQuery,
   type FetchedPage,
 } from '../types';
+import { listPostedAt } from '../listPostedAt';
 import {
   absoluteUrl,
   decodeEntities,
@@ -121,6 +122,7 @@ export const kleinanzeigenAdapter: DiscoveryAdapter = {
 /* --------------------------------------------------------------- json --- */
 
 interface AdPreview {
+  sortingDate?: unknown;
   title?: unknown;
   description?: unknown;
   seoLink?: unknown;
@@ -180,6 +182,10 @@ function parseJsonResults(body: string, base: string): DiscoveredListing[] | nul
       locationCity: city || null,
       imageUrl: firstImage(ad.imageList),
       contactName: typeof company?.name === 'string' ? company.name : null,
+      // Kleinanzeigen states the date right in the list — a German date, or
+      // "Heute"/"Gestern" for the newest ads, which are the ones worth acting
+      // on fastest.
+      postedAt: typeof ad.sortingDate === 'string' ? listPostedAt(ad.sortingDate) : null,
       structured: priceIsWarm ? { warmMieteCents: priceCents, rooms, livingSpaceSqm: sqm } : { kaltMieteCents: priceCents, rooms, livingSpaceSqm: sqm },
     });
   }

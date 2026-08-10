@@ -454,6 +454,10 @@ async function upsertDiscovered(
         lastListedAt: now,
         lastSeenAt: now,
         missedSweeps: 0,
+        // Several sources print the date in the result list itself. Taking it
+        // here gives every ad a posting date immediately, rather than only the
+        // bounded number that get a detail read each sweep.
+        ...(item.postedAt ? { postedAt: item.postedAt.at, postedAtLabel: item.postedAt.label } : {}),
         ...(item.contactEmail ? { contactEmail: item.contactEmail } : {}),
         ...(item.contactName ? { contactName: item.contactName } : {}),
         ...(item.contactFormUrl ? { contactFormUrl: item.contactFormUrl } : {}),
