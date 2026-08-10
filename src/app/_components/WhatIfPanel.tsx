@@ -110,7 +110,11 @@ export function WhatIfPanel({ candidateCaseId, current, startOpen = false }: Pro
           </div>
           <div className="stat">
             <div className="stat-value">{sim ? sim.totalListings : '—'}</div>
-            <div className="stat-label">Anzeigen insgesamt</div>
+            {/* Only the live ones are simulated — moving a slider cannot bring
+                a let flat back. Labelled "insgesamt" it contradicted the tab
+                above, which counts the expired ones too, and the reader was
+                left to work out which total was lying. */}
+            <div className="stat-label">aktive Anzeigen geprüft</div>
           </div>
         </div>
 

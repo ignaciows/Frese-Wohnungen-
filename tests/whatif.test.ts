@@ -131,6 +131,42 @@ describe('diagnosis tells apart the two failure modes', () => {
     const d = diagnose([listing()], profile);
     expect(d.kind).toBe('FINE');
   });
+
+  /**
+   * A live screen showed eight flats in Heilbronn for a candidate working in
+   * Cologne. Every row said "Nicht passend — ganz andere Gegend", and the
+   * panel above them offered sliders, as though a bigger budget could close
+   * three hundred kilometres. What the reader needed was the plain statement
+   * that nothing had been found for their town yet.
+   */
+  it('names the wrong region rather than blaming the criteria', () => {
+    const kölnProfile = { ...profile, workplacePostalCode: '50667' };
+    // No commute minutes and no geocoded distance: the real shape of this
+    // deployment's data, and the only case in which the postcode fallback runs.
+    const heilbronn = [
+      listing({ locationPostal: '74072', commuteMinutes: null }),
+      listing({ locationPostal: '74081', commuteMinutes: null }),
+    ];
+
+    const d = diagnose(heilbronn, kölnProfile);
+
+    expect(d.kind).toBe('WRONG_REGION');
+    expect(d.message).toContain('PLZ 50');
+    // Must not send the reader off to move a slider that cannot reach.
+    expect(d.message).toContain('keine Lockerung');
+  });
+
+  it('still blames the criteria when only some ads are out of region', () => {
+    // One reachable flat that a single change would unlock means the criteria
+    // really are the wall, and the region message would be a lie.
+    const kölnProfile = { ...profile, workplacePostalCode: '50667' };
+    const mixed = [
+      listing({ locationPostal: '74072', commuteMinutes: null }),
+      listing({ locationPostal: '50667', commuteMinutes: null, effectiveMonthlyCents: 110000 }),
+    ];
+
+    expect(diagnose(mixed, kölnProfile).kind).toBe('CRITERIA_TOO_TIGHT');
+  });
 });
 
 describe('blocker breakdown', () => {
@@ -148,6 +184,19 @@ describe('blocker breakdown', () => {
     expect(b.rooms).toBe(1);
     expect(b.wbs).toBe(1);
     expect(b.propertyType).toBe(1);
+  });
+
+  it('counts a wrong-region ad as its own kind of blocker', () => {
+    // It used to land in "other": the label ends in "entfernt", and the
+    // commute bucket was looking for "Entfernung". So the one blocker that
+    // explains a whole empty list was the one the breakdown could not name.
+    const b = blockerBreakdown([listing({ locationPostal: '74072', commuteMinutes: null })], {
+      ...profile,
+      workplacePostalCode: '50667',
+    });
+    expect(b.region).toBe(1);
+    expect(b.other).toBe(0);
+    expect(b.commute).toBe(0);
   });
 
   it('ignores listings that are not blocked', () => {

@@ -47,6 +47,13 @@ export interface BlockerBreakdown {
   budget: number;
   rooms: number;
   commute: number;
+  /**
+   * In the wrong part of the country altogether. Kept apart from `commute`
+   * because the two call for opposite reactions: a long commute is something a
+   * wider radius can fix, whereas an advert in a different postcode zone is
+   * three hundred kilometres away and no slider will ever reach it.
+   */
+  region: number;
   wbs: number;
   propertyType: number;
   furnishing: number;
@@ -96,6 +103,7 @@ export function blockerBreakdown(listings: RankingListing[], profile: RankingPro
     budget: 0,
     rooms: 0,
     commute: 0,
+    region: 0,
     wbs: 0,
     propertyType: 0,
     furnishing: 0,
@@ -105,7 +113,13 @@ export function blockerBreakdown(listings: RankingListing[], profile: RankingPro
     const r = rank(l, profile);
     if (r.compatibility !== 'INCOMPATIBLE') continue;
     const joined = r.blockers.join(' | ').toLowerCase();
-    if (joined.includes('budget')) b.budget++;
+    // Checked before the others: an advert in the wrong region fails on
+    // everything, and counting it as a budget problem sends the reader off to
+    // move a slider that cannot help. The wording is matched on "Gegend",
+    // because the label ends in "entfernt" — which the commute test, looking
+    // for "Entfernung", quietly missed, leaving every one of these in "other".
+    if (joined.includes('gegend')) b.region++;
+    else if (joined.includes('budget')) b.budget++;
     else if (joined.includes('zimmer')) b.rooms++;
     else if (joined.includes('anfahrt') || joined.includes('entfernung')) b.commute++;
     else if (joined.includes('wbs')) b.wbs++;
@@ -239,7 +253,10 @@ function isUsable(compatibility: string): boolean {
 export function diagnose(
   listings: RankingListing[],
   base: RankingProfile,
-): { kind: 'NO_LISTINGS' | 'CRITERIA_TOO_TIGHT' | 'SUPPLY_PROBLEM' | 'FINE'; message: string } {
+): {
+  kind: 'NO_LISTINGS' | 'WRONG_REGION' | 'CRITERIA_TOO_TIGHT' | 'SUPPLY_PROBLEM' | 'FINE';
+  message: string;
+} {
   if (listings.length === 0) {
     return {
       kind: 'NO_LISTINGS',
@@ -251,6 +268,23 @@ export function diagnose(
   if (usableOf(counts) > 0) {
     return { kind: 'FINE', message: `${usableOf(counts)} Anzeigen passen bereits zum aktuellen Profil.` };
   }
+  // "Nothing matches" is true but useless when the reason is that every advert
+  // we hold is in another part of the country. The reader is then looking at a
+  // full list of flats and an invitation to loosen criteria, when what they
+  // actually need to know is that nothing has been found for their town yet.
+  const blockers = blockerBreakdown(listings, base);
+  if (blockers.region > 0 && blockers.region >= listings.length - counts.insufficient) {
+    const where = base.workplacePostalCode?.trim()
+      ? `PLZ ${base.workplacePostalCode.trim().slice(0, 2)}`
+      : (base.workplaceCity?.trim() ?? 'den Arbeitsort');
+    return {
+      kind: 'WRONG_REGION',
+      message:
+        `Alle ${blockers.region} Anzeigen liegen in einer ganz anderen Gegend — für ${where} wurde bisher nichts gefunden. ` +
+        'Daran ändert keine Lockerung etwas: hier fehlt die Suche vor Ort. Unter „Quellen" prüfen, ob für diesen Ort überhaupt Quellen freigeschaltet sind.',
+    };
+  }
+
   const anyRelaxationHelps = suggestRelaxations(listings, base).length > 0;
   return anyRelaxationHelps
     ? {

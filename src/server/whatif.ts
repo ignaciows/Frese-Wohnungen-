@@ -44,6 +44,15 @@ export async function loadSimulationInputs(candidateCaseId: string): Promise<{
   const profile: RankingProfile = {
     workplaceLat: p.workplaceLat,
     workplaceLon: p.workplaceLon,
+    // Without these the location check has nothing to compare and returns
+    // "unknown", so the simulator counted flats hundreds of kilometres away as
+    // perfectly good. That produced the worst kind of disagreement: the panel
+    // said "3 Anzeigen passen bereits zum aktuellen Profil" directly above a
+    // list in which every one of those three was marked "Nicht passend — ganz
+    // andere Gegend". Two answers on one screen, and no way to tell which to
+    // believe.
+    workplacePostalCode: p.workplacePostalCode,
+    workplaceCity: p.workplaceCity,
     maxWarmmieteCents: p.maxWarmmieteCents,
     maxCommuteMinutes: p.maxCommuteMinutes,
     radiusKm: p.radiusKm,
@@ -88,6 +97,9 @@ export async function loadSimulationInputs(candidateCaseId: string): Promise<{
       fixedTerm: l.fixedTerm,
       distanceKm,
       commuteMinutes,
+      // The other half of the same comparison.
+      locationPostal: l.locationPostal,
+      locationCity: l.locationCity,
     };
   });
 
