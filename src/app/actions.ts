@@ -978,34 +978,13 @@ export async function runDiscoverySweepAction() {
   return summary;
 }
 
-/**
- * Triggered when someone opens a results page. Throttles itself, so mounting
- * it on every page load is safe — a sweep that ran recently returns at once.
+/*
+ * The sweep a person triggers no longer lives here.
+ *
+ * A server action can only answer once, at the end, and the end is up to three
+ * minutes away — which is the whole complaint. `POST /api/discovery/live`
+ * streams the same sweep event by event instead; see LiveSearch.tsx.
  */
-export async function maybeRunDiscoverySweepAction() {
-  await requireUser();
-  const { maybeRunDiscoverySweep } = await import('@/server/discovery');
-  const summary = await maybeRunDiscoverySweep();
-  if (summary.ran) revalidatePath('/', 'layout');
-  // When the sweep was throttled the caller still has to be able to say when
-  // the last one was. Without it the screen can only stay silent, and silence
-  // next to ads dated five days ago reads as "this thing never searches".
-  const last = await prisma.discoveryRun.findFirst({
-    orderBy: { startedAt: 'desc' },
-    select: { startedAt: true },
-  });
-  const enabledSources = await prisma.source.count({ where: { discoveryEnabled: true } });
-  return { ...summary, lastRunAt: last?.startedAt ?? null, enabledSources };
-}
-
-/** The manual "search now", for when waiting for the interval is not an option. */
-export async function forceDiscoverySweepAction() {
-  await requireUser();
-  const { runDiscoverySweep } = await import('@/server/discovery');
-  const summary = await runDiscoverySweep({ force: true });
-  revalidatePath('/', 'layout');
-  return summary;
-}
 
 const DiscoverySettingsInput = z.object({
   enabled: z.coerce.boolean().default(false),

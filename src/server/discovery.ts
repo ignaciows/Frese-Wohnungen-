@@ -53,6 +53,64 @@ export interface DiscoverySweepSummary {
   notes: string[];
 }
 
+/**
+ * One flat, as it looks the moment the sweep learns about it.
+ *
+ * Deliberately built from what the result list already said rather than from a
+ * re-read of the row: the point is to put something on screen the instant it
+ * exists, and a second database round-trip per ad would spend the very seconds
+ * this is meant to save.
+ */
+export interface LiveListing {
+  id: string;
+  title: string;
+  url: string;
+  city: string | null;
+  imageUrl: string | null;
+  priceCents: number | null;
+  rooms: number | null;
+  sqm: number | null;
+  sourceName: string;
+  isNew: boolean;
+}
+
+/**
+ * What a sweep is doing, while it does it.
+ *
+ * A full sweep takes minutes — twelve sources, polite delays, several pages
+ * each — and used to say nothing at all until it had finished. Someone showing
+ * the tool to a colleague sat in front of a still screen for two minutes, which
+ * reads as broken rather than as thorough. Every one of these events is a thing
+ * that has actually happened and can be put on screen the moment it does.
+ */
+export type SweepEvent =
+  | { type: 'plan'; sources: Array<{ id: string; name: string }>; queries: number }
+  | { type: 'source-start'; sourceId: string; name: string }
+  | {
+      type: 'source-done';
+      sourceId: string;
+      name: string;
+      status: string;
+      found: number;
+      created: number;
+      note: string | null;
+    }
+  | { type: 'listing'; listing: LiveListing }
+  | { type: 'phase'; phase: 'enrich'; pending: number }
+  | { type: 'done'; summary: DiscoverySweepSummary };
+
+/**
+ * How many sources are asked at the same time.
+ *
+ * Politeness is per host and enforced inside the crawler — one request at a
+ * time to any given site, with a gap between them — so asking four *different*
+ * sites at once is no less polite than asking them one after another, and takes
+ * a quarter of the wall-clock time. Four rather than twelve because the request
+ * budget is shared: a wide-open sweep would let the first sources finishing
+ * spend everything before the slower ones are reached.
+ */
+const PARALLEL_SOURCES = 4;
+
 const EMPTY: DiscoverySweepSummary = {
   ran: false,
   sourcesAttempted: 0,
@@ -172,11 +230,18 @@ export async function planQueries(settings: DiscoverySettings): Promise<PlannedQ
 /* -------------------------------------------------------------- sweep --- */
 
 export async function runDiscoverySweep(
-  options: { force?: boolean; sourceIds?: string[]; maxRequests?: number } = {},
+  options: {
+    force?: boolean;
+    sourceIds?: string[];
+    maxRequests?: number;
+    /** Called as things happen, so a screen can fill up during the run. */
+    onEvent?: (event: SweepEvent) => void;
+  } = {},
 ): Promise<DiscoverySweepSummary> {
   const startedAt = Date.now();
   const settings = await getDiscoverySettings();
   const summary: DiscoverySweepSummary = { ...EMPTY, notes: [] };
+  const emit = options.onEvent ?? (() => {});
 
   if (!settings.enabled && !options.force) {
     return { ...summary, skippedReason: 'Automatische Suche ist in den Einstellungen ausgeschaltet.' };
@@ -216,10 +281,15 @@ export async function runDiscoverySweep(
   summary.ran = true;
 
   const now = Date.now();
+  emit({
+    type: 'plan',
+    sources: sources.map((s) => ({ id: s.id, name: s.name })),
+    queries: queries.length,
+  });
 
-  for (const source of sources) {
+  const sweepSource = async (source: (typeof sources)[number]): Promise<void> => {
     const adapter = getAdapter(source.discoveryAdapter);
-    if (!adapter) continue;
+    if (!adapter) return;
 
     // Sources move at very different speeds. A marketplace where a good flat
     // is gone within the hour is worth asking every few minutes; a municipal
@@ -228,7 +298,7 @@ export async function runDiscoverySweep(
     // (`force`, or a hand-picked source list) always goes ahead.
     if (!options.force && !options.sourceIds && source.pollIntervalMinutes != null && source.lastDiscoveredAt) {
       const dueIn = source.pollIntervalMinutes * 60_000 - (now - source.lastDiscoveredAt.getTime());
-      if (dueIn > 0) continue;
+      if (dueIn > 0) return;
     }
 
     const baseConfig = (source.discoveryConfig ?? {}) as AdapterConfig;
@@ -236,10 +306,20 @@ export async function runDiscoverySweep(
     if (gaps.length > 0) {
       await noteSourceStatus(source.id, 'ERROR', `Konfiguration unvollständig: ${gaps.join(', ')}`);
       summary.notes.push(`${source.name}: Konfiguration unvollständig (${gaps.join(', ')}).`);
-      continue;
+      emit({
+        type: 'source-done',
+        sourceId: source.id,
+        name: source.name,
+        status: 'ERROR',
+        found: 0,
+        created: 0,
+        note: `Konfiguration unvollständig (${gaps.join(', ')}).`,
+      });
+      return;
     }
 
     summary.sourcesAttempted++;
+    emit({ type: 'source-start', sourceId: source.id, name: source.name });
     const seenUrls = new Set<string>();
     let sourceOk = false;
     let sourceBlocked = false;
@@ -248,6 +328,8 @@ export async function runDiscoverySweep(
     // source, not about one city's search.
     let sourceFound = 0;
     let sourceUnreadable = 0;
+    let sourceCreated = 0;
+    let sourceNote: string | null = null;
 
     for (const planned of queries) {
       if (crawler.budgetLeft <= 0) {
@@ -341,14 +423,36 @@ export async function runDiscoverySweep(
             found++;
 
             const result = await upsertDiscovered(source.id, item, importedById);
-            if (result === 'created') created++;
-            else if (result === 'updated') updated++;
-            else if (result === 'rejected') rejected++;
-            else if (result === 'unreadable') {
+            if (result.outcome === 'created') created++;
+            else if (result.outcome === 'updated') updated++;
+            else if (result.outcome === 'rejected') rejected++;
+            else if (result.outcome === 'unreadable') {
               // Still an update as far as the row is concerned; counted apart
               // so the source can be told what it is really contributing.
               updated++;
               unreadable++;
+            }
+
+            // Announced as soon as it is in the database, which is what turns
+            // a two-minute wait into a list that visibly fills up. Rejected and
+            // unreadable ones stay off the screen — they are not flats.
+            if (result.listingId && (result.outcome === 'created' || result.outcome === 'updated')) {
+              emit({
+                type: 'listing',
+                listing: {
+                  id: result.listingId,
+                  title: item.title,
+                  url: item.url,
+                  city: item.locationCity ?? null,
+                  imageUrl: item.imageUrl ?? null,
+                  priceCents:
+                    item.structured?.warmMieteCents ?? item.structured?.kaltMieteCents ?? null,
+                  rooms: item.structured?.rooms ?? null,
+                  sqm: item.structured?.livingSpaceSqm ?? null,
+                  sourceName: source.name,
+                  isNew: result.outcome === 'created',
+                },
+              });
             }
           }
         }
@@ -359,8 +463,10 @@ export async function runDiscoverySweep(
 
       if (status === 'OK') sourceOk = true;
       if (status === 'BLOCKED' || status === 'ROBOTS_DENIED') sourceBlocked = true;
+      if (status !== 'OK' && !sourceNote) sourceNote = message ?? status;
       sourceFound += found;
       sourceUnreadable += unreadable;
+      sourceCreated += created;
 
       summary.found += found;
       summary.created += created;
@@ -399,12 +505,43 @@ export async function runDiscoverySweep(
       const verdict = describeYield(sourceFound, sourceUnreadable);
       await noteSourceStatus(source.id, 'OK', verdict);
       if (verdict) summary.notes.push(`${source.name}: ${verdict}`);
+      emit({
+        type: 'source-done',
+        sourceId: source.id,
+        name: source.name,
+        status: 'OK',
+        found: sourceFound,
+        created: sourceCreated,
+        note: verdict,
+      });
     } else if (sourceBlocked) {
       summary.sourcesBlocked++;
       await noteSourceStatus(source.id, 'BLOCKED', 'Portal blockiert automatische Abrufe.');
+      emit({
+        type: 'source-done',
+        sourceId: source.id,
+        name: source.name,
+        status: 'BLOCKED',
+        found: sourceFound,
+        created: sourceCreated,
+        note: 'Portal blockiert automatische Abrufe.',
+      });
+    } else {
+      emit({
+        type: 'source-done',
+        sourceId: source.id,
+        name: source.name,
+        status: 'ERROR',
+        found: sourceFound,
+        created: sourceCreated,
+        note: sourceNote,
+      });
     }
-  }
+  };
 
+  await inParallel(sources, PARALLEL_SOURCES, sweepSource);
+
+  emit({ type: 'phase', phase: 'enrich', pending: Math.min(settings.enrichPerRun, crawler.budgetLeft) });
   const enrichment = await enrichNewListings(crawler, settings);
   summary.enriched = enrichment.enriched;
   summary.retired += enrichment.unreadable;
@@ -422,16 +559,54 @@ export async function runDiscoverySweep(
     );
   }
 
+  // Sources run side by side now, so the same budget or blocking note can be
+  // produced by several of them within the same second.
+  summary.notes = [...new Set(summary.notes)];
+
+  emit({ type: 'done', summary });
   return summary;
 }
 
+/**
+ * Runs `worker` over `items`, never more than `limit` at a time.
+ *
+ * Written out rather than pulled in: a sweep needs exactly this and nothing
+ * else, and a failing source must not take the sweep down with it — each
+ * worker already reports its own errors through the run log.
+ */
+async function inParallel<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<void>,
+): Promise<void> {
+  const queue = [...items];
+  const runners = Array.from({ length: Math.min(limit, queue.length) }, async () => {
+    for (;;) {
+      const next = queue.shift();
+      if (next === undefined) return;
+      try {
+        await worker(next);
+      } catch {
+        // One source failing is a source problem, not a sweep problem.
+      }
+    }
+  });
+  await Promise.all(runners);
+}
+
 /* ------------------------------------------------------------- upsert --- */
+
+interface UpsertResult {
+  outcome: 'created' | 'updated' | 'skipped' | 'rejected' | 'unreadable';
+  /** Set whenever a row exists afterwards, so the sweep can announce it. */
+  listingId: string | null;
+}
 
 async function upsertDiscovered(
   sourceId: string,
   item: DiscoveredListing,
   importedById: string,
-): Promise<'created' | 'updated' | 'skipped' | 'rejected' | 'unreadable'> {
+): Promise<UpsertResult> {
   const canonicalUrl = normaliseUrl(item.url);
   const now = new Date();
 
@@ -458,7 +633,7 @@ async function upsertDiscovered(
       structured: item.structured,
       url: item.url,
     });
-    if (!verdict.plausible) return 'rejected';
+    if (!verdict.plausible) return { outcome: 'rejected', listingId: null };
   }
 
   if (existing) {
@@ -492,7 +667,10 @@ async function upsertDiscovered(
           : {}),
       },
     });
-    return permanentlyUnreadable ? 'unreadable' : 'updated';
+    return {
+      outcome: permanentlyUnreadable ? 'unreadable' : 'updated',
+      listingId: existing.id,
+    };
   }
 
   try {
@@ -526,10 +704,10 @@ async function upsertDiscovered(
         ...(item.contactFormUrl ? { contactFormUrl: item.contactFormUrl } : {}),
       },
     });
-    return 'created';
+    return { outcome: 'created', listingId };
   } catch {
     // A single malformed ad must never abort a sweep of several hundred.
-    return 'skipped';
+    return { outcome: 'skipped', listingId: null };
   }
 }
 
@@ -678,8 +856,12 @@ async function enrichNewListings(
   let unreadable = 0;
   const importedById = await systemUserId();
 
-  for (const listing of pending) {
-    if (crawler.budgetLeft <= 0) break;
+  // Read in parallel, for the same reason the sources are swept in parallel:
+  // twenty-five detail pages, one after another, with a four-second gap each,
+  // is a minute and a half of a colleague watching a spinner — and the gap only
+  // has to be kept per host, which the crawler does on its own.
+  await inParallel(pending, PARALLEL_SOURCES, async (listing) => {
+    if (crawler.budgetLeft <= 0) return;
     const page = await crawler.fetchPage(listing.rawUrl);
 
     if (page.blocked || page.error || !page.body) {
@@ -720,11 +902,11 @@ async function enrichNewListings(
         },
       });
       if (stillEmpty) unreadable++;
-      continue;
+      return;
     }
 
     const detail = parseDetailPage(page);
-    if (!detail) continue;
+    if (!detail) return;
 
     // Re-run the full parser over the real description: the teaser from a
     // result list is usually truncated mid-sentence, so Nebenkosten and WBS
@@ -794,7 +976,7 @@ async function enrichNewListings(
         },
       });
       unreadable++;
-      continue;
+      return;
     }
 
     await prisma.listing.update({
@@ -809,7 +991,7 @@ async function enrichNewListings(
       },
     });
     enriched++;
-  }
+  });
 
   return { enriched, unreadable };
 }
@@ -882,10 +1064,27 @@ async function noteSourceStatus(sourceId: string, status: string, note: string |
  * when a sweep already ran recently, so the page never waits on the network
  * more than it has to.
  */
-export async function maybeRunDiscoverySweep(): Promise<DiscoverySweepSummary> {
+export async function maybeRunDiscoverySweep(
+  options: { onEvent?: (event: SweepEvent) => void } = {},
+): Promise<DiscoverySweepSummary> {
+  const skip = await sweepSkipReason();
+  if (skip) return { ...EMPTY, skippedReason: skip };
+
+  // Not forced: each source's own interval still decides whether it is asked.
+  return runDiscoverySweep({ onEvent: options.onEvent });
+}
+
+/**
+ * Why an unforced sweep would do nothing right now, or null when it would run.
+ *
+ * Split out from the sweep itself because the live view has to decide whether
+ * to open a stream *before* opening it — a stream that immediately says "just
+ * searched" is a flicker of a progress bar for no reason.
+ */
+export async function sweepSkipReason(): Promise<string | null> {
   const settings = await getDiscoverySettings();
   if (!settings.enabled) {
-    return { ...EMPTY, skippedReason: 'Automatische Suche ist ausgeschaltet.' };
+    return 'Automatische Suche ist ausgeschaltet.';
   }
 
   // Throttle against the *fastest* source, not a single global interval.
@@ -905,9 +1104,8 @@ export async function maybeRunDiscoverySweep(): Promise<DiscoverySweepSummary> {
     select: { startedAt: true },
   });
   if (last && Date.now() - last.startedAt.getTime() < throttleMinutes * 60_000) {
-    return { ...EMPTY, skippedReason: 'Zuletzt vor Kurzem gesucht.' };
+    return 'Zuletzt vor Kurzem gesucht.';
   }
 
-  // Not forced: each source's own interval still decides whether it is asked.
-  return runDiscoverySweep();
+  return null;
 }

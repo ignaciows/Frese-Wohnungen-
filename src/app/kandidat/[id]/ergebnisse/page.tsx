@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { Empty, Callout } from '@/app/_components/Shell';
-import { AutoCheck } from '@/app/_components/AutoCheck';
+import { LiveSearch } from '@/app/_components/LiveSearch';
 import { WhatIfPanel } from '@/app/_components/WhatIfPanel';
 import { ContactFlow } from '@/app/_components/ContactFlow';
 import { favoriteListingAction, rejectListingAction } from '@/app/actions';
@@ -255,7 +255,7 @@ export default async function ErgebnissePage({
 
   return (
     <div className="stack">
-      <AutoCheck candidateCaseId={id} />
+      <LiveSearch candidateCaseId={id} />
       {ageNote ? <Callout tone="info">{ageNote}</Callout> : null}
       {sp.error ? (
         <Callout tone="danger">

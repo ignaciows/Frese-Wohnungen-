@@ -1664,3 +1664,216 @@ label {
 .switch-hint {
   font-size: 14px;
 }
+
+/* --- the search, while it runs -------------------------------------------
+   A sweep takes minutes. Everything in this block exists so that the minutes
+   look like work being done rather than like a frozen screen: a bar that
+   advances per source, a lamp per portal, and a card per flat the moment it
+   is found. */
+.live {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.live-head {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.live-counts {
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-size: 15px;
+  color: var(--text-muted);
+}
+.live-count strong {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text);
+  margin-right: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.live-count.accent strong {
+  color: var(--brand);
+}
+.live-bar {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.live-bar span {
+  display: block;
+  height: 100%;
+  background: var(--brand);
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+.live-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.live-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--text-muted);
+  background: var(--surface-2);
+}
+.live-source em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.live-source-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--border-strong);
+  flex: none;
+}
+.live-source.running .live-source-dot {
+  background: var(--brand);
+  animation: live-pulse 1s ease-in-out infinite;
+}
+.live-source.running {
+  border-color: var(--brand-border);
+  background: var(--brand-soft);
+  color: var(--text);
+}
+.live-source.ok .live-source-dot {
+  background: var(--success);
+}
+.live-source.blocked .live-source-dot,
+.live-source.error .live-source-dot {
+  background: var(--danger);
+}
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+
+/* One card per flat, appearing as it is found. */
+.live-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
+}
+.live-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+  animation: live-in 0.35s ease both;
+}
+.live-card:hover {
+  border-color: var(--brand-border);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+}
+.live-card.is-new {
+  border-color: var(--brand-border);
+}
+@keyframes live-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.live-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 10;
+  background: var(--surface-3);
+}
+.live-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.live-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 26px;
+  color: var(--text-subtle);
+}
+.live-new {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+.live-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px 10px;
+}
+.live-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.live-card-facts {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.live-card-facts strong {
+  font-size: 16px;
+  color: var(--text);
+}
+.live-card-meta {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-card,
+  .live-source.running .live-source-dot {
+    animation: none;
+  }
+}
