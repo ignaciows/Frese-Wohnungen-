@@ -2438,3 +2438,33 @@ label {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* The quieter second row of case screens: reachable, never competing with the
+   four tabs above it. */
+.subnav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  padding: 2px 2px 0;
+}
+.subnav-label {
+  font-size: 13px;
+  color: var(--text-subtle);
+}
+.subnav-link {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  padding: 2px 0;
+  border-bottom: 1.5px solid transparent;
+}
+.subnav-link:hover {
+  color: var(--text);
+  text-decoration: none;
+  border-bottom-color: var(--border-strong);
+}
+.subnav-link[aria-current='page'] {
+  color: var(--brand);
+  font-weight: 600;
+  border-bottom-color: var(--brand);
+}
