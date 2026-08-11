@@ -60,6 +60,18 @@ export async function syncSeedCatalog(): Promise<{ createdSources: number; updat
     if (existing) updated++;
     else created++;
 
+    // A shipped configuration fills a blank, and only a blank. Whatever an
+    // admin typed — or the adapter worked out for itself, like Kleinanzeigen's
+    // resolved town numbers — is theirs, and overwriting it on every deploy
+    // would silently undo their work.
+    const configured = (upserted.discoveryConfig ?? {}) as Record<string, unknown>;
+    if (s.discoveryConfig && Object.keys(configured).length === 0) {
+      await prisma.source.update({
+        where: { id: upserted.id },
+        data: { discoveryConfig: s.discoveryConfig as never },
+      });
+    }
+
     // Replace coverage / mappings / aliases with the seed's authoritative view.
     await prisma.sourceCoverage.deleteMany({ where: { sourceId: upserted.id } });
     for (const c of s.coverage) {

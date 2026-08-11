@@ -41,6 +41,20 @@ export interface SeedSource {
    * supplies the adapter's configuration.
    */
   discoveryAdapter?: string;
+  /**
+   * A working configuration for that adapter, shipped with the catalogue.
+   *
+   * These were only ever written down in a development script, so every real
+   * deployment started with the adapters declared and no settings for them —
+   * fifty sources showing "Fehlt: searchUrlTemplate, linkPattern" and nothing
+   * a colleague could do about it without reading the code. Applied only when
+   * a source has no configuration yet; an admin's own edits are never
+   * overwritten.
+   *
+   * Only put verified values here. A guessed URL does not fail loudly: it
+   * returns somebody else's flats, or a whole marketplace, and looks healthy.
+   */
+  discoveryConfig?: Record<string, unknown>;
   housingTypes: string[];
   coverage: Array<{ kind: 'NATIONWIDE' | 'STATE' | 'CITY' | 'POSTAL_PREFIX'; value: string }>;
   aliases?: string[];
@@ -153,6 +167,12 @@ export const SEED_SOURCES: SeedSource[] = [
     priority: 20,
     integrationMode: 'SEARCH_LINK',
     discoveryAdapter: 'linklist',
+    // Verified against the live site: the list page renders server-side and
+    // the adverts sit under /expose/.
+    discoveryConfig: {
+      searchUrlTemplate: 'https://www.immowelt.de/liste/{citySlug}/wohnungen/mieten?sp={page}',
+      linkPattern: '\\/expose\\/',
+    },
     housingTypes: ['APARTMENT'],
     coverage: [{ kind: 'NATIONWIDE', value: '' }],
     aliases: ['Immonet'],
@@ -748,6 +768,13 @@ export const SEED_SOURCES: SeedSource[] = [
     priority: 120,
     integrationMode: 'SEARCH_LINK',
     discoveryAdapter: 'linklist',
+    // Verified live: one server-rendered list page, adverts under /detail.
+    // No city placeholder — degewo only lets in Berlin, so the template is
+    // fixed and the postcode check keeps it away from other candidates.
+    discoveryConfig: {
+      searchUrlTemplate: 'https://immosuche.degewo.de/de/search',
+      linkPattern: '\\/detail',
+    },
     housingTypes: ['APARTMENT'],
     coverage: [{ kind: 'CITY', value: 'Berlin' }],
     filterMappings: municipalMapping,
@@ -761,6 +788,11 @@ export const SEED_SOURCES: SeedSource[] = [
     priority: 121,
     integrationMode: 'SEARCH_LINK',
     discoveryAdapter: 'linklist',
+    // Verified live: adverts under /mietangebot on one server-rendered page.
+    discoveryConfig: {
+      searchUrlTemplate: 'https://www.gewobag.de/fuer-mieter-und-mietinteressenten/mietangebote/',
+      linkPattern: '\\/mietangebot',
+    },
     housingTypes: ['APARTMENT'],
     coverage: [{ kind: 'CITY', value: 'Berlin' }],
     filterMappings: municipalMapping,

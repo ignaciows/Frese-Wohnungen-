@@ -258,6 +258,7 @@ function SourceRowItem({
   const adapter = choices.find((c) => c.key === source.discoveryAdapter);
   const hints = source.discoveryAdapter ? adapterHints(source.discoveryAdapter) : [];
   const blocked = !source.discoveryAdapter;
+  const state = sourceState(source, gaps);
 
   return (
     <div className="source-item">
@@ -274,17 +275,13 @@ function SourceRowItem({
       />
 
       <div className="source-item-meta">
-        {source.discoveryStatus ? (
-          <span className={statusTone(source.discoveryStatus, source.discoveryNote)}>
-            {statusLabel(source.discoveryStatus)}
-          </span>
-        ) : null}
-        {gaps.length > 0 && source.discoveryEnabled ? (
-          <span className="badge danger">Fehlt: {gaps.join(', ')}</span>
-        ) : null}
+        <span className={`lamp lamp-${state.readiness.toLowerCase()}`}>
+          <span className="lamp-dot" aria-hidden />
+          {state.label}
+        </span>
       </div>
 
-      {source.discoveryNote ? <p className="source-item-note">{source.discoveryNote}</p> : null}
+      {state.todo ? <p className="source-item-note">{state.todo}</p> : null}
 
       <details className="disclosure sm">
         <summary>Einstellungen</summary>
@@ -361,31 +358,62 @@ function SourceRowItem({
 }
 
 /**
- * The stored status is a machine word — OK, BLOCKED, ROBOTS_DENIED. Printed
- * raw it tells a colleague nothing about what to do next, so it is said in
- * plain German instead.
+ * One word and one colour for "can I use this source?".
+ *
+ * The page used to answer that with two separate things: a badge holding a
+ * machine word (OK, BLOCKED, ROBOTS_DENIED) and, beside it, a red list of
+ * missing config keys — "Fehlt: searchUrlTemplate, linkPattern". Neither tells
+ * a colleague whether the source works or what to do about it, and on a screen
+ * of fifty the red on every row read as "everything is broken".
+ *
+ * The four states are the four things that can actually be true, and each one
+ * carries its own next step.
  */
-function statusLabel(status: string): string {
-  switch (status) {
-    case 'OK':
-      return 'Läuft';
-    case 'BLOCKED':
-      return 'Portal blockiert uns';
-    case 'ROBOTS_DENIED':
-      return 'Portal verbietet automatische Abrufe';
-    case 'ERROR':
-      return 'Fehler';
-    case 'NEVER_RUN':
-      return 'Noch nie gelaufen';
-    default:
-      return status;
-  }
+type Readiness = 'RUNNING' | 'SETUP' | 'BLOCKED' | 'OFF';
+
+interface SourceState {
+  readiness: Readiness;
+  label: string;
+  /** What to do about it, in plain German. Null when there is nothing to do. */
+  todo: string | null;
 }
 
-/** Green only when the source is genuinely delivering; a note means it is not. */
-function statusTone(status: string, note: string | null): string {
-  if (status !== 'OK') return 'badge danger';
-  return note ? 'badge warning' : 'badge success';
+function sourceState(source: SourceRow, gaps: string[]): SourceState {
+  if (!source.discoveryAdapter) {
+    return {
+      readiness: 'OFF',
+      label: 'Nur als Link',
+      todo: 'Diese Seite kann nicht automatisch gelesen werden — sie bleibt zum Selbstsuchen.',
+    };
+  }
+  if (gaps.length > 0) {
+    return {
+      readiness: 'SETUP',
+      label: 'Muss eingerichtet werden',
+      // Named as the thing a person has, not as the field it goes in.
+      todo: gaps.includes('searchUrl') || gaps.includes('searchUrlTemplate')
+        ? 'Einmalig eine Such-URL aus dem Browser einfügen — unter „Einstellungen".'
+        : `Unter „Einstellungen" noch angeben: ${gaps.join(', ')}.`,
+    };
+  }
+  if (source.discoveryStatus === 'BLOCKED' || source.discoveryStatus === 'ROBOTS_DENIED') {
+    return {
+      readiness: 'BLOCKED',
+      label: source.discoveryStatus === 'BLOCKED' ? 'Portal blockiert uns' : 'Portal verbietet Abrufe',
+      todo: 'Dieses Portal lässt keine automatischen Abrufe zu. Über den E-Mail-Suchauftrag nutzen.',
+    };
+  }
+  if (source.discoveryStatus === 'ERROR') {
+    return { readiness: 'BLOCKED', label: 'Fehler beim letzten Lauf', todo: source.discoveryNote };
+  }
+  if (!source.discoveryEnabled) {
+    return { readiness: 'OFF', label: 'Bereit — noch aus', todo: 'Einschalten, dann wird hier gesucht.' };
+  }
+  return {
+    readiness: 'RUNNING',
+    label: source.discoveryStatus === 'OK' ? 'Läuft' : 'Eingeschaltet',
+    todo: source.discoveryNote,
+  };
 }
 
 function adapterHints(key: string) {

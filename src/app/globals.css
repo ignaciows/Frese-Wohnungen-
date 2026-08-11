@@ -1384,3 +1384,65 @@ label {
   color: var(--text);
   font-weight: 600;
 }
+
+/* ------------------------------------------------------------- lamps ---
+   "Can I use this source?" as one word and one colour.
+
+   The page used to answer it with a machine word (OK, BLOCKED,
+   ROBOTS_DENIED) beside a red list of missing config keys. On a screen of
+   fifty sources the red was on nearly every row, which reads as "all
+   broken" and tells nobody what to do. Four states, four colours, each
+   with its own next step underneath. */
+.lamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 3px 10px 3px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.lamp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+/* Running: the only state that needs no attention at all. */
+.lamp-running {
+  color: var(--success);
+  background: var(--success-soft);
+  border-color: var(--success-border);
+}
+.lamp-running .lamp-dot {
+  /* A slow pulse, because this one means "working right now". */
+  animation: fw-pulse 2.4s ease-in-out infinite;
+}
+/* Needs a person to do one thing. Amber, not red: nothing is broken. */
+.lamp-setup {
+  color: var(--warning);
+  background: var(--warning-soft);
+  border-color: var(--warning-border);
+}
+/* The portal refuses us. Red, and not the reader's fault to fix. */
+.lamp-blocked {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+}
+/* Off, or link-only. Deliberately quiet — most of the list is this. */
+.lamp-off {
+  color: var(--text-muted);
+  background: var(--neutral-soft);
+  border-color: var(--neutral-border);
+}
+
+@keyframes fw-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lamp-running .lamp-dot { animation: none; }
+}

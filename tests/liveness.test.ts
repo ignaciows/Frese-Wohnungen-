@@ -17,6 +17,7 @@ import {
   extractPostedAt,
   isDueForCheck,
   livenessScoreFactor,
+  describeRecency,
   nextGoneStreak,
   shouldAutoExpire,
   type LivenessInput,
@@ -311,6 +312,52 @@ describe('turning the reading into an ordering', () => {
     const f = livenessScoreFactor({ onlineConfidence: 50, postedAt: null }, policy, NOW);
     expect(f).toBeLessThan(1);
     expect(f).toBeGreaterThan(0.5);
+  });
+
+  it('puts a fresh ad above an older one, by enough to reorder the list', () => {
+    // The point of the change: the old nudge was a tenth either way, too small
+    // to move anything, so a three-week-old flat with a marginally better
+    // price still sat above today's. On this market being early is most of the
+    // job — an ad from this morning has not yet had eighty replies.
+    const today = livenessScoreFactor(
+      { onlineConfidence: 90, postedAt: new Date('2026-08-10T06:00:00Z') },
+      policy,
+      NOW,
+    );
+    const threeWeeks = livenessScoreFactor(
+      { onlineConfidence: 90, postedAt: new Date('2026-07-20T06:00:00Z') },
+      policy,
+      NOW,
+    );
+    expect(today).toBeGreaterThan(1);
+    expect(threeWeeks).toBeLessThan(1);
+    // A 70-point fresh ad must beat an 85-point three-week-old one.
+    expect(70 * today).toBeGreaterThan(85 * threeWeeks);
+  });
+
+  it('is gentler when the date is only when we first saw the ad', () => {
+    // firstSeenAt is a lower bound, not a publication date: the ad may be far
+    // older. Honest enough to rank on, too weak to bury something with.
+    const known = livenessScoreFactor(
+      { onlineConfidence: 90, postedAt: null, firstSeenAt: new Date('2026-07-01T06:00:00Z') },
+      policy,
+      NOW,
+    );
+    const printed = livenessScoreFactor(
+      { onlineConfidence: 90, postedAt: new Date('2026-07-01T06:00:00Z') },
+      policy,
+      NOW,
+    );
+    expect(known).toBeLessThan(1);
+    expect(known).toBeGreaterThan(printed);
+  });
+
+  it('says in words where the adjustment came from', () => {
+    // The number decides the order of the whole list; an unexplained one is
+    // one nobody trusts.
+    expect(describeRecency({ postedAt: new Date('2026-08-10T06:00:00Z') }, NOW)).toMatch(/frisch/);
+    expect(describeRecency({ postedAt: new Date('2026-06-10T06:00:00Z') }, NOW)).toMatch(/älter/);
+    expect(describeRecency({ postedAt: null }, NOW)).toBeNull();
   });
 
   it('lifts an ad posted this morning', () => {

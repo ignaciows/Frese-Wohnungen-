@@ -646,7 +646,7 @@ export function describeBand(band: LivenessBand, confidence: number | null): str
  * lift, because on this market being early is most of the job.
  */
 export function livenessScoreFactor(
-  listing: { onlineConfidence: number | null; postedAt: Date | null },
+  listing: { onlineConfidence: number | null; postedAt: Date | null; firstSeenAt?: Date | null },
   policy: LivenessPolicy = DEFAULT_LIVENESS,
   now: Date = new Date(),
 ): number {
@@ -662,13 +662,57 @@ export function livenessScoreFactor(
     }
   }
 
-  if (listing.postedAt) {
-    const ageDays = (now.getTime() - listing.postedAt.getTime()) / 86_400_000;
-    if (ageDays <= 1) factor *= 1.1;
-    else if (ageDays <= 3) factor *= 1.05;
-    else if (ageDays > 21) factor *= 0.9;
-    else if (ageDays > 10) factor *= 0.95;
-  }
+  factor *= recencyFactor(listing, now);
 
   return Math.round(factor * 1000) / 1000;
+}
+
+/**
+ * How much being new is worth.
+ *
+ * On this market being early is most of the job: a flat advertised this
+ * morning is genuinely worth more than an equally suitable one from three
+ * weeks ago, because the three-week-old one has had eighty replies. The
+ * earlier version of this nudged by a tenth either way, which was too small to
+ * reorder anything — a stale flat with a slightly better price still sat above
+ * today's. The spread is now wide enough to actually decide the order.
+ *
+ * When the portal prints no date we fall back to when we first saw the ad, and
+ * halve the effect. That date is a lower bound — the ad may be far older — so
+ * it is honest evidence of "not newer than", but too weak to bury something on.
+ */
+function recencyFactor(
+  listing: { postedAt: Date | null; firstSeenAt?: Date | null },
+  now: Date,
+): number {
+  const dated = listing.postedAt ?? listing.firstSeenAt ?? null;
+  if (!dated) return 1;
+  const exact = listing.postedAt != null;
+
+  const ageDays = (now.getTime() - dated.getTime()) / 86_400_000;
+  const full =
+    ageDays <= 1 ? 1.35
+    : ageDays <= 3 ? 1.2
+    : ageDays <= 7 ? 1.05
+    : ageDays <= 14 ? 0.9
+    : ageDays <= 30 ? 0.75
+    : 0.6;
+
+  // Half the distance from neutral when the date is only a lower bound.
+  return exact ? full : 1 + (full - 1) / 2;
+}
+
+/** The recency verdict in words, so the score can explain itself. */
+export function describeRecency(
+  listing: { postedAt: Date | null; firstSeenAt?: Date | null },
+  now: Date = new Date(),
+): string | null {
+  const f = recencyFactor(listing, now);
+  if (f === 1) return null;
+  const exact = listing.postedAt != null;
+  const how = exact ? 'Inseriert' : 'Bei uns bekannt seit';
+  const pct = Math.round(Math.abs(f - 1) * 100);
+  return f > 1
+    ? `${how}: frisch — ${pct} % Bonus, weil früh dran zu sein hier den Unterschied macht`
+    : `${how}: älter — ${pct} % Abzug, ältere Anzeigen sind meist längst vergeben`;
 }

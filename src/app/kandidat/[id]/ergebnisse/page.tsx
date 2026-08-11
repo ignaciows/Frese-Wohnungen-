@@ -26,6 +26,7 @@ import { DEAD_LISTING, liveListingFilter, limboListingFilter } from '@/server/li
 import {
   bandOf,
   describeBand,
+  describeRecency,
   livenessScoreFactor,
   type LivenessPolicy,
   type LivenessSignal,
@@ -465,7 +466,10 @@ export default async function ErgebnissePage({
  * candidate", which does not change when a portal blocks us for an afternoon.
  */
 function effectiveScore(
-  match: { score: number; listing: { onlineConfidence: number | null; postedAt: Date | null } },
+  match: {
+    score: number;
+    listing: { onlineConfidence: number | null; postedAt: Date | null; firstSeenAt: Date | null };
+  },
   policy: LivenessPolicy,
 ): number {
   return match.score * livenessScoreFactor(match.listing, policy);
@@ -505,6 +509,10 @@ interface DetailMatch {
     livenessSignals: unknown;
     postedAt: Date | null;
     postedAtLabel: string | null;
+    // The recency part of the score falls back to this when the portal prints
+    // no publication date, so the detail pane must carry it too — otherwise it
+    // explains a different number from the one the list sorted by.
+    firstSeenAt: Date | null;
     /// Only set when the ad itself publishes an address; decides whether the
     /// enquiry can be sent from here or has to go through the portal form.
     contactEmail: string | null;
@@ -615,6 +623,28 @@ async function DetailPane({
           {reasons.length > 0 ? (
             <div className="stack-sm">
               <h4>Warum diese Bewertung</h4>
+              {/* The number at the top of the row is the base score moved by
+                  how fresh the ad is, and the reader could not see that half
+                  of it. An unexplained number is one nobody trusts, and this
+                  one decides the order of the whole list. */}
+              {(() => {
+                const recency = describeRecency(l);
+                const factor = livenessScoreFactor(l, liveness);
+                return (
+                  <div className="reason neutral">
+                    <span className="mark">=</span>
+                    <span>
+                      Grundwert {Math.round(match.score)}
+                      {factor !== 1
+                        ? ` × ${factor.toFixed(2)} (Aktualität & Prüfstatus) = ${Math.round(
+                            match.score * factor,
+                          )}`
+                        : ' — unverändert'}
+                      {recency ? `. ${recency}.` : ''}
+                    </span>
+                  </div>
+                );
+              })()}
               {reasons.map((r, i) => {
                 const cls = r.startsWith('+') ? 'plus' : r.startsWith('−') || r.startsWith('-') ? 'minus' : r.startsWith('!') ? 'warn' : 'neutral';
                 return (
