@@ -159,7 +159,12 @@ export function LiveSearch({ candidateCaseId }: { candidateCaseId?: string } = {
             return true;
           }
           case 'phase': {
-            setPhase('Details werden nachgelesen …');
+            const left = event.pending as number;
+            setPhase(
+              left > 0
+                ? `alle Quellen durch, noch ${left} Detailseite(n) werden nachgelesen`
+                : 'alle Quellen durch',
+            );
             return true;
           }
           case 'done': {

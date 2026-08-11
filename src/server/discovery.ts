@@ -281,25 +281,33 @@ export async function runDiscoverySweep(
   summary.ran = true;
 
   const now = Date.now();
+
+  // Which sources this run will actually ask, decided before anything is
+  // announced.
+  //
+  // Two kinds never get asked: one with no adapter cannot be searched at all,
+  // and one whose own poll interval has not elapsed is deliberately left
+  // alone — sources move at very different speeds, and asking a landlord who
+  // posts twice a month costs the request budget the marketplace needs. Both
+  // used to be filtered inside the loop, after the plan had been sent, so the
+  // screen showed them as pending for the rest of the run and the progress bar
+  // could never reach the end. An explicit run (`force`, or a hand-picked
+  // source list) skips only the first rule.
+  const eligible = sources.filter((source) => {
+    if (!getAdapter(source.discoveryAdapter)) return false;
+    if (options.force || options.sourceIds) return true;
+    if (source.pollIntervalMinutes == null || !source.lastDiscoveredAt) return true;
+    return now - source.lastDiscoveredAt.getTime() >= source.pollIntervalMinutes * 60_000;
+  });
+
   emit({
     type: 'plan',
-    sources: sources.map((s) => ({ id: s.id, name: s.name })),
+    sources: eligible.map((s) => ({ id: s.id, name: s.name })),
     queries: queries.length,
   });
 
   const sweepSource = async (source: (typeof sources)[number]): Promise<void> => {
-    const adapter = getAdapter(source.discoveryAdapter);
-    if (!adapter) return;
-
-    // Sources move at very different speeds. A marketplace where a good flat
-    // is gone within the hour is worth asking every few minutes; a municipal
-    // landlord that posts twice a month is not, and asking anyway spends the
-    // request budget that the fast source needs. An explicit run
-    // (`force`, or a hand-picked source list) always goes ahead.
-    if (!options.force && !options.sourceIds && source.pollIntervalMinutes != null && source.lastDiscoveredAt) {
-      const dueIn = source.pollIntervalMinutes * 60_000 - (now - source.lastDiscoveredAt.getTime());
-      if (dueIn > 0) return;
-    }
+    const adapter = getAdapter(source.discoveryAdapter)!;
 
     const baseConfig = (source.discoveryConfig ?? {}) as AdapterConfig;
     const gaps = missingConfig(source.discoveryAdapter, baseConfig);
@@ -539,10 +547,9 @@ export async function runDiscoverySweep(
     }
   };
 
-  await inParallel(sources, PARALLEL_SOURCES, sweepSource);
+  await inParallel(eligible, PARALLEL_SOURCES, sweepSource);
 
-  emit({ type: 'phase', phase: 'enrich', pending: Math.min(settings.enrichPerRun, crawler.budgetLeft) });
-  const enrichment = await enrichNewListings(crawler, settings);
+  const enrichment = await enrichNewListings(crawler, settings, emit);
   summary.enriched = enrichment.enriched;
   summary.retired += enrichment.unreadable;
   if (enrichment.unreadable > 0) {
@@ -796,6 +803,7 @@ export async function retireUnseen(
 async function enrichNewListings(
   crawler: Crawler,
   settings: DiscoverySettings,
+  emit: (event: SweepEvent) => void = () => {},
 ): Promise<{ enriched: number; unreadable: number }> {
   if (settings.enrichPerRun <= 0 || crawler.budgetLeft <= 0) return { enriched: 0, unreadable: 0 };
 
@@ -856,11 +864,20 @@ async function enrichNewListings(
   let unreadable = 0;
   const importedById = await systemUserId();
 
+  // This phase is the long tail of a sweep — the flats are already on screen,
+  // and what is left is reading detail pages one polite request at a time. Say
+  // so, and count it down, rather than leaving a finished-looking run stuck on
+  // "sucht …" for another minute.
+  let done = 0;
+  const report = () => emit({ type: 'phase', phase: 'enrich', pending: pending.length - done });
+
+  report();
+
   // Read in parallel, for the same reason the sources are swept in parallel:
   // twenty-five detail pages, one after another, with a four-second gap each,
   // is a minute and a half of a colleague watching a spinner — and the gap only
   // has to be kept per host, which the crawler does on its own.
-  await inParallel(pending, PARALLEL_SOURCES, async (listing) => {
+  const enrichOne = async (listing: (typeof pending)[number]): Promise<void> => {
     if (crawler.budgetLeft <= 0) return;
     const page = await crawler.fetchPage(listing.rawUrl);
 
@@ -991,6 +1008,12 @@ async function enrichNewListings(
       },
     });
     enriched++;
+  };
+
+  await inParallel(pending, PARALLEL_SOURCES, async (listing) => {
+    await enrichOne(listing);
+    done++;
+    report();
   });
 
   return { enriched, unreadable };

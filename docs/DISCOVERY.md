@@ -203,12 +203,35 @@ Wer bereits angeschrieben wurde, bleibt in jedem Fall sichtbar: das Gespräch
 
 ## Auslöser
 
-- **Beim Öffnen der App** — gedrosselt über `sweepIntervalMinutes` (Standard
-  90), damit häufiges Aufrufen nichts auslöst.
+- **Beim Öffnen der Ergebnisseite** — gedrosselt über `sweepIntervalMinutes`
+  (Standard 90), damit häufiges Aufrufen nichts auslöst.
 - **Per Cron** auf `POST /api/discovery/run` mit `x-ingest-token`. Das hält den
   Bestand nachts und am Wochenende frisch, also genau dann, wenn gute Wohnungen
   auftauchen und wieder weg sind.
-- **Von Hand** über „Jetzt suchen" in den Einstellungen.
+- **Von Hand** über „Jetzt suchen" — auf der Ergebnisseite und in den
+  Einstellungen.
+
+## Zusehen, während gesucht wird
+
+Ein vollständiger Lauf dauert ein bis drei Minuten. Solange nichts auf dem
+Bildschirm passierte, sah das aus wie ein Fehler und nicht wie Gründlichkeit.
+
+`POST /api/discovery/live` führt denselben Lauf aus und schreibt dabei jedes
+Ereignis sofort heraus — ein JSON-Objekt pro Zeile (NDJSON): welche Quelle
+gerade gefragt wird, jede gefundene Wohnung, das Nachlesen der Detailseiten,
+die Schlussbilanz. `LiveSearch` liest den Strom und füllt die Seite Wohnung für
+Wohnung. Ohne `?force=1` prüft die Route erst die Drosselung und antwortet mit
+einer einzigen `skipped`-Zeile, statt einen Strom zu öffnen, der sofort endet.
+
+Zwei Dinge machen den Lauf zusätzlich kürzer:
+
+- **Vier Quellen gleichzeitig.** Die Höflichkeitsregeln gelten pro Server und
+  stecken im Crawler, deshalb kostet das keine Quelle etwas.
+- **Detailseiten ebenso**, mit derselben Grenze.
+
+Der Anfrage-Etat gilt weiterhin für den ganzen Lauf gemeinsam; deshalb vier und
+nicht zwölf — sonst gäben die schnellen Quellen alles aus, bevor die langsamen
+an der Reihe sind.
 
 ## Wenn nichts gefunden wird
 
