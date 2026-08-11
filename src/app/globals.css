@@ -1515,3 +1515,11 @@ a.today:hover {
 @media (prefers-reduced-motion: reduce) {
   a.today:hover { transform: none; }
 }
+
+/* A secondary fact that supports the one before it — the stated Kaltmiete
+   beside the estimated total, so the estimate can be checked at a glance
+   without competing with it. */
+.fact.subtle {
+  color: var(--text-subtle);
+  font-size: 13px;
+}

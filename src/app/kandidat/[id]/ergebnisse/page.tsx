@@ -23,6 +23,7 @@ import {
 } from '@/server/settings';
 import { listingAge, passesAgeFilter, describeAgeFilter } from '@/domain/timing/age';
 import { DEAD_LISTING, liveListingFilter, limboListingFilter } from '@/server/listingFilters';
+import { assessRent } from '@/domain/rent';
 import {
   bandOf,
   describeBand,
@@ -357,11 +358,21 @@ export default async function ErgebnissePage({
                         all — a row that announces "Möblierung unbekannt" has
                         spent a line saying nothing. */}
                     <span className="listing-facts">
+                      {/* What it will cost, not what the advert printed. Two
+                          thirds of adverts state only a Kaltmiete, and a bare
+                          "780 €" next to a warm budget is the wrong number in
+                          the wrong direction. The asterisk said "incomplete"
+                          and left the reader to guess by how much. */}
                       <span className="fact-price">
-                        {l.effectiveMonthlyCents != null
-                          ? `${formatEuroCents(l.effectiveMonthlyCents)}${l.monthlyTotalComplete ? '' : '*'}`
+                        {rentOf(l).basisCents != null
+                          ? rentOf(l).basisKind === 'ESTIMATED'
+                            ? `ca. ${formatEuroCents(rentOf(l).basisCents!)}`
+                            : formatEuroCents(rentOf(l).basisCents!)
                           : 'Preis unbekannt'}
                       </span>
+                      {rentOf(l).basisKind === 'ESTIMATED' && l.kaltMieteCents != null ? (
+                        <span className="fact subtle">{formatEuroCents(l.kaltMieteCents)} kalt</span>
+                      ) : null}
                       {l.rooms != null ? <span className="fact">{l.rooms} Zimmer</span> : null}
                       {l.livingSpaceSqm != null ? <span className="fact">{l.livingSpaceSqm} m²</span> : null}
                       {l.locationCity ? <span className="fact">{l.locationCity}</span> : null}
@@ -436,8 +447,9 @@ export default async function ErgebnissePage({
                 times and crowded out what differed between them. */}
             {matches.some((m) => !m.listing.monthlyTotalComplete) ? (
               <div className="listing-note">
-                <strong>*</strong> Bei diesen Anzeigen nennt das Portal nur die Kaltmiete. Die
-                Warmmiete liegt höher — meist 20–30 % — und steht erst in der Anzeige selbst.
+                <strong>„ca.&ldquo;</strong> heißt: das Portal nennt nur die Kaltmiete. Die Nebenkosten sind
+                mit 2,50 €/m² geschätzt — der deutsche Durchschnitt — damit die Zahl mit dem Budget
+                vergleichbar ist. Der genaue Betrag steht erst in der Anzeige selbst.
               </div>
             ) : null}
           </div>
@@ -465,6 +477,20 @@ export default async function ErgebnissePage({
  * stored score on purpose: the stored score answers "does this flat fit the
  * candidate", which does not change when a portal blocks us for an afternoon.
  */
+/** The monthly figure to show and to judge, with the Nebenkosten filled in. */
+function rentOf(l: {
+  kaltMieteCents: number | null;
+  effectiveMonthlyCents: number | null;
+  monthlyTotalComplete: boolean;
+  livingSpaceSqm: number | null;
+}) {
+  return assessRent({
+    kaltMieteCents: l.kaltMieteCents,
+    warmMieteCents: l.monthlyTotalComplete ? l.effectiveMonthlyCents : null,
+    livingSpaceSqm: l.livingSpaceSqm,
+  });
+}
+
 function effectiveScore(
   match: {
     score: number;

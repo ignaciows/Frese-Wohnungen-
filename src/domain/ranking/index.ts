@@ -48,12 +48,15 @@ export interface RankingListing {
   fixedTerm: TriState;
   distanceKm: number | null;
   commuteMinutes: number | null;
+  /** Lets the missing Nebenkosten be estimated per square metre. */
+  livingSpaceSqm?: number | null;
   /** Used to sanity-check location when no distance can be computed. */
   locationPostal?: string | null;
   locationCity?: string | null;
 }
 
 import { postalProximity, cityMismatch } from './postalDistance';
+import { assessRent } from '../rent';
 
 export type Compatibility = 'COMPATIBLE' | 'NEAR_MATCH' | 'INCOMPATIBLE' | 'INSUFFICIENT_DATA';
 
@@ -316,7 +319,17 @@ function roomsSubscore(l: RankingListing, p: RankingProfile): { pct: number; rea
 function budgetSubscore(l: RankingListing, p: RankingProfile): { pct: number; reason: string } {
   if (l.effectiveMonthlyCents == null) return { pct: 40, reason: 'Kosten unbekannt' };
   const cap = p.maxWarmmieteCents;
-  const eff = l.effectiveMonthlyCents;
+  // Judge against what the flat will actually cost, not against the number the
+  // advert happened to print. Two thirds of the pool state only a Kaltmiete,
+  // and comparing that bare figure with a Warmmiete cap let a 900 € flat pass
+  // a 1000 € budget and then cost 1150 € — generous in the one direction that
+  // wastes a candidate's time.
+  const rent = assessRent({
+    kaltMieteCents: l.kaltMieteCents,
+    warmMieteCents: l.monthlyTotalComplete ? l.effectiveMonthlyCents : null,
+    livingSpaceSqm: l.livingSpaceSqm,
+  });
+  const eff = rent.basisCents ?? l.effectiveMonthlyCents;
   if (eff > cap) {
     const overCents = eff - cap;
     const overFraction = overCents / cap;
@@ -327,8 +340,14 @@ function budgetSubscore(l: RankingListing, p: RankingProfile): { pct: number; re
   // Reward being under budget up to 25 % below cap.
   const underFraction = Math.min(underCents / cap, 0.25) / 0.25;
   const pct = Math.round(75 + underFraction * 25);
-  if (!l.monthlyTotalComplete) {
-    return { pct: Math.max(50, pct - 20), reason: 'Innerhalb Budget, aber Kosten unvollständig' };
+  if (rent.basisKind === 'ESTIMATED') {
+    // Within budget on an estimate is a weaker statement than within budget on
+    // a stated total, so it scores lower — but it is no longer the blind
+    // optimism of judging a Kaltmiete against a Warmmiete cap.
+    return {
+      pct: Math.max(50, pct - 12),
+      reason: `Innerhalb Budget (ca. ${Math.round(eff / 100)} € warm geschätzt)`,
+    };
   }
   return {
     pct,

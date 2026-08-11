@@ -16,6 +16,7 @@
  */
 
 import type { StructuredHints } from '@/domain/parser';
+import { assessRent } from '@/domain/rent';
 
 export interface PlausibilityInput {
   title: string;
@@ -138,6 +139,19 @@ export function isPlausibleHousing(input: PlausibilityInput): PlausibilityResult
     (structured.livingSpaceSqm ?? 0) > 0 ||
     (structured.warmMieteCents ?? 0) > 0 ||
     (structured.kaltMieteCents ?? 0) > 0;
+
+  // A price that cannot be a monthly rent is usually a nightly rate. The
+  // cheapest entries in a live pool were 18 €, 20 € and 80 € — short-stay
+  // adverts around a trade fair, priced per night and read as monthly. They
+  // then sit at the top of anything sorted by price, above the real flats.
+  const rent = assessRent({
+    kaltMieteCents: structured.kaltMieteCents,
+    warmMieteCents: structured.warmMieteCents,
+    livingSpaceSqm: structured.livingSpaceSqm,
+  });
+  if (!rent.plausible) {
+    return { plausible: false, reason: rent.implausibleReason };
+  }
 
   // A number from the result list is the strongest signal there is: navigation
   // never comes with a room count or a rent.

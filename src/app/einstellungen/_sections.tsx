@@ -424,6 +424,29 @@ function sourceState(source: SourceRow, gaps: string[]): SourceState {
  * nothing about it. A switch that is on while the thing behind it cannot work
  * is worse than one that is off.
  */
+/**
+ * Whether a stored login is usable, in the same four colours as everything
+ * else on this page.
+ *
+ * A row that said "Passwort hinterlegt" answered whether we hold a password,
+ * not whether it works — and those are different questions, the second being
+ * the one that matters the morning somebody tries to send fifteen enquiries.
+ */
+function accountReadiness(a: PortalAccountView): 'running' | 'setup' | 'blocked' | 'off' {
+  if (!a.active) return 'off';
+  if (!a.hasSecret) return 'setup';
+  if (a.status === 'FAILED') return 'blocked';
+  return a.status === 'OK' ? 'running' : 'setup';
+}
+
+function accountLabel(a: PortalAccountView): string {
+  if (!a.active) return 'Deaktiviert';
+  if (!a.hasSecret) return 'Passwort fehlt';
+  if (a.status === 'FAILED') return a.statusNote ? `Anmeldung fehlgeschlagen — ${a.statusNote}` : 'Anmeldung fehlgeschlagen';
+  if (a.status === 'OK') return 'Geprüft — funktioniert';
+  return 'Noch nicht geprüft';
+}
+
 function sendingState(outbound: OutboundSettings): SourceState {
   if (!outbound.fromAddress.trim()) {
     return {
@@ -545,13 +568,19 @@ export function AccountsSection({
             <ul className="list">
               {portals.map((a) => (
                 <li key={a.id} className="list-row row-between">
-                  <div className="stack" style={{ gap: 2 }}>
-                    <strong>{a.label}</strong>
+                  <div className="stack" style={{ gap: 3 }}>
+                    <strong>{a.sourceName ?? a.siteKey}</strong>
+                    {/* The portal is the heading, because that is what somebody
+                        is looking for; the login is the detail underneath. With
+                        several accounts on one portal — a private one and the
+                        company one — the username is what tells them apart. */}
                     <span className="small muted">
-                      {a.sourceName ?? a.siteKey}
-                      {a.loginName ? ` · ${a.loginName}` : ''}
-                      {a.hasSecret ? ' · Passwort hinterlegt' : ' · kein Passwort'}
+                      {a.loginName ?? 'kein Benutzername hinterlegt'}
                       {a.replyToAddress ? ` · Antworten an ${a.replyToAddress}` : ''}
+                    </span>
+                    <span className={`lamp lamp-${accountReadiness(a)}`}>
+                      <span className="lamp-dot" aria-hidden />
+                      {accountLabel(a)}
                     </span>
                   </div>
                   {isAdmin ? (
