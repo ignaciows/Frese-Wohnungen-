@@ -34,17 +34,37 @@ import { markListingExpiredAction, checkListingNowAction, setFollowUpAction } fr
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Nine tabs, of which two are the job.
+ *
+ * Somebody opens this screen every few days to write five or ten Anfragen.
+ * "Zu kontaktieren" is what they came for and "Kontaktiert" is how they check
+ * themselves; the other seven are bookkeeping, and shown at equal weight they
+ * made the two that matter hard to find. `always` stays visible even at zero,
+ * because an empty "Zu kontaktieren" is itself the answer. The rest appear
+ * only once they hold something.
+ */
 const TABS = [
-  { key: 'alle', label: 'Alle' },
-  { key: 'zu-kontaktieren', label: 'Zu kontaktieren' },
-  { key: 'favoriten', label: 'Favoriten' },
-  { key: 'in-arbeit', label: 'In Arbeit' },
-  { key: 'kontaktiert', label: 'Kontaktiert' },
-  { key: 'abgelehnt', label: 'Abgelehnt' },
-  { key: 'wiedervorlage', label: 'Wiedervorlage' },
-  { key: 'zu-pruefen', label: 'Zu prüfen' },
-  { key: 'abgelaufen', label: 'Abgelaufen' },
+  { key: 'zu-kontaktieren', label: 'Zu kontaktieren', always: true },
+  { key: 'kontaktiert', label: 'Kontaktiert', always: true },
+  { key: 'in-arbeit', label: 'In Arbeit', always: false },
+  { key: 'wiedervorlage', label: 'Wiedervorlage', always: false },
+  { key: 'favoriten', label: 'Favoriten', always: false },
+  { key: 'zu-pruefen', label: 'Zu prüfen', always: false },
+  { key: 'abgelehnt', label: 'Abgelehnt', always: false },
+  { key: 'abgelaufen', label: 'Abgelaufen', always: false },
+  { key: 'alle', label: 'Alle', always: true },
 ] as const;
+
+/**
+ * How long a vanished ad stays visible after it goes.
+ *
+ * Not forever: the graveyard grows every sweep and is read by nobody. A few
+ * days is enough to see what was missed this week — after that it is noise on
+ * a screen whose whole value is being short. Anything anyone wrote to is
+ * exempt and lives in its own tab, because a conversation outlives the ad.
+ */
+const EXPIRED_VISIBLE_DAYS = 7;
 
 /** Compatibility decides the group; the score only orders within it. */
 const COMPAT_RANK: Record<string, number> = {
@@ -82,9 +102,13 @@ export default async function ErgebnissePage({
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const tab = sp.tab ?? 'alle';
+  // Straight to the work. Landing on "Alle" meant the first thing on screen
+  // was a mixed pile including the rejected and the long-dead, and the tab
+  // that answers "what do I write today?" had to be found first.
+  const tab = sp.tab ?? 'zu-kontaktieren';
 
   const [liveness, ageFilter] = await Promise.all([getLivenessSettings(), getAgeFilterSettings()]);
+  const expiredCutoff = new Date(Date.now() - EXPIRED_VISIBLE_DAYS * 86_400_000);
 
   const [matchList, counts, message, profile, freshnessSettings, bridging] = await Promise.all([
     prisma.candidateListingMatch.findMany({
@@ -104,7 +128,7 @@ export default async function ErgebnissePage({
           : {
               listing:
                 tab === 'abgelaufen'
-                  ? DEAD_LISTING
+                  ? { ...DEAD_LISTING, expiredAt: { gte: expiredCutoff } }
                   : tab === 'zu-pruefen'
                     ? limboListingFilter(liveness)
                     : liveListingFilter(liveness),
@@ -127,7 +151,9 @@ export default async function ErgebnissePage({
   const expiredCount = await prisma.candidateListingMatch.count({
     where: {
       candidateCaseId: id,
-      listing: DEAD_LISTING,
+      // Counted over the same window the tab shows, or the number promises
+      // rows the list will not produce.
+      listing: { ...DEAD_LISTING, expiredAt: { gte: expiredCutoff } },
     },
   });
 
@@ -230,7 +256,7 @@ export default async function ErgebnissePage({
       ) : null}
 
       <nav className="tabs" aria-label="Status">
-        {TABS.map((t) => (
+        {TABS.filter((t) => t.always || tabCount(t.key) > 0 || tab === t.key).map((t) => (
           <Link
             key={t.key}
             href={`/kandidat/${id}/ergebnisse?tab=${t.key}`}
