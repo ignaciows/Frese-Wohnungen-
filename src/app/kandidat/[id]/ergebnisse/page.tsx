@@ -78,10 +78,23 @@ const COMPAT_RANK: Record<string, number> = {
 
 type MatchStatusValue = 'NEW' | 'FAVORITE' | 'IN_PROGRESS' | 'CONTACTED' | 'REJECTED' | 'EXPIRED';
 
-function statusFilter(tab: string): { status?: MatchStatusValue | { in: MatchStatusValue[] } } {
+/**
+ * The working list holds nothing that cannot be written to.
+ *
+ * On a real candidate, 234 of 311 live matches were INCOMPATIBLE — three
+ * quarters of the screen was flats in the wrong city, over budget, or the
+ * wrong kind of property, each one already marked "Nicht passend". Nobody is
+ * going to write to those, and having to look past them to find the twenty-one
+ * that work is the exact job this tool exists to remove. They stay reachable
+ * under "Alle", with a line saying how many were set aside and why.
+ */
+function statusFilter(tab: string): {
+  status?: MatchStatusValue | { in: MatchStatusValue[] };
+  compatibility?: { not: 'INCOMPATIBLE' };
+} {
   switch (tab) {
     case 'zu-kontaktieren':
-      return { status: { in: ['NEW', 'FAVORITE'] } };
+      return { status: { in: ['NEW', 'FAVORITE'] }, compatibility: { not: 'INCOMPATIBLE' } };
     case 'favoriten':
       return { status: 'FAVORITE' };
     case 'in-arbeit':
@@ -165,6 +178,18 @@ export default async function ErgebnissePage({
 
   const limboCount = await prisma.candidateListingMatch.count({
     where: { candidateCaseId: id, listing: limboListingFilter(liveness) },
+  });
+
+  // Nothing vanishes without being counted. Three quarters of a real
+  // candidate's matches are unusable, and a list that silently drops them is
+  // one nobody can trust the size of.
+  const setAside = await prisma.candidateListingMatch.count({
+    where: {
+      candidateCaseId: id,
+      status: { in: ['NEW', 'FAVORITE'] },
+      compatibility: 'INCOMPATIBLE',
+      listing: liveListingFilter(liveness),
+    },
   });
 
   type MatchRow = (typeof matchList)[number];
@@ -270,6 +295,14 @@ export default async function ErgebnissePage({
           </Link>
         ))}
       </nav>
+
+      {tab === 'zu-kontaktieren' && setAside > 0 ? (
+        <p className="listing-note">
+          {setAside} weitere Anzeige(n) sind ausgeblendet, weil sie nicht zum Profil passen — falscher
+          Ort, über Budget oder falscher Objekttyp.{' '}
+          <Link href={`/kandidat/${id}/ergebnisse?tab=alle`}>Trotzdem ansehen</Link>
+        </p>
+      ) : null}
 
       {totalAll === 0 ? (
         <div className="card">

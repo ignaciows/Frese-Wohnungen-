@@ -15,6 +15,7 @@ import {
   encryptSecret,
   CredentialKeyMissingError,
 } from '@/lib/crypto';
+import { safeFetch } from '@/lib/safeFetch';
 
 export interface PortalAccountView {
   id: string;
@@ -278,4 +279,68 @@ function num(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value);
   return null;
+}
+
+/**
+ * Checks a stored portal login, without logging in.
+ *
+ * Logging in on a colleague's behalf is not on the table: every one of these
+ * portals forbids automated access in its terms, and the account that would be
+ * banned for it is the company's own — the same account the recruiters need to
+ * write enquiries from. So this checks the two things that genuinely break and
+ * that nobody can see from the outside.
+ *
+ * The one that actually happens is the second: `CREDENTIAL_KEY` gets rotated or
+ * restored from a different environment, and every stored password silently
+ * becomes unreadable. Nothing announces that. The morning somebody sits down to
+ * send fifteen enquiries, the vault is simply empty, and the only clue is that
+ * sending fails one flat at a time.
+ */
+export async function verifyPortalAccount(
+  id: string,
+): Promise<{ ok: boolean; status: 'OK' | 'FAILED'; message: string }> {
+  const account = await prisma.portalAccount.findUnique({ where: { id } });
+  if (!account) return { ok: false, status: 'FAILED', message: 'Zugang nicht gefunden.' };
+
+  if (!account.secretEnc) {
+    const message = 'Kein Passwort hinterlegt — bitte eintragen.';
+    await markAccountStatus(id, 'FAILED', message);
+    return { ok: false, status: 'FAILED', message };
+  }
+
+  try {
+    decryptSecret(account.secretEnc);
+  } catch {
+    const message =
+      'Das gespeicherte Passwort lässt sich nicht mehr entschlüsseln — bitte neu eintragen.';
+    await markAccountStatus(id, 'FAILED', message);
+    return { ok: false, status: 'FAILED', message };
+  }
+
+  const reach = await reachable(account.meta as Record<string, unknown> | null, account.siteKey);
+  if (!reach.ok) {
+    await markAccountStatus(id, 'FAILED', reach.message);
+    return { ok: false, status: 'FAILED', message: reach.message };
+  }
+
+  const message = `Passwort lesbar, ${reach.message} Anmelden müssen Sie sich weiterhin selbst — das schreiben die Portale so vor.`;
+  await markAccountStatus(id, 'OK', message);
+  return { ok: true, status: 'OK', message };
+}
+
+/** Is the portal answering at all? Says nothing about the credentials. */
+async function reachable(
+  meta: Record<string, unknown> | null,
+  siteKey: string,
+): Promise<{ ok: boolean; message: string }> {
+  const raw = typeof meta?.profileUrl === 'string' ? meta.profileUrl.trim() : '';
+  if (!raw) return { ok: true, message: `Portal „${siteKey}" nicht geprüft (keine Login-Adresse hinterlegt).` };
+
+  const res = await safeFetch(raw);
+  if (res.networkError) {
+    return { ok: false, message: `Login-Seite nicht erreichbar: ${res.networkError.slice(0, 120)}` };
+  }
+  // Any answer at all means the address is real. A login page that returns 401,
+  // or redirects to one, is the normal healthy case — not a fault.
+  return { ok: true, message: `Login-Seite erreichbar (HTTP ${res.status}).` };
 }

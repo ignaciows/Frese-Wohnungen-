@@ -1355,6 +1355,19 @@ export async function saveSourceDiscoveryFormAction(formData: FormData) {
   redirect('/einstellungen?gespeichert=quelle');
 }
 
+export async function verifyPortalAccountFormAction(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get('id') ?? '');
+  const { verifyPortalAccount } = await import('@/server/portalAccounts');
+  const result = await verifyPortalAccount(id);
+  revalidatePath('/', 'layout');
+  redirect(
+    result.ok
+      ? `/einstellungen?gespeichert=${encodeURIComponent(result.message)}`
+      : `/einstellungen?fehler=${encodeURIComponent(result.message)}`,
+  );
+}
+
 export async function verifyMailboxFormAction() {
   const result = await verifyMailboxAction();
   redirect(

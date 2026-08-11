@@ -6,6 +6,7 @@ import {
   saveAccountFormAction,
   deleteAccountAction,
   verifyMailboxFormAction,
+  verifyPortalAccountFormAction,
   runDiscoverySweepFormAction,
 } from '@/app/actions';
 import { Callout } from '@/app/_components/Shell';
@@ -556,11 +557,23 @@ export function AccountsSection({
             Portal-Zugänge
           </h3>
           <p className="small muted" style={{ marginTop: 0 }}>
-            Für Portale, bei denen die Anfrage nur über das eigene Formular geht. Die App speichert den
-            Zugang, damit klar ist, mit welchem Konto gearbeitet wird — angemeldet wird sich weiterhin im
-            Portal selbst. Automatisches Einloggen wäre ein Verstoß gegen deren Nutzungsbedingungen und
-            würde das Konto gefährden.
+            Damit klar ist, mit welchem Konto bei welchem Portal gearbeitet wird. Angemeldet wird sich
+            weiterhin im Portal selbst: automatisches Einloggen verstößt gegen deren Nutzungsbedingungen,
+            und gesperrt würde genau das Firmenkonto, mit dem die Anfragen geschrieben werden.
+            „Prüfen&ldquo; testet deshalb nicht die Anmeldung, sondern ob das gespeicherte Passwort noch
+            lesbar ist — das ist der Fehler, der wirklich passiert und den sonst niemand bemerkt.
           </p>
+
+          {/* The answer to "can the app search ImmoScout and Immowelt for us?".
+              It can, but not by logging in — by letting the portal push. */}
+          <Callout tone="info">
+            <strong>ImmoScout24 und Immowelt lassen sich nicht auslesen</strong> — sie sperren
+            automatische Abrufe (ImmoScout24 antwortet auf jede Anfrage außerhalb eines Browsers mit
+            HTTP 401). Der Weg, der funktioniert und erlaubt ist: im Portal mit dem Firmenkonto einen
+            <strong> Suchauftrag</strong> anlegen und die Treffer-Mails an das oben eingerichtete
+            Postfach schicken lassen. Das Portal schickt neue Anzeigen dann von selbst, meist innerhalb
+            von Minuten, und die App liest Titel, Preis und Link automatisch daraus.
+          </Callout>
 
           {portals.length === 0 ? (
             <span className="small muted">Noch keine Portal-Zugänge hinterlegt.</span>
@@ -584,12 +597,20 @@ export function AccountsSection({
                     </span>
                   </div>
                   {isAdmin ? (
+                    <div className="row" style={{ gap: 6 }}>
+                      <form action={verifyPortalAccountFormAction}>
+                        <input type="hidden" name="id" value={a.id} />
+                        <button className="btn sm" type="submit">
+                          Prüfen
+                        </button>
+                      </form>
                     <form action={deleteAccountAction}>
                       <input type="hidden" name="id" value={a.id} />
                       <button className="btn sm ghost" type="submit">
                         Entfernen
                       </button>
                     </form>
+                    </div>
                   ) : null}
                 </li>
               ))}
