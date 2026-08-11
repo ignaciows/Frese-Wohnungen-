@@ -416,6 +416,33 @@ function sourceState(source: SourceRow, gaps: string[]): SourceState {
   };
 }
 
+/**
+ * Whether an Anfrage can actually leave the building.
+ *
+ * Sending, the reply inbox and the follow-up tasks are all built; the feature
+ * was off because no sending address had been entered, and the page said
+ * nothing about it. A switch that is on while the thing behind it cannot work
+ * is worse than one that is off.
+ */
+function sendingState(outbound: OutboundSettings): SourceState {
+  if (!outbound.fromAddress.trim()) {
+    return {
+      readiness: 'SETUP',
+      label: 'Noch nicht eingerichtet',
+      todo:
+        'Ohne Absenderadresse kann die App keine Anfrage verschicken — jede Anfrage muss dann von Hand im Portal geschrieben werden. Adresse eintragen, die Plus-Adressen annimmt (name+kennung@…), damit Antworten automatisch zugeordnet werden.',
+    };
+  }
+  if (!outbound.enabled) {
+    return {
+      readiness: 'OFF',
+      label: 'Eingerichtet, aber aus',
+      todo: 'Der Haken oben schaltet den Versand frei.',
+    };
+  }
+  return { readiness: 'RUNNING', label: 'Versand bereit', todo: null };
+}
+
 function adapterHints(key: string) {
   return ADAPTERS.find((a) => a.key === key)?.configKeys ?? [];
 }
@@ -548,8 +575,19 @@ export function AccountsSection({
       <form action={saveOutboundSettingsAction} className="card" style={{ marginTop: 18 }}>
         <div className="card-head">
           <h2>Versand aus der App</h2>
+          <div className="grow" />
+          {/* The whole feature is built and was simply switched off, with
+              nothing on screen saying so. Somebody looking for "why can I not
+              send from here" had to infer it from an empty text field. */}
+          <span className={`lamp lamp-${sendingState(outbound).readiness.toLowerCase()}`}>
+            <span className="lamp-dot" aria-hidden />
+            {sendingState(outbound).label}
+          </span>
         </div>
         <div className="card-body stack">
+          {sendingState(outbound).todo ? (
+            <Callout tone="warning">{sendingState(outbound).todo}</Callout>
+          ) : null}
           <div className="checkline">
             <input
               id="outboundEnabled"
