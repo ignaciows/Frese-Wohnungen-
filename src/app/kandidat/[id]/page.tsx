@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
-import { Stat, Callout } from '@/app/_components/Shell';
+import { Stat } from '@/app/_components/Shell';
 import { PriorityCard } from '@/app/_components/PriorityCard';
+import { Timeline } from '@/app/_components/Timeline';
+import { SentAnfragen } from '@/app/_components/SentAnfragen';
 import { loadCandidatePriority } from '@/server/priority';
-import { formatDate, RESPONSE_OUTCOME } from '@/lib/labels';
+import { loadCandidateTimeline } from '@/server/timeline';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,13 +25,16 @@ export default async function CandidateOverview({ params }: { params: Promise<{ 
       matches: { select: { status: true, compatibility: true } },
       contactAttempts: {
         orderBy: { contactedAt: 'desc' },
-        include: { listing: { select: { title: true } } },
+        select: { contactedAt: true, outcome: true },
       },
     },
   });
   if (!candidate) notFound();
 
-  const priority = await loadCandidatePriority(id);
+  const [priority, timeline] = await Promise.all([
+    loadCandidatePriority(id),
+    loadCandidateTimeline(id),
+  ]);
   const hasMessage = (candidate.applicationMessage?.body ?? '').trim().length > 0;
   const runs = candidate.searchRuns;
   const checksDone = runs.length
@@ -134,6 +139,12 @@ export default async function CandidateOverview({ params }: { params: Promise<{ 
         awaiting={awaiting}
       />
 
+      {/* The case as a line: contract, today, arrival, and every flat with the
+          day it was written to and the day it is actually free. This is the
+          screen's answer to "wie viel Zeit bleibt noch" — the numbers under it
+          are the detail. */}
+      {timeline ? <Timeline view={timeline} candidateId={id} /> : null}
+
       <div className="grid-4">
         <Stat value={good} label="Passende Anzeigen" />
         <Stat value={contacted} label={contacted === 1 ? 'Anfrage gesendet' : 'Anfragen gesendet'} />
@@ -163,47 +174,11 @@ export default async function CandidateOverview({ params }: { params: Promise<{ 
         </section>
 
         <section className="stack">
+          {/* What is out there and how old it is. The list of the last six
+              contacts that used to sit here said the same thing as the timeline
+              above, only without the dates that make it mean something. */}
+          <SentAnfragen attempts={candidate.contactAttempts} candidateId={id} />
           {priority ? <PriorityCard p={priority} /> : null}
-
-          <h2>Letzte Kontakte</h2>
-          {candidate.contactAttempts.length === 0 ? (
-            <div className="card card-pad">
-              <p className="muted small">
-                Noch keine Wohnung kontaktiert. Sobald du über „Öffnen &amp; Kontaktieren“ eine Anzeige
-                anschreibst, siehst du hier den Verlauf.
-              </p>
-            </div>
-          ) : (
-            <div className="card">
-              {candidate.contactAttempts.slice(0, 6).map((a) => {
-                const o = RESPONSE_OUTCOME[a.outcome];
-                return (
-                  <Link
-                    key={a.id}
-                    href={`/kandidat/${id}/kontakte#kontakt-${a.id}`}
-                    className="listing"
-                    style={{ gridTemplateColumns: '1fr auto' }}
-                  >
-                    <span className="listing-main">
-                      <span className="listing-title">{a.listing.title}</span>
-                      <span className="small muted">kontaktiert {formatDate(a.contactedAt)}</span>
-                    </span>
-                    <span className={`badge ${o.tone}`}>
-                      {o.icon} {o.label}
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-
-          {awaiting > 0 ? (
-            <Callout tone="info">
-              {awaiting} {awaiting === 1 ? 'Anfrage wartet' : 'Anfragen warten'} noch auf eine Antwort. Trage
-              Rückmeldungen unter <Link href={`/kandidat/${id}/kontakte`}>Kontakte</Link> ein, damit das Team
-              den Stand sieht.
-            </Callout>
-          ) : null}
         </section>
       </div>
     </div>
