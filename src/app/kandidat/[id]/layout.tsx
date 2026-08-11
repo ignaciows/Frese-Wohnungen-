@@ -32,12 +32,14 @@ export default async function CandidateLayout({
   });
   if (!candidate) notFound();
 
-  const [toContact, openSourceChecks] = await Promise.all([
+  const [toContact, upcomingAppointments] = await Promise.all([
     prisma.candidateListingMatch.count({
       where: { candidateCaseId: id, status: { in: ['NEW', 'FAVORITE'] } },
     }),
-    prisma.sourceCheck.count({
-      where: { searchRun: { candidateCaseId: id }, status: { in: ['PENDING', 'IN_PROGRESS'] } },
+    // Only what is still ahead: a badge counting last month's viewings is a
+    // number nobody can act on.
+    prisma.appointment.count({
+      where: { candidateCaseId: id, status: 'SCHEDULED', scheduledAt: { gte: new Date() } },
     }),
   ]);
 
@@ -68,7 +70,11 @@ export default async function CandidateLayout({
         </div>
         <CandidateNav
           candidateId={candidate.id}
-          counts={{ ergebnisse: toContact, quellen: openSourceChecks, kontakte: candidate._count.contactAttempts }}
+          counts={{
+            ergebnisse: toContact,
+            kontakte: candidate._count.contactAttempts,
+            termine: upcomingAppointments,
+          }}
         />
       </div>
       <main className="container-wide" style={{ paddingTop: 22, paddingBottom: 72 }}>

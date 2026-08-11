@@ -42,7 +42,7 @@ export const dynamic = 'force-dynamic';
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ fehler?: string; gespeichert?: string }>;
+  searchParams: Promise<{ fehler?: string; gespeichert?: string; portal?: string }>;
 }) {
   const feedback = await searchParams;
   const user = await currentUser();
@@ -110,12 +110,26 @@ export default async function SettingsPage({
     <>
       <AppBar user={user} active="einstellungen" pending={pending.dueTasks + pending.unreadReplies} />
       <main className="container page" style={{ maxWidth: 820 }}>
-        <div className="page-title" style={{ marginBottom: 20 }}>
+        <div className="page-title" style={{ marginBottom: 14 }}>
           <h1>Einstellungen</h1>
           <span className="sub">
             Regeln, die das Verhalten der App steuern — änderbar ohne neue Softwareversion.
           </span>
         </div>
+
+        {/* A page this long needs a way in. Somebody looking for "wo trage ich
+            das Kleinanzeigen-Konto ein" was scrolling past twelve cards of
+            thresholds and weights to find out whether the thing they wanted was
+            even on the page. */}
+        <nav className="jumpnav" aria-label="Abschnitte">
+          <span className="jumpnav-label">Springe zu:</span>
+          <a href="#suche">Automatische Suche</a>
+          <a href="#quellen">Quellen</a>
+          <a href="#konten">Konten &amp; Passwörter</a>
+          <a href="#versand">Versand</a>
+          <a href="#wiedervorlagen">Wiedervorlagen</a>
+          <a href="#suchagent">Suchagent-Postfach</a>
+        </nav>
 
         {feedback.fehler ? <Callout tone="danger">{feedback.fehler}</Callout> : null}
         {feedback.gespeichert ? <Callout tone="success">{feedback.gespeichert}</Callout> : null}
@@ -166,6 +180,7 @@ export default async function SettingsPage({
           isAdmin={isAdmin}
           credentialKeyOk={credentialKeyOk}
           sources={discoverySources.map((s) => ({ id: s.id, key: s.key, name: s.name }))}
+          preselectPortalKey={feedback.portal ?? null}
         />
 
         {/* ------------------------------------------------ WG matching --- */}
@@ -700,7 +715,7 @@ export default async function SettingsPage({
         ) : null}
 
         {/* ---------------------------------------------- mail ingest --- */}
-        <div className="card" style={{ marginTop: 18 }}>
+        <div className="card" id="suchagent" style={{ marginTop: 18 }}>
           <div className="card-head">
             <h2>Suchagent-Postfach</h2>
             {mailConfigured ? (

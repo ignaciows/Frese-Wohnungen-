@@ -62,7 +62,7 @@ export function DiscoverySection({
 
   return (
     <>
-      <div className="card" style={{ marginTop: 18 }}>
+      <div className="card" id="suche" style={{ marginTop: 18 }}>
         <div className="card-head">
           <h2>Automatische Suche</h2>
           <span className="sub">
@@ -143,7 +143,7 @@ export function DiscoverySection({
       </div>
 
       {isAdmin ? (
-        <div className="card" style={{ marginTop: 18 }}>
+        <div className="card" id="quellen" style={{ marginTop: 18 }}>
           <div className="card-head">
             <h2>Quellen</h2>
             <span className="sub">
@@ -488,6 +488,36 @@ function adapterHints(key: string) {
 
 /* ==================================================== accounts & mail ==== */
 
+/**
+ * The portals worth naming on this page.
+ *
+ * Practically every flat this tool finds comes from one of these three, so
+ * whether we hold a login for them is a question the page should answer
+ * without being asked. `match` is checked against the source name as well as
+ * the key, because an account can be attached to a catalogue entry whose key
+ * was spelled differently ("immoscout" vs "immoscout24").
+ */
+const KEY_PORTALS = [
+  {
+    key: 'kleinanzeigen',
+    match: 'kleinanzeigen',
+    name: 'Kleinanzeigen (früher eBay Kleinanzeigen)',
+    why: 'Liefert die meisten Treffer. Der Zugang wird zum Antworten im Portal gebraucht.',
+  },
+  {
+    key: 'immoscout24',
+    match: 'immoscout',
+    name: 'ImmoScout24',
+    why: 'Sperrt automatische Abrufe — Zugang für den Suchauftrag per E-Mail.',
+  },
+  {
+    key: 'immowelt',
+    match: 'immowelt',
+    name: 'Immowelt',
+    why: 'Detailseiten sind für uns nicht lesbar — Zugang für den Suchauftrag per E-Mail.',
+  },
+] as const;
+
 export function AccountsSection({
   accounts,
   outbound,
@@ -495,6 +525,7 @@ export function AccountsSection({
   isAdmin,
   credentialKeyOk,
   sources,
+  preselectPortalKey,
 }: {
   accounts: PortalAccountView[];
   outbound: OutboundSettings;
@@ -502,13 +533,15 @@ export function AccountsSection({
   isAdmin: boolean;
   credentialKeyOk: boolean;
   sources: Array<{ id: string; key: string; name: string }>;
+  /** Portal the form should open on, from `?portal=` — see the rows above it. */
+  preselectPortalKey?: string | null;
 }) {
   const mailbox = accounts.find((a) => a.kind === 'MAILBOX');
   const portals = accounts.filter((a) => a.kind === 'PORTAL');
 
   return (
     <>
-      <div className="card" style={{ marginTop: 18 }}>
+      <div className="card" id="konten" style={{ marginTop: 18 }}>
         <div className="card-head">
           <h2>Konten &amp; Postfach</h2>
           <span className="sub">
@@ -532,43 +565,6 @@ export function AccountsSection({
           )}
 
           <h3 className="small" style={{ marginTop: 4 }}>
-            Gemeinsames Postfach
-          </h3>
-          {mailbox ? (
-            <div className="subcard row-between">
-              <div className="stack" style={{ gap: 3 }}>
-                <strong>{mailbox.label}</strong>
-                <span className="small muted">
-                  {mailbox.loginName} · {String(mailbox.meta.smtpHost ?? '—')} ·{' '}
-                  {mailbox.hasSecret ? 'Passwort hinterlegt' : 'kein Passwort'}
-                </span>
-                <span className={mailbox.status === 'OK' ? 'badge success' : 'badge'}>
-                  {mailbox.status}
-                  {mailbox.statusNote ? ` — ${mailbox.statusNote}` : ''}
-                  {mailbox.lastVerifiedAt ? ` (${formatDateTime(mailbox.lastVerifiedAt)})` : ''}
-                </span>
-              </div>
-              {isAdmin ? (
-                <div className="row" style={{ gap: 8 }}>
-                  <form action={verifyMailboxFormAction}>
-                    <button className="btn sm" type="submit">
-                      Verbindung testen
-                    </button>
-                  </form>
-                  <form action={deleteAccountAction}>
-                    <input type="hidden" name="id" value={mailbox.id} />
-                    <button className="btn sm ghost" type="submit">
-                      Entfernen
-                    </button>
-                  </form>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          {isAdmin ? <MailboxForm existing={mailbox} /> : null}
-
-          <h3 className="small" style={{ marginTop: 14 }}>
             Portal-Zugänge
           </h3>
           <p className="small muted" style={{ marginTop: 0 }}>
@@ -576,9 +572,41 @@ export function AccountsSection({
             Passwort noch lesbar ist.
           </p>
 
+          {/* The three portals nearly every flat comes from, named and always
+              listed — including the ones with no account yet.
+              A missing login used to be invisible: the list showed what was
+              stored, so "wo trage ich das Kleinanzeigen-Konto ein" had no
+              answer anywhere on the page. An empty row with a button is the
+              answer. */}
+          <div className="portal-checklist">
+            {KEY_PORTALS.map((p) => {
+              const account = portals.find(
+                (a) => a.siteKey === p.key || a.sourceName?.toLowerCase().includes(p.match),
+              );
+              return (
+                <div key={p.key} className="portal-row">
+                  <div className="stack" style={{ gap: 2 }}>
+                    <strong>{p.name}</strong>
+                    <span className="small muted">{p.why}</span>
+                  </div>
+                  {account ? (
+                    <span className={`lamp lamp-${accountReadiness(account)}`}>
+                      <span className="lamp-dot" aria-hidden />
+                      {accountLabel(account)}
+                    </span>
+                  ) : (
+                    <a className="btn sm" href={`?portal=${p.key}#zugang-hinterlegen`}>
+                      {isAdmin ? 'Zugang hinterlegen' : 'Kein Zugang hinterlegt'}
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
           <Callout tone="info">
             <strong>ImmoScout24 und Immowelt sperren automatische Abrufe.</strong> Dort im Portal einen
-            Suchauftrag anlegen, der an das Postfach oben schickt.
+            Suchauftrag anlegen, der an das gemeinsame Postfach unten schickt.
           </Callout>
 
           {portals.length === 0 ? (
@@ -623,12 +651,49 @@ export function AccountsSection({
             </ul>
           )}
 
-          {isAdmin ? <PortalAccountForm sources={sources} /> : null}
+          {isAdmin ? <PortalAccountForm sources={sources} preselectKey={preselectPortalKey} /> : null}
+
+          <h3 className="small" style={{ marginTop: 14 }}>
+            Gemeinsames Postfach
+          </h3>
+          {mailbox ? (
+            <div className="subcard row-between">
+              <div className="stack" style={{ gap: 3 }}>
+                <strong>{mailbox.label}</strong>
+                <span className="small muted">
+                  {mailbox.loginName} · {String(mailbox.meta.smtpHost ?? '—')} ·{' '}
+                  {mailbox.hasSecret ? 'Passwort hinterlegt' : 'kein Passwort'}
+                </span>
+                <span className={mailbox.status === 'OK' ? 'badge success' : 'badge'}>
+                  {mailbox.status}
+                  {mailbox.statusNote ? ` — ${mailbox.statusNote}` : ''}
+                  {mailbox.lastVerifiedAt ? ` (${formatDateTime(mailbox.lastVerifiedAt)})` : ''}
+                </span>
+              </div>
+              {isAdmin ? (
+                <div className="row" style={{ gap: 8 }}>
+                  <form action={verifyMailboxFormAction}>
+                    <button className="btn sm" type="submit">
+                      Verbindung testen
+                    </button>
+                  </form>
+                  <form action={deleteAccountAction}>
+                    <input type="hidden" name="id" value={mailbox.id} />
+                    <button className="btn sm ghost" type="submit">
+                      Entfernen
+                    </button>
+                  </form>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {isAdmin ? <MailboxForm existing={mailbox} /> : null}
         </div>
       </div>
 
       {/* ------------------------------------------------- send settings --- */}
-      <form action={saveOutboundSettingsAction} className="card" style={{ marginTop: 18 }}>
+      <form action={saveOutboundSettingsAction} className="card" id="versand" style={{ marginTop: 18 }}>
         <div className="card-head">
           <h2>Versand aus der App</h2>
           <div className="grow" />
@@ -693,7 +758,7 @@ export function AccountsSection({
       </form>
 
       {/* ---------------------------------------------------- follow-ups --- */}
-      <form action={saveFollowUpSettingsAction} className="card" style={{ marginTop: 18 }}>
+      <form action={saveFollowUpSettingsAction} className="card" id="wiedervorlagen" style={{ marginTop: 18 }}>
         <div className="card-head">
           <h2>Wiedervorlagen</h2>
         </div>
@@ -807,9 +872,20 @@ function MailboxForm({ existing }: { existing?: PortalAccountView }) {
  * actually has written on a piece of paper: which site, which username, which
  * password.
  */
-function PortalAccountForm({ sources }: { sources: Array<{ id: string; key: string; name: string }> }) {
+function PortalAccountForm({
+  sources,
+  preselectKey,
+}: {
+  sources: Array<{ id: string; key: string; name: string }>;
+  preselectKey?: string | null;
+}) {
+  // "Zugang hinterlegen" next to a named portal should not then ask which
+  // portal it was. The key travels in the URL, so no JavaScript is involved.
+  const preselected = preselectKey
+    ? sources.find((s) => s.key === preselectKey || s.key.startsWith(preselectKey))?.id ?? ''
+    : '';
   return (
-    <form action={saveAccountFormAction} className="subcard stack">
+    <form action={saveAccountFormAction} className="subcard stack" id="zugang-hinterlegen">
       <input type="hidden" name="kind" value="PORTAL" />
       <input type="hidden" name="active" value="true" />
       <strong className="small">Zugang zu einem Portal hinterlegen</strong>
@@ -820,7 +896,7 @@ function PortalAccountForm({ sources }: { sources: Array<{ id: string; key: stri
       <div className="grid-3">
         <div className="field">
           <label htmlFor="accountSource">Welches Portal?</label>
-          <select id="accountSource" name="sourceId" className="input" defaultValue="" required>
+          <select id="accountSource" name="sourceId" className="input" defaultValue={preselected} required>
             <option value="">Bitte wählen …</option>
             {sources.map((s) => (
               <option key={s.id} value={s.id}>

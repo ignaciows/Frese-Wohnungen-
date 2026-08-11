@@ -710,7 +710,7 @@ label {
 
 .listing {
   display: grid;
-  grid-template-columns: 44px 1fr auto;
+  grid-template-columns: 108px 1fr auto;
   gap: 14px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border);
@@ -1663,4 +1663,868 @@ label {
 .field-hint,
 .switch-hint {
   font-size: 14px;
+}
+
+/* --- the search, while it runs -------------------------------------------
+   A sweep takes minutes. Everything in this block exists so that the minutes
+   look like work being done rather than like a frozen screen: a bar that
+   advances per source, a lamp per portal, and a card per flat the moment it
+   is found. */
+.live {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.live-head {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.live-counts {
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-size: 15px;
+  color: var(--text-muted);
+}
+.live-count strong {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text);
+  margin-right: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.live-count.accent strong {
+  color: var(--brand);
+}
+.live-bar {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.live-bar span {
+  display: block;
+  height: 100%;
+  background: var(--brand);
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+.live-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.live-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--text-muted);
+  background: var(--surface-2);
+}
+.live-source em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.live-source-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--border-strong);
+  flex: none;
+}
+.live-source.running .live-source-dot {
+  background: var(--brand);
+  animation: live-pulse 1s ease-in-out infinite;
+}
+.live-source.running {
+  border-color: var(--brand-border);
+  background: var(--brand-soft);
+  color: var(--text);
+}
+.live-source.ok .live-source-dot {
+  background: var(--success);
+}
+.live-source.blocked .live-source-dot,
+.live-source.error .live-source-dot {
+  background: var(--danger);
+}
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+
+/* One card per flat, appearing as it is found. */
+.live-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
+}
+.live-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+  animation: live-in 0.35s ease both;
+}
+.live-card:hover {
+  border-color: var(--brand-border);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+}
+.live-card.is-new {
+  border-color: var(--brand-border);
+}
+@keyframes live-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.live-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 10;
+  background: var(--surface-3);
+}
+.live-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.live-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 26px;
+  color: var(--text-subtle);
+}
+.live-new {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+.live-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px 10px;
+}
+.live-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.live-card-facts {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.live-card-facts strong {
+  font-size: 16px;
+  color: var(--text);
+}
+.live-card-meta {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-card,
+  .live-source.running .live-source-dot {
+    animation: none;
+  }
+}
+
+/* --- the case as a line --------------------------------------------------
+   Two columns everywhere: a fixed label column and a rail whose full width is
+   the whole span of the case. Everything on a rail is positioned in percent,
+   so the same left value means the same date on every row. */
+.tl {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.tl-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.tl-icon {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  background: var(--neutral-soft);
+  color: var(--text-muted);
+}
+.tl-searching .tl-icon,
+.tl-waiting .tl-icon {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+.tl-promising .tl-icon {
+  background: var(--info-soft);
+  color: var(--info);
+}
+.tl-secured .tl-icon {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.tl-no_dates .tl-icon {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.tl-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.tl-head-text strong {
+  font-size: 18px;
+}
+.tl-body {
+  padding: 10px 16px 16px;
+}
+
+/* One grid unit shared by the month scale, the flags and every flat row. */
+.tl-axis,
+.tl-row {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+}
+.tl-rail {
+  position: relative;
+  min-height: 26px;
+}
+.tl-months {
+  height: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.tl-month {
+  position: absolute;
+  bottom: 2px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: var(--text-subtle);
+  white-space: nowrap;
+}
+.tl-month::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 1px;
+  height: 5px;
+  background: var(--border-strong);
+}
+
+.tl-rows {
+  position: relative;
+  padding-top: 4px;
+}
+.tl-guides {
+  position: absolute;
+  inset: 0 0 0 254px; /* label column + gap */
+  pointer-events: none;
+}
+.tl-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed var(--border-strong);
+}
+.tl-guide.today {
+  border-left: 2px solid var(--brand);
+  opacity: 0.55;
+}
+.tl-guide.arrival {
+  border-left: 2px dashed var(--warning);
+  opacity: 0.8;
+}
+
+.tl-flags {
+  margin-bottom: 8px;
+  min-height: 24px;
+}
+.tl-flag {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--neutral-soft);
+  color: var(--text-muted);
+  border: 1px solid var(--neutral-border);
+}
+.tl-flag-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+.tl-flag.today {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+.tl-flag.arrival {
+  background: var(--warning-soft);
+  border-color: var(--warning-border);
+  color: var(--warning);
+}
+.tl-flag.secured {
+  background: var(--success-soft);
+  border-color: var(--success-border);
+  color: var(--success);
+}
+
+.tl-row {
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+}
+.tl-flat {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.tl-flat:hover {
+  text-decoration: none;
+}
+.tl-flat:hover .tl-flat-title {
+  color: var(--brand);
+}
+.tl-thumb {
+  width: 44px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-3);
+  display: grid;
+  place-items: center;
+  color: var(--text-subtle);
+}
+.tl-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.tl-flat-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tl-flat-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  /* Two lines, then cut. One line meant every flat read "2-Zimmer-Wohnu…",
+     which tells the reader nothing about which flat this row is. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tl-flat-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.tl-bar {
+  position: absolute;
+  top: 11px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--brand-border);
+}
+.stage-agreed .tl-bar {
+  background: var(--success);
+}
+.stage-viewing .tl-bar {
+  background: var(--info);
+}
+.stage-replied .tl-bar {
+  background: var(--brand);
+}
+.stage-declined .tl-bar {
+  background: var(--neutral-border);
+}
+.stage-declined .tl-flat-title {
+  text-decoration: line-through;
+  color: var(--text-subtle);
+}
+
+/* Where a flat only frees up after the person has landed: the nights somebody
+   has to pay for, drawn rather than described. */
+.tl-gap {
+  position: absolute;
+  top: 9px;
+  height: 10px;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--warning-soft),
+    var(--warning-soft) 4px,
+    var(--warning-border) 4px,
+    var(--warning-border) 8px
+  );
+  border-radius: 3px;
+  opacity: 0.85;
+}
+
+.tl-dot {
+  position: absolute;
+  top: 5px;
+  transform: translateX(-50%);
+}
+.tl-dot-mark {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1.5px solid var(--brand);
+  color: var(--brand);
+  font-size: 10px;
+  line-height: 1;
+}
+.tl-dot.reply .tl-dot-mark {
+  border-color: var(--success);
+  color: var(--success);
+}
+.tl-dot.viewing .tl-dot-mark {
+  border-color: var(--info);
+  color: var(--info);
+}
+.tl-dot.available .tl-dot-mark {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+.tl-dot-tip {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: var(--text);
+  color: #fff;
+  font-size: 12px;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 3;
+}
+.tl-dot:hover .tl-dot-tip,
+.tl-dot:focus-within .tl-dot-tip {
+  opacity: 1;
+}
+
+.tl-ready {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+.tl-ready.late {
+  color: var(--warning);
+  font-weight: 600;
+}
+.tl-empty {
+  padding: 10px 0 2px;
+}
+
+@media (max-width: 720px) {
+  .tl-axis,
+  .tl-row {
+    grid-template-columns: 130px minmax(0, 1fr);
+  }
+  .tl-guides {
+    inset: 0 0 0 144px;
+  }
+  .tl-thumb {
+    display: none;
+  }
+}
+
+/* --- sent enquiries, by age ---------------------------------------------
+   One bar for the shape of the pile, four boxes for what to do about it. */
+.bucketbar {
+  display: flex;
+  gap: 3px;
+  height: 10px;
+}
+.bucket-seg {
+  border-radius: 999px;
+  min-width: 8px;
+}
+.bucket-seg.success {
+  background: var(--success);
+}
+.bucket-seg.brand {
+  background: var(--brand);
+}
+.bucket-seg.warning {
+  background: var(--warning);
+}
+.bucket-seg.danger {
+  background: var(--danger);
+}
+.buckets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+.bucket {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: inherit;
+  text-decoration: none;
+}
+.bucket:hover {
+  text-decoration: none;
+  border-color: var(--border-strong);
+}
+.bucket.is-zero {
+  opacity: 0.55;
+}
+.bucket.success {
+  border-left-color: var(--success);
+}
+.bucket.brand {
+  border-left-color: var(--brand);
+}
+.bucket.warning {
+  border-left-color: var(--warning);
+}
+.bucket.danger {
+  border-left-color: var(--danger);
+}
+.bucket-num {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.bucket-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+.bucket-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+/* --- the photo on a result row -------------------------------------------
+   The score used to sit in this column on its own. It still does, but now on
+   top of the picture: same information, and the row answers "what does it look
+   like" before it answers "how well does it fit". */
+.listing-photo {
+  position: relative;
+  width: 108px;
+  height: 76px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-3);
+  display: grid;
+  place-items: center;
+}
+.listing-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.listing-photo-empty {
+  font-size: 26px;
+  color: var(--text-subtle);
+}
+.listing-photo .listing-score {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  width: 32px;
+  height: 26px;
+  font-size: 14px;
+  border-radius: 6px;
+  box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 700px) {
+  .listing {
+    grid-template-columns: 76px 1fr;
+  }
+  .listing-photo {
+    width: 76px;
+    height: 58px;
+  }
+  .listing-side {
+    grid-column: 2;
+    justify-items: start;
+    text-align: left;
+  }
+}
+
+/* --- the detail pane -----------------------------------------------------
+   It used to be two cards inside a sticky column, so the whole thing scrolled
+   with the page: by the time somebody had read the reasons, the button that
+   sends the enquiry was off the bottom of the screen, and on a laptop the
+   footnotes under it were unreachable without scrolling past the list.
+
+   Now it is its own viewport-height column. Verdict at the top, everything
+   readable in a middle that scrolls on its own, and the actions pinned to the
+   bottom where they can always be reached. */
+.pane {
+  position: sticky;
+  top: 76px;
+  display: flex;
+  flex-direction: column;
+  /* Short of the full viewport on purpose. A sticky box cannot rise above the
+     bottom of its own grid area, so at the very end of the page a pane exactly
+     one screen tall gets pushed up until its heading disappears behind the app
+     bar. The missing 170px is what keeps the heading, and the close button in
+     it, on screen at every scroll position. */
+  max-height: calc(100vh - 170px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  flex: none;
+}
+.pane-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px;
+  /* The pane is read, not skimmed: everything in it one step larger than the
+     list beside it. */
+  font-size: 15.5px;
+  line-height: 1.6;
+}
+.pane-scroll h3 {
+  font-size: 19px;
+  line-height: 1.3;
+}
+.pane-scroll .small {
+  font-size: 14.5px;
+}
+.pane-photo {
+  display: block;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-3);
+  aspect-ratio: 16 / 9;
+}
+.pane-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.pane-foot {
+  flex: none;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  /* A long confirmation dialogue can appear in here; it may scroll, but the
+     first button never leaves the screen. */
+  max-height: 52vh;
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .pane {
+    position: static;
+    max-height: none;
+  }
+  .pane-scroll,
+  .pane-foot {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+/* The list and the pane beside it. */
+.results-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.results-grid.with-pane {
+  grid-template-columns: minmax(0, 1fr) 460px;
+}
+@media (max-width: 900px) {
+  .results-grid.with-pane {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The quieter second row of case screens: reachable, never competing with the
+   four tabs above it. */
+.subnav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  padding: 2px 2px 0;
+}
+.subnav-label {
+  font-size: 13px;
+  color: var(--text-subtle);
+}
+.subnav-link {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  padding: 2px 0;
+  border-bottom: 1.5px solid transparent;
+}
+.subnav-link:hover {
+  color: var(--text);
+  text-decoration: none;
+  border-bottom-color: var(--border-strong);
+}
+.subnav-link[aria-current='page'] {
+  color: var(--brand);
+  font-weight: 600;
+  border-bottom-color: var(--brand);
+}
+
+/* --- finding your way around the settings --------------------------------
+   The page is a dozen cards long. These are the six anyone actually comes
+   looking for. */
+.jumpnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  margin-bottom: 6px;
+}
+.jumpnav-label {
+  font-size: 13px;
+  color: var(--text-subtle);
+}
+.jumpnav a {
+  font-size: 13.5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--text-muted);
+}
+.jumpnav a:hover {
+  background: var(--brand-soft);
+  color: var(--brand);
+  text-decoration: none;
+}
+/* Anchored cards must clear the sticky app bar when jumped to. */
+#suche,
+#quellen,
+#konten,
+#versand,
+#wiedervorlagen,
+#suchagent,
+#zugang-hinterlegen {
+  scroll-margin-top: 76px;
+}
+
+/* The three portals everything comes from, named whether or not we hold a
+   login for them. */
+.portal-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.portal-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
 }
