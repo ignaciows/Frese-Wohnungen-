@@ -167,8 +167,16 @@ export const SEED_SOURCES: SeedSource[] = [
     priority: 20,
     integrationMode: 'SEARCH_LINK',
     discoveryAdapter: 'linklist',
-    // Verified against the live site: the list page renders server-side and
-    // the adverts sit under /expose/.
+    // Half-usable, and the honest half is the list. Measured on the live site:
+    // the result page answers 200 and carries 31 /expose/ links, but it holds
+    // no prices, sizes or room counts — and every detail page behind those
+    // links answers 403 with a captcha. So a sweep finds thirty-one adverts it
+    // can never read, and retires all thirty-one as unreadable.
+    //
+    // The configuration stays because the list half is right and would work
+    // the day we can render a page. The source ships switched off: leaving it
+    // on spends a third of every sweep's request budget re-finding the same
+    // dead links. Immowelt has to go through the e-mail Suchagent instead.
     discoveryConfig: {
       searchUrlTemplate: 'https://www.immowelt.de/liste/{citySlug}/wohnungen/mieten?sp={page}',
       linkPattern: '\\/expose\\/',

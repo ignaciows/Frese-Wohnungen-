@@ -265,6 +265,17 @@ export async function confirmContactAction(formData: FormData) {
       )}`,
     );
   }
+  // Every Anfrage earns its reminder, however it was sent.
+  //
+  // This used to happen only when the app posted the mail itself — and the app
+  // is not allowed to until a sending address is configured, so in practice
+  // nobody's enquiry ever produced a task. A colleague wrote to a landlord,
+  // marked it contacted, and then had nothing anywhere telling them to look for
+  // a reply. Remembering that by hand across three candidates and thirty
+  // enquiries is the job this tool exists to take away.
+  const { scheduleReplyCheck } = await import('@/server/followUps');
+  await scheduleReplyCheck(result.contactAttemptId);
+
   revalidatePath('/', 'layout');
   redirect(`/kandidat/${parsed.candidateCaseId}/kontakte#kontakt-${result.contactAttemptId}`);
 }
@@ -1123,9 +1134,12 @@ function toFormShape(s: Record<string, unknown>): Record<string, string> {
 const AccountInput = z.object({
   id: z.string().optional(),
   kind: z.enum(['PORTAL', 'MAILBOX']).default('PORTAL'),
-  siteKey: z.string().min(1).max(80),
+  // Optional here, filled in from the chosen portal below. Asking a colleague
+  // to invent a "Kennung" for a portal they just picked from a list is asking
+  // them to do the database's bookkeeping.
+  siteKey: z.string().max(80).optional(),
   sourceId: z.string().optional().nullable(),
-  label: z.string().min(1).max(120),
+  label: z.string().max(120).optional(),
   loginName: z.string().max(200).optional().nullable(),
   secret: z.string().max(400).optional(),
   secondarySecret: z.string().max(400).optional(),
@@ -1144,12 +1158,26 @@ export async function saveAccountAction(formData: FormData) {
   const parsed = AccountInput.parse(Object.fromEntries(formData));
   const { saveAccount } = await import('@/server/portalAccounts');
 
+  // Derive the identifier and the display name from the portal that was
+  // chosen, so the form only has to ask for the two things a person actually
+  // has: a username and a password.
+  const source = parsed.sourceId
+    ? await prisma.source.findUnique({
+        where: { id: parsed.sourceId },
+        select: { key: true, name: true },
+      })
+    : null;
+  const siteKey = (parsed.siteKey?.trim() || source?.key || '').trim();
+  if (!siteKey) {
+    return { ok: false as const, error: 'Bitte ein Portal auswählen.' };
+  }
+
   const result = await saveAccount({
     id: parsed.id || undefined,
     kind: parsed.kind,
-    siteKey: parsed.siteKey,
+    siteKey,
     sourceId: parsed.sourceId || null,
-    label: parsed.label,
+    label: parsed.label?.trim() || source?.name || siteKey,
     loginName: parsed.loginName,
     // An empty password field means "leave it alone", not "delete it" —
     // otherwise editing a label would silently wipe the credential.

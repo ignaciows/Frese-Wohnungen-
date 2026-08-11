@@ -107,12 +107,27 @@ export default async function CandidateOverview({ params }: { params: Promise<{ 
 
   const activeIndex = steps.findIndex((s) => !s.done);
 
+  // What is waiting on this candidate today. The reminders were being created
+  // and then only ever shown on a separate Aufgaben page, so the person's own
+  // screen said nothing about the three enquiries going unanswered on it.
+  const { listDueTasks } = await import('@/server/followUps');
+  const dueTasks = await listDueTasks({ candidateCaseId: id });
+
   return (
     <div className="stack-lg">
+      {/* One line saying what to do now, before any number. Everything under
+          it is context; this is the instruction. */}
+      <TodayBanner
+        candidateId={id}
+        dueTasks={dueTasks.length}
+        toContact={toContact}
+        awaiting={awaiting}
+      />
+
       <div className="grid-4">
-        <Stat value={runs.length} label="Suchläufe" />
         <Stat value={good} label="Passende Anzeigen" />
-        <Stat value={contacted} label="Kontaktiert" />
+        <Stat value={contacted} label={contacted === 1 ? 'Anfrage gesendet' : 'Anfragen gesendet'} />
+        <Stat value={awaiting} label="Wartet auf Antwort" />
         <Stat value={positive} label="Positive Antworten" accent />
       </div>
 
@@ -181,6 +196,80 @@ export default async function CandidateOverview({ params }: { params: Promise<{ 
           ) : null}
         </section>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The one instruction, above everything else.
+ *
+ * The overview opened with four numbers and a five-step checklist, and a
+ * colleague still had to work out what to actually do next. There is almost
+ * always exactly one answer — chase the enquiries that have gone quiet, or send
+ * some more — so it is said in one sentence with one button, and the numbers
+ * become the context underneath rather than the message.
+ */
+function TodayBanner({
+  candidateId,
+  dueTasks,
+  toContact,
+  awaiting,
+}: {
+  candidateId: string;
+  dueTasks: number;
+  toContact: number;
+  awaiting: number;
+}) {
+  // Chasing beats sending: a landlord who has read the enquiry and not answered
+  // is a closer prospect than one who has never heard of us.
+  if (dueTasks > 0) {
+    return (
+      <Link href={`/kandidat/${candidateId}/kontakte`} className="today warn">
+        <span className="today-num">{dueTasks}</span>
+        <span className="today-text">
+          <strong>{dueTasks === 1 ? 'Anfrage nachfassen' : 'Anfragen nachfassen'}</strong>
+          <span>Seit drei Tagen keine Antwort — jetzt prüfen.</span>
+        </span>
+        <span className="btn primary nowrap">Prüfen</span>
+      </Link>
+    );
+  }
+
+  if (toContact > 0) {
+    return (
+      <Link href={`/kandidat/${candidateId}/ergebnisse`} className="today go">
+        <span className="today-num">{toContact}</span>
+        <span className="today-text">
+          <strong>{toContact === 1 ? 'Anzeige zu kontaktieren' : 'Anzeigen zu kontaktieren'}</strong>
+          <span>Fünf bis zehn Anfragen pro Besuch reichen.</span>
+        </span>
+        <span className="btn primary nowrap">Loslegen</span>
+      </Link>
+    );
+  }
+
+  if (awaiting > 0) {
+    return (
+      <div className="today calm">
+        <span className="today-num">✓</span>
+        <span className="today-text">
+          <strong>Alles rausgeschickt</strong>
+          <span>
+            {awaiting} {awaiting === 1 ? 'Anfrage wartet' : 'Anfragen warten'} auf Antwort. Wir erinnern
+            automatisch.
+          </span>
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="today calm">
+      <span className="today-num">○</span>
+      <span className="today-text">
+        <strong>Noch nichts zu tun</strong>
+        <span>Sobald die Suche neue Anzeigen findet, stehen sie hier.</span>
+      </span>
     </div>
   );
 }

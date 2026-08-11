@@ -284,7 +284,7 @@ function SourceRowItem({
       {state.todo ? <p className="source-item-note">{state.todo}</p> : null}
 
       <details className="disclosure sm">
-        <summary>Einstellungen</summary>
+        <summary>Technische Einstellungen — nur wenn nötig</summary>
         <form action={saveSourceDiscoveryFormAction} className="stack" style={{ marginTop: 10 }}>
           <input type="hidden" name="sourceId" value={source.id} />
           {/* The switch above owns this value; the hidden field keeps the form
@@ -325,7 +325,7 @@ function SourceRowItem({
           </div>
 
           <div className="field">
-            <label htmlFor={`config-${source.id}`}>Konfiguration (JSON)</label>
+            <label htmlFor={`config-${source.id}`}>Technische Konfiguration</label>
             <textarea
               id={`config-${source.id}`}
               name="config"
@@ -734,16 +734,32 @@ function MailboxForm({ existing }: { existing?: PortalAccountView }) {
   );
 }
 
+/**
+ * Adding a portal login, asked the way a person would think about it.
+ *
+ * The old form wanted seven fields before it would accept anything, among them
+ * a "Website / Kennung" and a "Bezeichnung" — bookkeeping the database needs
+ * and the person filling it in has no opinion about. Both are now taken from
+ * the portal they picked out of the list. What is left is what somebody
+ * actually has written on a piece of paper: which site, which username, which
+ * password.
+ */
 function PortalAccountForm({ sources }: { sources: Array<{ id: string; key: string; name: string }> }) {
   return (
     <form action={saveAccountFormAction} className="subcard stack">
       <input type="hidden" name="kind" value="PORTAL" />
-      <strong className="small">Portal-Zugang hinzufügen</strong>
-      <div className="grid-2">
-        <div>
-          <label htmlFor="accountSource">Quelle</label>
-          <select id="accountSource" name="sourceId" className="input" defaultValue="">
-            <option value="">— nicht im Katalog —</option>
+      <input type="hidden" name="active" value="true" />
+      <strong className="small">Zugang zu einem Portal hinterlegen</strong>
+      <p className="small muted" style={{ margin: 0 }}>
+        Damit kann die App sich dort anmelden und Anfragen für Sie verschicken. Das Passwort wird
+        verschlüsselt gespeichert und nie wieder angezeigt.
+      </p>
+
+      <div className="grid-3">
+        <div className="field">
+          <label htmlFor="accountSource">Welches Portal?</label>
+          <select id="accountSource" name="sourceId" className="input" defaultValue="" required>
+            <option value="">Bitte wählen …</option>
             {sources.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -751,28 +767,56 @@ function PortalAccountForm({ sources }: { sources: Array<{ id: string; key: stri
             ))}
           </select>
         </div>
-        <TextField idPrefix="pa-" name="siteKey" label="Website / Kennung" value="" hint="z. B. kleinanzeigen" />
-        <TextField idPrefix="pa-" name="label" label="Bezeichnung" value="" hint="z. B. Konto Frau Meier" />
-        <TextField idPrefix="pa-" name="loginName" label="Benutzername / E-Mail" value="" />
-        <TextField idPrefix="pa-" name="replyToAddress" label="Antworten kommen an" value="" />
-        <TextField idPrefix="pa-" name="profileUrl" label="Profil-/Login-Adresse" value="" />
+        <div className="field">
+          <label htmlFor="pa-loginName">Benutzername oder E-Mail</label>
+          <input
+            id="pa-loginName"
+            name="loginName"
+            className="input"
+            autoComplete="username"
+            placeholder="wie beim Anmelden auf der Seite"
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="portalSecret">Passwort</label>
+          <input
+            id="portalSecret"
+            name="secret"
+            type="password"
+            className="input"
+            autoComplete="new-password"
+            placeholder="wird verschlüsselt gespeichert"
+          />
+        </div>
       </div>
-      <div>
-        <label htmlFor="portalSecret">Passwort</label>
-        <input
-          id="portalSecret"
-          name="secret"
-          type="password"
-          className="input"
-          autoComplete="new-password"
-          placeholder="wird verschlüsselt gespeichert"
-        />
-      </div>
-      <TextField idPrefix="pa-" name="note" label="Notiz" value="" />
-      <input type="hidden" name="active" value="true" />
+
+      {/* Everything below is for the rare case; hidden so the common one is
+          three boxes and a button. */}
+      <details className="disclosure">
+        <summary>Weitere Angaben (selten nötig)</summary>
+        <div className="grid-2" style={{ marginTop: 10 }}>
+          <TextField
+            idPrefix="pa-"
+            name="replyToAddress"
+            label="Antworten kommen an"
+            value=""
+            hint="Nur ausfüllen, wenn das Portal Antworten an eine andere Adresse schickt."
+          />
+          <TextField
+            idPrefix="pa-"
+            name="profileUrl"
+            label="Login-Adresse"
+            value=""
+            hint="Nur nötig, wenn die Anmeldeseite nicht die Startseite ist."
+          />
+          <TextField idPrefix="pa-" name="label" label="Eigener Name für diesen Zugang" value="" hint="Sonst der Name des Portals." />
+          <TextField idPrefix="pa-" name="note" label="Notiz" value="" />
+        </div>
+      </details>
+
       <div className="row">
-        <button className="btn sm" type="submit">
-          Hinzufügen
+        <button className="btn primary" type="submit">
+          Zugang speichern
         </button>
       </div>
     </form>

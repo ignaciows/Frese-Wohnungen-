@@ -1446,3 +1446,72 @@ label {
 @media (prefers-reduced-motion: reduce) {
   .lamp-running .lamp-dot { animation: none; }
 }
+
+/* ------------------------------------------------------- today banner ---
+   The overview opened with four numbers and a five-step checklist, and a
+   colleague still had to work out what to do next. There is nearly always
+   one answer, so it gets one line, one number and one button. */
+.today {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  border-radius: var(--radius, 12px);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+a.today:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.07);
+}
+.today.warn {
+  background: var(--warning-soft);
+  border-color: var(--warning-border);
+}
+.today.go {
+  background: var(--success-soft);
+  border-color: var(--success-border);
+}
+.today.calm {
+  background: var(--surface-2);
+}
+/* Big enough to read across a desk — this is the number that decides the visit. */
+.today-num {
+  flex: 0 0 auto;
+  min-width: 56px;
+  text-align: center;
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.today.warn .today-num {
+  color: var(--warning);
+}
+.today.go .today-num {
+  color: var(--success);
+}
+.today.calm .today-num {
+  color: var(--text-subtle);
+}
+.today-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.today-text strong {
+  font-size: 17px;
+}
+.today-text span {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  a.today:hover { transform: none; }
+}
