@@ -2528,3 +2528,375 @@ label {
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
+
+/* ==================================================== the Airbnb pass =====
+   Same palette, same components — more air, softer corners, controls you
+   cannot miss. The complaint was that the tool looks like an admin panel and
+   should look like something built this decade: fewer hairlines, bigger hit
+   areas, generous white space, and one obvious thing to press per screen.
+
+   Everything below is scale and shape only. No colour changes, no new
+   components, so nothing here can alter what a screen says. */
+
+:root {
+  --radius: 14px;
+  --radius-sm: 11px;
+  --radius-lg: 20px;
+  /* Shadows carry the elevation now, so borders can step back. */
+  --shadow-sm: 0 1px 2px rgba(15, 36, 41, 0.04);
+  --shadow: 0 2px 6px rgba(15, 36, 41, 0.05), 0 8px 24px rgba(15, 36, 41, 0.06);
+  --shadow-lg: 0 12px 40px rgba(15, 36, 41, 0.12);
+}
+
+h1 {
+  font-size: 34px;
+  letter-spacing: -0.022em;
+  line-height: 1.15;
+}
+h2 {
+  font-size: 23px;
+  letter-spacing: -0.018em;
+}
+h3 {
+  font-size: 19px;
+  letter-spacing: -0.012em;
+}
+
+/* --- controls ------------------------------------------------------------
+   A button is the one thing on a page that must never be hunted for. */
+.btn {
+  min-height: 52px;
+  padding: 14px 24px;
+  font-size: 17px;
+  font-weight: 600;
+  border-radius: 12px;
+  letter-spacing: -0.005em;
+}
+.btn.sm {
+  min-height: 44px;
+  padding: 10px 18px;
+  font-size: 15.5px;
+  border-radius: 10px;
+}
+.btn.lg {
+  min-height: 60px;
+  padding: 16px 34px;
+  font-size: 19px;
+  border-radius: 14px;
+}
+.btn.primary {
+  border-color: transparent;
+  box-shadow: 0 1px 2px rgb(14 124 134 / 0.2), 0 6px 16px rgb(14 124 134 / 0.18);
+}
+.btn.primary:hover:not(:disabled) {
+  box-shadow: 0 2px 4px rgb(14 124 134 / 0.24), 0 10px 24px rgb(14 124 134 / 0.24);
+  transform: translateY(-1px);
+}
+.btn.primary:active {
+  transform: translateY(0) scale(0.995);
+}
+.btn.ghost {
+  border-color: transparent;
+}
+
+.input,
+.select,
+.textarea,
+.input:is(select, textarea) {
+  min-height: 52px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border-color: var(--border);
+  font-size: 17px;
+}
+.input:hover,
+.select:hover,
+.textarea:hover {
+  border-color: var(--border-strong);
+}
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: var(--text);
+  box-shadow: 0 0 0 4px rgba(15, 36, 41, 0.06);
+}
+.textarea {
+  min-height: 130px;
+}
+label {
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+.checkline input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+}
+
+/* --- surfaces ------------------------------------------------------------
+   Cards float on the background instead of being fenced off from it. */
+.card {
+  border-radius: var(--radius-lg);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.card-head {
+  padding: 20px 24px;
+}
+.card-body,
+.card-pad {
+  padding: 24px;
+}
+.card-foot {
+  padding: 16px 24px;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+.subcard {
+  border-radius: var(--radius);
+  padding: 18px;
+}
+.callout {
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.stat {
+  border-radius: var(--radius-lg);
+  padding: 20px 22px;
+}
+.stat-value {
+  font-size: 34px;
+  letter-spacing: -0.03em;
+}
+.stat-label {
+  font-size: 14.5px;
+}
+
+/* --- rhythm --------------------------------------------------------------
+   Room between things is what separates a product from a form. */
+.stack {
+  gap: 18px;
+}
+.stack-lg {
+  gap: 32px;
+}
+.page {
+  padding-top: 32px;
+  padding-bottom: 96px;
+}
+.grid-2,
+.grid-3,
+.grid-4 {
+  gap: 18px;
+}
+
+/* --- navigation ----------------------------------------------------------
+   Tabs as pills: bigger targets, and the current one is a shape rather than
+   a 2px line somebody has to look for. */
+.tabs {
+  gap: 6px;
+  border-bottom: none;
+  padding-bottom: 2px;
+}
+.tab {
+  padding: 11px 18px;
+  font-size: 16px;
+  border-radius: 999px;
+  border-bottom: none;
+  margin-bottom: 0;
+}
+.tab:hover {
+  background: var(--surface-3);
+}
+.tab[aria-current='page'] {
+  background: var(--text);
+  color: var(--surface);
+}
+.tab[aria-current='page'] .tab-count {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+.tab-count {
+  font-size: 13.5px;
+  padding: 1px 8px;
+}
+.appbar {
+  border-bottom: 1px solid var(--border);
+}
+.appbar-nav a {
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 15.5px;
+}
+
+.badge,
+.chip {
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 13.5px;
+}
+.listing {
+  padding: 18px 22px;
+}
+.step {
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+
+/* --- the search bar ------------------------------------------------------
+   "Jetzt suchen" is the single most-pressed control in the tool and was a
+   small grey button in the corner of a status strip. Now the strip is a card
+   and the button is the loudest thing on it. */
+.freshness {
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  gap: 16px;
+}
+.freshness-text {
+  font-size: 16px;
+}
+.freshness .btn {
+  background: var(--brand);
+  border-color: transparent;
+  color: var(--brand-text-on);
+  min-height: 52px;
+  padding: 14px 28px;
+  font-size: 17px;
+  box-shadow: 0 1px 2px rgb(14 124 134 / 0.2), 0 6px 16px rgb(14 124 134 / 0.18);
+}
+.freshness .btn:hover:not(:disabled) {
+  background: var(--brand-hover);
+  transform: translateY(-1px);
+}
+.live {
+  border-radius: var(--radius-lg);
+  padding: 18px 20px 20px;
+}
+.live-card {
+  border-radius: var(--radius);
+}
+.tl {
+  border-radius: var(--radius-lg);
+}
+.pane {
+  border-radius: var(--radius-lg);
+}
+
+/* --- touchpoints ---------------------------------------------------------
+   One column, newest first, grouped by day. The rail down the left is what
+   makes it read as a sequence rather than as a list of cards. */
+.tp {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.tp-daylabel {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  margin-bottom: 10px;
+}
+.tp-list {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.tp-item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 14px;
+  padding: 12px 0 16px;
+  position: relative;
+}
+/* The thread between the marks. */
+.tp-item::before {
+  content: '';
+  position: absolute;
+  left: 17px;
+  top: 34px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--border);
+}
+.tp-item:last-child::before {
+  display: none;
+}
+.tp-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  background: var(--neutral-soft);
+  color: var(--text-muted);
+  border: 1px solid var(--neutral-border);
+  z-index: 1;
+}
+.tone-good .tp-mark {
+  background: var(--success-soft);
+  color: var(--success);
+  border-color: var(--success-border);
+}
+.tone-bad .tp-mark {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+.tone-wait .tp-mark {
+  background: var(--warning-soft);
+  color: var(--warning);
+  border-color: var(--warning-border);
+}
+.tp-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.tp-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tp-title {
+  font-size: 16.5px;
+  font-weight: 650;
+}
+.tp-time {
+  font-size: 14px;
+  color: var(--text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+.tp-new {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+}
+.tp-listing {
+  font-size: 15.5px;
+  color: var(--brand);
+  font-weight: 550;
+}
+.tp-meta {
+  font-size: 14px;
+  color: var(--text-subtle);
+}
+.tp-summary {
+  margin-top: 5px;
+  font-size: 15px;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}

@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { Empty, Stat } from '@/app/_components/Shell';
 import { ConversationCard, type ConversationData } from '@/app/_components/ConversationCard';
+import { TouchpointFeed } from '@/app/_components/TouchpointFeed';
+import { loadTouchpoints } from '@/server/touchpoints';
 import { getFollowUpSettings } from '@/server/settings';
 
 export const dynamic = 'force-dynamic';
@@ -59,7 +61,10 @@ export default async function KontaktePage({
   const count = (o: string) => all.filter((a) => a.outcome === o).length;
   const registered = all.filter((a) => a.systemTransfer?.registeredAt).length;
 
-  const followUp = await getFollowUpSettings();
+  const [followUp, touchpoints] = await Promise.all([
+    getFollowUpSettings(),
+    loadTouchpoints(id),
+  ]);
   const dayMs = 86_400_000;
   const now = Date.now();
 
@@ -143,6 +148,20 @@ export default async function KontaktePage({
         <Stat value={`${registered}/${all.length}`} label="Ins Firmen-System übertragen" />
       </div>
 
+      {/* What happened, in the order it happened. Every row here is derived
+          from something the system already recorded — nothing to keep up to
+          date by hand. */}
+      <section className="card">
+        <div className="card-head">
+          <h2>Touchpoints</h2>
+          <span className="sub">Jeder Kontakt mit Uhrzeit, Link und Ergebnis.</span>
+        </div>
+        <div className="card-body">
+          <TouchpointFeed points={touchpoints} />
+        </div>
+      </section>
+
+      <h2 style={{ marginTop: 8 }}>Gespräche</h2>
       <nav className="tabs" aria-label="Rückmeldung filtern">
         {FILTERS.map((t) => (
           <Link
