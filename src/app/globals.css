@@ -1523,3 +1523,37 @@ a.today:hover {
   color: var(--text-subtle);
   font-size: 13px;
 }
+
+/* ------------------------------------------------------ unread replies ---
+   The count of new answers, where a mail client would put it. It used to be
+   buried inside a collapsed thread, so the one landlord who replied looked
+   exactly like the nine who had not. */
+.unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--success);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+  animation: fw-pop 220ms cubic-bezier(0.2, 0.9, 0.3, 1.4) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .unread-badge { animation: none; }
+}
+
+/* A reply outranks every other state on the overview: it is the only one
+   where somebody is waiting on us rather than the other way round. */
+.today.reply {
+  background: var(--success-soft);
+  border-color: var(--success-border);
+}
+.today.reply .today-num {
+  color: var(--success);
+}

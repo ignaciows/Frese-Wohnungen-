@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { Empty, Stat } from '@/app/_components/Shell';
 import { ConversationCard, type ConversationData } from '@/app/_components/ConversationCard';
+import { getFollowUpSettings } from '@/server/settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +59,15 @@ export default async function KontaktePage({
   const count = (o: string) => all.filter((a) => a.outcome === o).length;
   const registered = all.filter((a) => a.systemTransfer?.registeredAt).length;
 
-  const conversations: ConversationData[] = attempts.map((a) => ({
+  const followUp = await getFollowUpSettings();
+  const dayMs = 86_400_000;
+  const now = Date.now();
+
+  const conversations: ConversationData[] = attempts.map((a) => {
+    const unread = a.messages.filter((m) => m.direction === 'INCOMING' && m.readAt == null).length;
+    const answered = a.messages.some((m) => m.direction === 'INCOMING');
+    const waitingDays = answered ? null : Math.floor((now - a.contactedAt.getTime()) / dayMs);
+    return {
     id: a.id,
     listingTitle: a.listing.title,
     listingUrl: a.listing.rawUrl,
@@ -92,7 +101,19 @@ export default async function KontaktePage({
       // No recorder means the mailbox collected this reply on its own.
       recordedByName: m.recordedBy?.name ?? 'Automatisch aus dem Postfach',
     })),
-  }));
+    unread,
+    waitingDays,
+    dueForCheck: waitingDays != null && waitingDays >= followUp.checkReplyAfterDays,
+    };
+  });
+
+  // A reply outranks everything, then whatever has gone quiet longest. Sorting
+  // purely by date buried the one landlord who answered under nine who did not.
+  conversations.sort((a, b) => {
+    if ((b.unread > 0 ? 1 : 0) !== (a.unread > 0 ? 1 : 0)) return b.unread - a.unread;
+    if (a.dueForCheck !== b.dueForCheck) return a.dueForCheck ? -1 : 1;
+    return (b.waitingDays ?? -1) - (a.waitingDays ?? -1);
+  });
 
   if (all.length === 0) {
     return (

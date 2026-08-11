@@ -742,6 +742,18 @@ function MailboxForm({ existing }: { existing?: PortalAccountView }) {
       <input type="hidden" name="siteKey" value="mailbox" />
       {existing ? <input type="hidden" name="id" value={existing.id} /> : null}
       <strong className="small">{existing ? 'Postfach bearbeiten' : 'Postfach einrichten'}</strong>
+      {/* The decision people get wrong: pointing this at the address they
+          already use for everything. The portals send one mail per matching
+          advert, several times a day, per saved search — a working inbox is
+          unusable within a week, and the flat that mattered is buried under
+          ninety alerts. */}
+      <Callout tone="warning">
+        <strong>Bitte eine eigene Adresse anlegen</strong>, nur für die Suchaufträge — etwa
+        <code> wohnungen@…</code>. Die Portale schicken pro gespeicherter Suche mehrere Mails am Tag;
+        in einem Postfach, das auch für alles andere genutzt wird, geht danach beides unter. Diese
+        Adresse liest nur die App: sie holt die Anzeigen heraus und ordnet sie dem richtigen
+        Kandidaten zu. Antworten von Vermietern landen weiterhin dort, wo sie hingehören.
+      </Callout>
       <div className="grid-2">
         <TextField idPrefix="mb-" name="label" label="Bezeichnung" value={existing?.label ?? 'Wohnungssuche-Postfach'} />
         <TextField idPrefix="mb-" name="loginName" label="Benutzername" value={existing?.loginName ?? ''} />

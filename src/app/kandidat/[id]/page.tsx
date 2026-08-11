@@ -112,6 +112,15 @@ export default async function CandidateOverview({ params }: { params: Promise<{ 
   // screen said nothing about the three enquiries going unanswered on it.
   const { listDueTasks } = await import('@/server/followUps');
   const dueTasks = await listDueTasks({ candidateCaseId: id });
+  // An answer outranks everything else on this screen: it is the only state
+  // where somebody is waiting on *us*.
+  const unreadReplies = await prisma.contactMessage.count({
+    where: {
+      direction: 'INCOMING',
+      readAt: null,
+      contactAttempt: { candidateCaseId: id },
+    },
+  });
 
   return (
     <div className="stack-lg">
@@ -119,6 +128,7 @@ export default async function CandidateOverview({ params }: { params: Promise<{ 
           it is context; this is the instruction. */}
       <TodayBanner
         candidateId={id}
+        unreadReplies={unreadReplies}
         dueTasks={dueTasks.length}
         toContact={toContact}
         awaiting={awaiting}
@@ -211,15 +221,32 @@ export default async function CandidateOverview({ params }: { params: Promise<{ 
  */
 function TodayBanner({
   candidateId,
+  unreadReplies,
   dueTasks,
   toContact,
   awaiting,
 }: {
   candidateId: string;
+  unreadReplies: number;
   dueTasks: number;
   toContact: number;
   awaiting: number;
 }) {
+  // A landlord who has written back is the only person waiting on us, and a
+  // reply that sits unread for a day is how a flat gets let to somebody else.
+  if (unreadReplies > 0) {
+    return (
+      <Link href={`/kandidat/${candidateId}/kontakte`} className="today reply">
+        <span className="today-num">{unreadReplies}</span>
+        <span className="today-text">
+          <strong>{unreadReplies === 1 ? 'Neue Antwort' : 'Neue Antworten'}</strong>
+          <span>Ein Vermieter hat geschrieben — bitte zuerst hier weitermachen.</span>
+        </span>
+        <span className="btn primary nowrap">Lesen</span>
+      </Link>
+    );
+  }
+
   // Chasing beats sending: a landlord who has read the enquiry and not answered
   // is a closer prospect than one who has never heard of us.
   if (dueTasks > 0) {

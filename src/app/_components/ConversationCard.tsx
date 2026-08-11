@@ -1,7 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { addContactMessageAction, setContactOutcomeAction, markRegisteredAction } from '@/app/actions';
+import {
+  addContactMessageAction,
+  setContactOutcomeAction,
+  markRegisteredAction,
+  markRepliesReadAction,
+} from '@/app/actions';
 import { CopyFields } from './CopyFields';
 import { RESPONSE_OUTCOME, formatDateTime, formatDate } from '@/lib/labels';
 
@@ -18,6 +23,12 @@ export interface ConversationData {
   outcomeByName: string | null;
   outcomeNote: string | null;
   messageSnapshot: string;
+  /** Inbound messages nobody has opened yet — the badge, like a mail client. */
+  unread: number;
+  /** Days since the enquiry went out with nothing back. Null once answered. */
+  waitingDays: number | null;
+  /** True once the three days are up and there is still no reply. */
+  dueForCheck: boolean;
   transfer: { id: string; objectLabel: string; link: string; location: string; registeredAt: string | null; registeredByName: string | null } | null;
   messages: Array<{
     id: string;
@@ -32,6 +43,25 @@ const OUTCOMES = ['POSITIVE', 'NEEDS_INFO', 'NEGATIVE', 'AWAITING'] as const;
 
 export function ConversationCard({ c }: { c: ConversationData }) {
   const [showThread, setShowThread] = useState(c.messages.length > 0 || c.outcome !== 'AWAITING');
+  // Held locally so the badge clears the moment the thread opens; the server
+  // is told straight after. Without this the count only ever went up — the
+  // action existed and nothing called it.
+  const [unread, setUnread] = useState(c.unread);
+
+  async function openThread() {
+    const next = !showThread;
+    setShowThread(next);
+    if (next && unread > 0) {
+      setUnread(0);
+      const fd = new FormData();
+      fd.set('contactAttemptId', c.id);
+      try {
+        await markRepliesReadAction(fd);
+      } catch {
+        // A failed read receipt must never swallow the reply itself.
+      }
+    }
+  }
   const o = RESPONSE_OUTCOME[c.outcome] ?? RESPONSE_OUTCOME.AWAITING;
 
   return (
@@ -39,10 +69,32 @@ export function ConversationCard({ c }: { c: ConversationData }) {
       <div className="card-head">
         <div className="grow stack-sm" style={{ minWidth: 0 }}>
           <div className="row-wrap">
+            {/* The count of unread replies, where a mail client would put it.
+                This is the one thing somebody opening this page is looking
+                for, and it used to be buried inside a collapsed thread. */}
+            {unread > 0 ? (
+              <span className="unread-badge" title="Neue Antwort">
+                {unread}
+              </span>
+            ) : null}
             <h3 style={{ overflowWrap: 'anywhere' }}>{c.listingTitle}</h3>
-            <span className={`badge ${o.tone}`}>
-              {o.icon} {o.label}
-            </span>
+            {unread > 0 ? (
+              <span className="badge success">Neue Antwort</span>
+            ) : (
+              <span className={`badge ${o.tone}`}>
+                {o.icon} {o.label}
+              </span>
+            )}
+            {/* How long this has been quiet, said in the unit a person thinks
+                in. The reminder fires at three days; before that this is just
+                context, after it it is the thing to act on. */}
+            {c.waitingDays != null ? (
+              <span className={`badge ${c.dueForCheck ? 'warning' : ''}`}>
+                {c.waitingDays === 0
+                  ? 'heute gesendet'
+                  : `seit ${c.waitingDays} ${c.waitingDays === 1 ? 'Tag' : 'Tagen'} keine Antwort`}
+              </span>
+            ) : null}
           </div>
           <div className="small muted">
             {c.sourceName} · {c.location} · kontaktiert {formatDate(c.contactedAt)} von {c.contactedByName}
@@ -89,7 +141,7 @@ export function ConversationCard({ c }: { c: ConversationData }) {
           <button
             type="button"
             className="btn ghost sm"
-            onClick={() => setShowThread((v) => !v)}
+            onClick={() => void openThread()}
             aria-expanded={showThread}
           >
             {showThread ? '− Verlauf ausblenden' : `+ Verlauf (${c.messages.length + 1})`}
