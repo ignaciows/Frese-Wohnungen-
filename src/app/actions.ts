@@ -976,6 +976,23 @@ export async function maybeRunDiscoverySweepAction() {
   const { maybeRunDiscoverySweep } = await import('@/server/discovery');
   const summary = await maybeRunDiscoverySweep();
   if (summary.ran) revalidatePath('/', 'layout');
+  // When the sweep was throttled the caller still has to be able to say when
+  // the last one was. Without it the screen can only stay silent, and silence
+  // next to ads dated five days ago reads as "this thing never searches".
+  const last = await prisma.discoveryRun.findFirst({
+    orderBy: { startedAt: 'desc' },
+    select: { startedAt: true },
+  });
+  const enabledSources = await prisma.source.count({ where: { discoveryEnabled: true } });
+  return { ...summary, lastRunAt: last?.startedAt ?? null, enabledSources };
+}
+
+/** The manual "search now", for when waiting for the interval is not an option. */
+export async function forceDiscoverySweepAction() {
+  await requireUser();
+  const { runDiscoverySweep } = await import('@/server/discovery');
+  const summary = await runDiscoverySweep({ force: true });
+  revalidatePath('/', 'layout');
   return summary;
 }
 
@@ -1044,6 +1061,61 @@ export async function saveSourceDiscoveryAction(formData: FormData) {
   });
   revalidatePath('/', 'layout');
   return { ok: true as const };
+}
+
+/**
+ * Switch one source on or off, and nothing else.
+ *
+ * The settings page used to put every source in its own form behind its own
+ * Speichern button. Ticking the boxes and moving on — which is what the page
+ * looked like it wanted — saved nothing at all, so the automatic search sat
+ * there with no sources and found nothing, while the screen showed every box
+ * ticked. A switch that only writes when you press a second, separate button
+ * is not a switch.
+ */
+export async function toggleSourceAction(sourceId: string, enabled: boolean) {
+  await requireAdmin();
+  await prisma.source.update({
+    where: { id: sourceId },
+    data: {
+      discoveryEnabled: enabled,
+      // Re-asking is the point of switching it back on; the old verdict was
+      // about a different question.
+      ...(enabled ? { discoveryStatus: null, discoveryNote: null } : {}),
+    },
+  });
+  revalidatePath('/', 'layout');
+  return { ok: true as const };
+}
+
+/** Saves the automatic-search numbers as they are edited. */
+export async function saveDiscoverySettingsPatchAction(patch: Record<string, string>) {
+  const user = await requireAdmin();
+  const { getDiscoverySettings, writeSetting, SETTING_KEYS } = await import('@/server/settings');
+  const current = await getDiscoverySettings();
+  // Merged onto what is stored, so saving one field cannot blank the others —
+  // the failure mode of an autosaving form that posts only what it touched.
+  const merged = DiscoverySettingsInput.parse({
+    ...toFormShape(current as unknown as Record<string, unknown>),
+    ...patch,
+  });
+  await writeSetting(SETTING_KEYS.discovery, merged, user.id);
+  revalidatePath('/', 'layout');
+  return { ok: true as const };
+}
+
+/**
+ * The stored settings in the shape a form would post them.
+ *
+ * Booleans need the care: the schema coerces, and `z.coerce.boolean()` reads
+ * the *string* "false" as true, because it is a non-empty string. Stringifying
+ * naively would therefore switch the automatic search on every time any other
+ * field was saved.
+ */
+function toFormShape(s: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(s)) out[k] = typeof v === 'boolean' ? (v ? 'true' : '') : String(v);
+  return out;
 }
 
 /* ========================================================= portal accounts */

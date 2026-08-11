@@ -1,6 +1,5 @@
 import { ADAPTERS, adapterChoices, missingConfig } from '@/domain/discovery/registry';
 import {
-  saveDiscoverySettingsAction,
   saveSourceDiscoveryFormAction,
   saveOutboundSettingsAction,
   saveFollowUpSettingsAction,
@@ -10,6 +9,7 @@ import {
   runDiscoverySweepFormAction,
 } from '@/app/actions';
 import { Callout } from '@/app/_components/Shell';
+import { InstantNumber, InstantSwitch } from './_instant';
 import { formatDateTime } from '@/lib/labels';
 import type { DiscoverySettings, OutboundSettings, FollowUpSettings } from '@/server/settings';
 import type { PortalAccountView } from '@/server/portalAccounts';
@@ -51,121 +51,148 @@ export function DiscoverySection({
   isAdmin: boolean;
 }) {
   const choices = adapterChoices();
-  const configurable = sources.filter((s) => s.discoveryAdapter || s.discoveryEnabled);
-  const rest = sources.filter((s) => !s.discoveryAdapter && !s.discoveryEnabled);
+  // Split by "can this be searched at all", not by "has somebody touched it":
+  // a source with no adapter cannot be switched on however it is presented,
+  // and mixing the two made a list of fifty in which the four that mattered
+  // were indistinguishable.
+  const searchable = sources.filter((s) => s.discoveryAdapter);
+  const unsearchable = sources.filter((s) => !s.discoveryAdapter);
+  const enabledCount = sources.filter((s) => s.discoveryEnabled).length;
 
   return (
     <>
-      <form action={saveDiscoverySettingsAction} className="card" style={{ marginTop: 18 }}>
+      <div className="card" style={{ marginTop: 18 }}>
         <div className="card-head">
           <h2>Automatische Suche</h2>
-          <span className="sub">Sucht selbstständig neue Anzeigen und entfernt verschwundene.</span>
+          <span className="sub">
+            Sucht selbstständig neue Anzeigen und entfernt verschwundene. Alles hier speichert sofort.
+          </span>
         </div>
         <div className="card-body stack">
-          <div className="checkline">
-            <input
-              id="discoveryEnabled"
-              name="enabled"
-              type="checkbox"
-              value="true"
-              defaultChecked={settings.enabled}
-              disabled={!isAdmin}
-            />
-            <label htmlFor="discoveryEnabled">Automatische Suche aktiv</label>
-          </div>
+          <InstantSwitch
+            checked={settings.enabled}
+            disabled={!isAdmin}
+            label="Automatische Suche aktiv"
+            hint="Aus heißt: es wird gar nicht mehr gesucht."
+          />
 
           <Callout tone="info">
-            Es werden nur Quellen abgefragt, die unten ausdrücklich freigeschaltet sind. Die App hält sich
-            an die robots.txt jeder Seite, fragt pro Server nur einzeln nacheinander an und begrenzt jeden
-            Lauf. Portale, die automatische Abrufe sperren (ImmoScout24, Immowelt), bleiben beim
-            E-Mail-Suchauftrag.
+            Es werden nur Quellen abgefragt, die unten eingeschaltet sind. Die App hält sich an die
+            robots.txt jeder Seite und begrenzt jeden Lauf. Portale, die automatische Abrufe sperren
+            (ImmoScout24, Immowelt), bleiben beim E-Mail-Suchauftrag.
           </Callout>
 
-          <div className="grid-3">
-            <NumberField
-              name="sweepIntervalMinutes"
-              label="Mindestabstand (Minuten)"
-              value={settings.sweepIntervalMinutes}
-              disabled={!isAdmin}
-              hint="Häufiger als das wird nicht gesucht, egal wie oft jemand die Seite öffnet."
-            />
-            <NumberField
-              name="maxRequestsPerRun"
-              label="Anfragen je Lauf"
-              value={settings.maxRequestsPerRun}
-              disabled={!isAdmin}
-              hint="Obergrenze über alle Quellen zusammen."
-            />
-            <NumberField
-              name="perHostDelayMs"
-              label="Pause je Server (ms)"
-              value={settings.perHostDelayMs}
-              disabled={!isAdmin}
-              hint="Abstand zwischen zwei Anfragen an dieselbe Seite."
-            />
-            <NumberField
-              name="maxPagesPerSource"
-              label="Ergebnisseiten je Quelle"
-              value={settings.maxPagesPerSource}
-              disabled={!isAdmin}
-            />
-            <NumberField
-              name="enrichPerRun"
-              label="Detailseiten je Lauf"
-              value={settings.enrichPerRun}
-              disabled={!isAdmin}
-              hint="Holt Nebenkosten, Termin und Kontaktadresse von der Anzeigenseite. 0 = aus."
-            />
-            <NumberField
-              name="retireAfterMissedSweeps"
-              label="Läufe bis Ausblenden"
-              value={settings.retireAfterMissedSweeps}
-              disabled={!isAdmin}
-              hint="So oft darf eine Anzeige in der Ergebnisliste fehlen, bevor sie verschwindet."
-            />
-            <NumberField
-              name="priceSlack"
-              label="Preis-Puffer"
-              value={settings.priceSlack}
-              step="0.05"
-              disabled={!isAdmin}
-              hint="Suche über dem Budget, weil Portale nach Kaltmiete filtern, wir aber warm rechnen."
-            />
-          </div>
+          {/* The seven knobs are real settings, but nobody opening this page is
+              looking for "Pause je Server (ms)". Folded away, so the two things
+              that decide whether the tool works — is it on, which sources —
+              are the only things on screen. */}
+          <details className="disclosure">
+            <summary>Feineinstellungen der Suche</summary>
+            <div className="grid-3" style={{ marginTop: 12 }}>
+              <InstantNumber
+                name="sweepIntervalMinutes"
+                label="Mindestabstand (Minuten)"
+                value={settings.sweepIntervalMinutes}
+                disabled={!isAdmin}
+                hint="Häufiger als das wird nicht gesucht, egal wie oft jemand die Seite öffnet."
+              />
+              <InstantNumber
+                name="maxRequestsPerRun"
+                label="Anfragen je Lauf"
+                value={settings.maxRequestsPerRun}
+                disabled={!isAdmin}
+                hint="Obergrenze über alle Quellen zusammen."
+              />
+              <InstantNumber
+                name="perHostDelayMs"
+                label="Pause je Server (ms)"
+                value={settings.perHostDelayMs}
+                disabled={!isAdmin}
+                hint="Abstand zwischen zwei Anfragen an dieselbe Seite."
+              />
+              <InstantNumber
+                name="maxPagesPerSource"
+                label="Ergebnisseiten je Quelle"
+                value={settings.maxPagesPerSource}
+                disabled={!isAdmin}
+              />
+              <InstantNumber
+                name="enrichPerRun"
+                label="Detailseiten je Lauf"
+                value={settings.enrichPerRun}
+                disabled={!isAdmin}
+                hint="Holt Nebenkosten, Termin und Kontaktadresse von der Anzeigenseite. 0 = aus."
+              />
+              <InstantNumber
+                name="retireAfterMissedSweeps"
+                label="Läufe bis Ausblenden"
+                value={settings.retireAfterMissedSweeps}
+                disabled={!isAdmin}
+                hint="So oft darf eine Anzeige fehlen, bevor sie verschwindet."
+              />
+              <InstantNumber
+                name="priceSlack"
+                label="Preis-Puffer"
+                value={settings.priceSlack}
+                step="0.05"
+                disabled={!isAdmin}
+                hint="Suche über dem Budget, weil Portale nach Kaltmiete filtern, wir aber warm rechnen."
+              />
+            </div>
+          </details>
+
+          <p className="small muted">
+            {runs.length > 0 ? `Letzter Suchlauf: ${formatDateTime(runs[0].startedAt)}` : 'Noch kein Suchlauf.'}
+          </p>
         </div>
-        {isAdmin ? (
-          <div className="card-foot row-between">
-            <span className="small muted">
-              {runs.length > 0 ? `Letzter Lauf: ${formatDateTime(runs[0].startedAt)}` : 'Noch kein Lauf.'}
-            </span>
-            <button type="submit" className="btn primary">
-              Speichern
-            </button>
-          </div>
-        ) : null}
-      </form>
+      </div>
 
       {isAdmin ? (
         <div className="card" style={{ marginTop: 18 }}>
           <div className="card-head">
-            <h2>Quellen freischalten</h2>
+            <h2>Quellen</h2>
+            <span className="sub">
+              {enabledCount === 0
+                ? 'Keine aktiv — die Suche findet nichts.'
+                : `${enabledCount} von ${searchable.length} aktiv. Änderungen werden sofort gespeichert.`}
+            </span>
             <div className="grow" />
             <form action={runDiscoverySweepFormAction}>
-              <button className="btn sm" type="submit">
+              <button className="btn sm primary" type="submit">
                 Jetzt suchen
               </button>
             </form>
           </div>
           <div className="card-body stack">
-            {configurable.length === 0 ? (
+            {enabledCount === 0 ? (
               <Callout tone="warning">
-                Noch keine Quelle freigeschaltet — die automatische Suche findet deshalb nichts.
+                Schalten Sie unten mindestens eine Quelle ein. Es wird sofort gespeichert — kein
+                Speichern-Knopf nötig.
               </Callout>
             ) : null}
 
-            {[...configurable, ...rest].map((source) => (
-              <SourceDiscoveryForm key={source.id} source={source} choices={choices} />
-            ))}
+            {/* Sources that can actually be searched, first and on their own.
+                Everything the adapter needs is hidden until asked for: the
+                choice a colleague makes here is "search this or not", and the
+                JSON box next to it made that look like a developer's job. */}
+            <div className="source-list">
+              {searchable.map((source) => (
+                <SourceRowItem key={source.id} source={source} choices={choices} />
+              ))}
+            </div>
+
+            {unsearchable.length > 0 ? (
+              <details className="disclosure">
+                <summary>
+                  {unsearchable.length} Quellen ohne automatische Suche — nur als Link nutzbar
+                </summary>
+                <div className="source-list" style={{ marginTop: 10 }}>
+                  {unsearchable.map((source) => (
+                    <SourceRowItem key={source.id} source={source} choices={choices} />
+                  ))}
+                </div>
+              </details>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -210,7 +237,16 @@ export function DiscoverySection({
   );
 }
 
-function SourceDiscoveryForm({
+/**
+ * One source, as one line.
+ *
+ * The switch is the whole interaction and it writes immediately. Everything an
+ * adapter needs — the method, its JSON, the polling interval — sits behind
+ * "Einstellungen", because deciding whether to search a portal and configuring
+ * how to search it are different jobs, and putting a JSON box beside the
+ * switch made the first one look like the second.
+ */
+function SourceRowItem({
   source,
   choices,
 }: {
@@ -221,101 +257,106 @@ function SourceDiscoveryForm({
   const gaps = missingConfig(source.discoveryAdapter, config);
   const adapter = choices.find((c) => c.key === source.discoveryAdapter);
   const hints = source.discoveryAdapter ? adapterHints(source.discoveryAdapter) : [];
+  const blocked = !source.discoveryAdapter;
 
   return (
-    <form action={saveSourceDiscoveryFormAction} className="subcard">
-      <input type="hidden" name="sourceId" value={source.id} />
-      <div className="row-between" style={{ gap: 12, alignItems: 'flex-start' }}>
-        <div className="stack" style={{ gap: 4 }}>
-          <strong>{source.name}</strong>
-          {adapter ? <span className="small muted">{adapter.description}</span> : null}
-          {source.discoveryStatus ? (
-            <>
-              {/* A note on an "OK" source is always bad news — it only exists
-                  to say the sweep succeeded and still brought nothing back.
-                  Inside a green badge it read as reassurance. */}
-              <span className={statusTone(source.discoveryStatus, source.discoveryNote)}>
-                {statusLabel(source.discoveryStatus)}
-              </span>
-              {source.discoveryNote ? (
-                <span className="small muted">{source.discoveryNote}</span>
-              ) : null}
-            </>
+    <div className="source-item">
+      <InstantSwitch
+        checked={source.discoveryEnabled}
+        disabled={blocked}
+        label={source.name}
+        hint={
+          blocked
+            ? 'Kein Verfahren hinterlegt — unter „Einstellungen" eines wählen'
+            : (adapter?.description ?? undefined)
+        }
+        sourceId={source.id}
+      />
+
+      <div className="source-item-meta">
+        {source.discoveryStatus ? (
+          <span className={statusTone(source.discoveryStatus, source.discoveryNote)}>
+            {statusLabel(source.discoveryStatus)}
+          </span>
+        ) : null}
+        {gaps.length > 0 && source.discoveryEnabled ? (
+          <span className="badge danger">Fehlt: {gaps.join(', ')}</span>
+        ) : null}
+      </div>
+
+      {source.discoveryNote ? <p className="source-item-note">{source.discoveryNote}</p> : null}
+
+      <details className="disclosure sm">
+        <summary>Einstellungen</summary>
+        <form action={saveSourceDiscoveryFormAction} className="stack" style={{ marginTop: 10 }}>
+          <input type="hidden" name="sourceId" value={source.id} />
+          {/* The switch above owns this value; the hidden field keeps the form
+              from switching the source off just because it posted without it. */}
+          {source.discoveryEnabled ? (
+            <input type="hidden" name="discoveryEnabled" value="true" />
           ) : null}
-          {gaps.length > 0 && source.discoveryEnabled ? (
-            <span className="badge danger">Fehlende Konfiguration: {gaps.join(', ')}</span>
+
+          <div className="grid-2">
+            <div className="field">
+              <label htmlFor={`adapter-${source.id}`}>Verfahren</label>
+              <select
+                id={`adapter-${source.id}`}
+                name="discoveryAdapter"
+                className="input"
+                defaultValue={source.discoveryAdapter ?? ''}
+              >
+                <option value="">— keine automatische Suche —</option>
+                {choices.map((c) => (
+                  <option key={c.key} value={c.key}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor={`poll-${source.id}`}>Prüfabstand (Minuten)</label>
+              <input
+                id={`poll-${source.id}`}
+                name="pollIntervalMinutes"
+                type="number"
+                min={5}
+                className="input"
+                defaultValue={source.pollIntervalMinutes ?? ''}
+                placeholder="Standard"
+              />
+            </div>
+          </div>
+
+          <div className="field">
+            <label htmlFor={`config-${source.id}`}>Konfiguration (JSON)</label>
+            <textarea
+              id={`config-${source.id}`}
+              name="config"
+              className="input"
+              rows={3}
+              defaultValue={JSON.stringify(config, null, 1)}
+            />
+          </div>
+
+          {hints.length > 0 ? (
+            <ul className="small muted">
+              {hints.map((h) => (
+                <li key={h.key}>
+                  <code>{h.key}</code>
+                  {h.required ? ' (nötig)' : ' (optional)'} — {h.hint}
+                </li>
+              ))}
+            </ul>
           ) : null}
-        </div>
-        <div className="checkline">
-          <input
-            id={`enabled-${source.id}`}
-            name="discoveryEnabled"
-            type="checkbox"
-            value="true"
-            defaultChecked={source.discoveryEnabled}
-          />
-          <label htmlFor={`enabled-${source.id}`}>aktiv</label>
-        </div>
-      </div>
 
-      <div className="grid-2" style={{ marginTop: 10 }}>
-        <div>
-          <label htmlFor={`adapter-${source.id}`}>Verfahren</label>
-          <select
-            id={`adapter-${source.id}`}
-            name="discoveryAdapter"
-            className="input"
-            defaultValue={source.discoveryAdapter ?? ''}
-          >
-            <option value="">— keine automatische Suche —</option>
-            {choices.map((c) => (
-              <option key={c.key} value={c.key}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor={`config-${source.id}`}>Konfiguration (JSON)</label>
-          <textarea
-            id={`config-${source.id}`}
-            name="config"
-            className="input"
-            rows={3}
-            defaultValue={JSON.stringify(config, null, 1)}
-          />
-        </div>
-      </div>
-
-      {hints.length > 0 ? (
-        <ul className="small muted" style={{ marginTop: 8 }}>
-          {hints.map((h) => (
-            <li key={h.key}>
-              <code>{h.key}</code>
-              {h.required ? ' (nötig)' : ' (optional)'} — {h.hint}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      <div className="row" style={{ marginTop: 10, gap: 8, alignItems: 'flex-end' }}>
-        <div style={{ maxWidth: 190 }}>
-          <label htmlFor={`poll-${source.id}`}>Prüfabstand (Minuten)</label>
-          <input
-            id={`poll-${source.id}`}
-            name="pollIntervalMinutes"
-            type="number"
-            min={5}
-            className="input"
-            defaultValue={source.pollIntervalMinutes ?? ''}
-            placeholder="Standard"
-          />
-        </div>
-        <button className="btn sm" type="submit">
-          Speichern
-        </button>
-      </div>
-    </form>
+          <div className="row" style={{ justifyContent: 'flex-end' }}>
+            <button className="btn sm" type="submit">
+              Übernehmen
+            </button>
+          </div>
+        </form>
+      </details>
+    </div>
   );
 }
 
