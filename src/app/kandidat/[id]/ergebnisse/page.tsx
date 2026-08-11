@@ -329,14 +329,7 @@ export default async function ErgebnissePage({
           </Empty>
         </div>
       ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: selected ? 'minmax(0,1fr) 420px' : 'minmax(0,1fr)',
-            gap: 20,
-            alignItems: 'start',
-          }}
-        >
+        <div className={`results-grid ${selected ? 'with-pane' : ''}`}>
           <div className="card">
             {matches.map((m, i) => {
               const l = m.listing;
@@ -378,8 +371,21 @@ export default async function ErgebnissePage({
                   href={`/kandidat/${id}/ergebnisse?tab=${tab}&listing=${l.id}`}
                   className={`listing ${selected?.listingId === l.id ? 'selected' : ''}`}
                 >
-                  <span className={`listing-score ${scoreCls}`}>
-                    {m.compatibility === 'INCOMPATIBLE' ? '×' : Math.round(m.score)}
+                  {/* The photo, where the portal published one. A flat is a
+                      place, and half a second of looking at it rules out more
+                      than three lines of text do. */}
+                  <span className="listing-photo">
+                    {l.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={l.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
+                    ) : (
+                      <span className="listing-photo-empty" aria-hidden>
+                        ⌂
+                      </span>
+                    )}
+                    <span className={`listing-score ${scoreCls}`}>
+                      {m.compatibility === 'INCOMPATIBLE' ? '×' : Math.round(m.score)}
+                    </span>
                   </span>
                   <span className="listing-main">
                     <span className="listing-title">
@@ -546,6 +552,7 @@ interface DetailMatch {
     id: string;
     title: string;
     rawUrl: string;
+    imageUrl: string | null;
     descriptionRaw: string;
     locationRaw: string;
     locationCity: string | null;
@@ -615,18 +622,34 @@ async function DetailPane({
   const comp = COMPATIBILITY[match.compatibility] ?? COMPATIBILITY.INSUFFICIENT_DATA;
 
   return (
-    <aside className="stack" style={{ position: 'sticky', top: 76 }}>
-      <div className="card">
-        <div className="card-head">
-          <div className="row-wrap">
-            <span className={`badge ${comp.tone}`}>{comp.label}</span>
-            <span className="badge brand">{Math.round(match.score)} Punkte</span>
-          </div>
-          <Link href={`/kandidat/${candidateId}/ergebnisse?tab=${tab}`} className="btn ghost sm">
-            Schließen
-          </Link>
+    /* A column of its own height, not a card that scrolls with the page.
+       Scrolling the page pushed the buttons off the bottom of the screen, so
+       the thing the pane exists for — writing to this landlord — was the first
+       thing to disappear. The middle scrolls; the verdict at the top and the
+       actions at the bottom stay put. */
+    <aside className="pane">
+      <div className="pane-head">
+        <div className="row-wrap">
+          <span className={`badge ${comp.tone}`}>{comp.label}</span>
+          <span className="badge brand">{Math.round(match.score)} Punkte</span>
         </div>
-        <div className="card-body stack">
+        <Link
+          href={`/kandidat/${candidateId}/ergebnisse?tab=${tab}`}
+          className="btn ghost sm"
+          aria-label="Detailansicht schließen"
+        >
+          Schließen
+        </Link>
+      </div>
+
+      <div className="pane-scroll">
+        <div className="stack">
+          {l.imageUrl ? (
+            <a href={l.rawUrl} target="_blank" rel="noopener noreferrer" className="pane-photo">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={l.imageUrl} alt={l.title} referrerPolicy="no-referrer" />
+            </a>
+          ) : null}
           <h3>{l.title}</h3>
           <div className="row-wrap">
             <span className="badge">{l.source.name}</span>
@@ -745,28 +768,10 @@ async function DetailPane({
           <a href={l.rawUrl} target="_blank" rel="noopener noreferrer" className="small">
             Original-Anzeige öffnen ↗
           </a>
-        </div>
-      </div>
 
-      <div className="card card-body stack">
-        <ContactFlow
-          candidateCaseId={candidateId}
-          listingId={l.id}
-          listingUrl={l.rawUrl}
-          message={message}
-          status={match.status}
-          alreadyContactedWarning={
-            otherContact
-              ? `Diese Wohnung wurde am ${formatDate(otherContact.contactedAt)} von ${
-                  otherContact.user.name
-                } bereits für Kandidat ${otherContact.candidateCase.reference} kontaktiert.`
-              : null
-          }
-          contactEmail={l.contactEmail}
-          sendingEnabled={sendingEnabled}
-        />
+          <div className="divider" />
 
-        <form action={setFollowUpAction} className="stack-sm">
+          <form action={setFollowUpAction} className="stack-sm">
           <input type="hidden" name="candidateCaseId" value={candidateId} />
           <input type="hidden" name="listingId" value={l.id} />
           <label htmlFor={`wv-${l.id}`}>Wiedervorlage — später nochmal ansehen</label>
@@ -826,6 +831,28 @@ async function DetailPane({
             ) : null}
           </div>
         ) : null}
+        </div>
+      </div>
+
+      {/* Always on screen, however far the text above has been scrolled: this
+          is the one thing somebody opened the pane to do. */}
+      <div className="pane-foot">
+        <ContactFlow
+          candidateCaseId={candidateId}
+          listingId={l.id}
+          listingUrl={l.rawUrl}
+          message={message}
+          status={match.status}
+          alreadyContactedWarning={
+            otherContact
+              ? `Diese Wohnung wurde am ${formatDate(otherContact.contactedAt)} von ${
+                  otherContact.user.name
+                } bereits für Kandidat ${otherContact.candidateCase.reference} kontaktiert.`
+              : null
+          }
+          contactEmail={l.contactEmail}
+          sendingEnabled={sendingEnabled}
+        />
       </div>
     </aside>
   );
