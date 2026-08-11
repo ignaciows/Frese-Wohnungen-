@@ -74,14 +74,8 @@ export function DiscoverySection({
             checked={settings.enabled}
             disabled={!isAdmin}
             label="Automatische Suche aktiv"
-            hint="Aus heißt: es wird gar nicht mehr gesucht."
+            hint="Aus = es wird nicht gesucht."
           />
-
-          <Callout tone="info">
-            Es werden nur Quellen abgefragt, die unten eingeschaltet sind. Die App hält sich an die
-            robots.txt jeder Seite und begrenzt jeden Lauf. Portale, die automatische Abrufe sperren
-            (ImmoScout24, Immowelt), bleiben beim E-Mail-Suchauftrag.
-          </Callout>
 
           {/* The seven knobs are real settings, but nobody opening this page is
               looking for "Pause je Server (ms)". Folded away, so the two things
@@ -95,7 +89,7 @@ export function DiscoverySection({
                 label="Mindestabstand (Minuten)"
                 value={settings.sweepIntervalMinutes}
                 disabled={!isAdmin}
-                hint="Häufiger als das wird nicht gesucht, egal wie oft jemand die Seite öffnet."
+                hint="Kürzester Abstand zwischen zwei Suchläufen."
               />
               <InstantNumber
                 name="maxRequestsPerRun"
@@ -109,7 +103,7 @@ export function DiscoverySection({
                 label="Pause je Server (ms)"
                 value={settings.perHostDelayMs}
                 disabled={!isAdmin}
-                hint="Abstand zwischen zwei Anfragen an dieselbe Seite."
+                hint="Pause zwischen zwei Abrufen."
               />
               <InstantNumber
                 name="maxPagesPerSource"
@@ -122,14 +116,14 @@ export function DiscoverySection({
                 label="Detailseiten je Lauf"
                 value={settings.enrichPerRun}
                 disabled={!isAdmin}
-                hint="Holt Nebenkosten, Termin und Kontaktadresse von der Anzeigenseite. 0 = aus."
+                hint="0 = aus."
               />
               <InstantNumber
                 name="retireAfterMissedSweeps"
                 label="Läufe bis Ausblenden"
                 value={settings.retireAfterMissedSweeps}
                 disabled={!isAdmin}
-                hint="So oft darf eine Anzeige fehlen, bevor sie verschwindet."
+                hint="Fehlt sie so oft, verschwindet sie."
               />
               <InstantNumber
                 name="priceSlack"
@@ -137,7 +131,7 @@ export function DiscoverySection({
                 value={settings.priceSlack}
                 step="0.05"
                 disabled={!isAdmin}
-                hint="Suche über dem Budget, weil Portale nach Kaltmiete filtern, wir aber warm rechnen."
+                hint="Sucht etwas über dem Budget."
               />
             </div>
           </details>
@@ -166,10 +160,7 @@ export function DiscoverySection({
           </div>
           <div className="card-body stack">
             {enabledCount === 0 ? (
-              <Callout tone="warning">
-                Schalten Sie unten mindestens eine Quelle ein. Es wird sofort gespeichert — kein
-                Speichern-Knopf nötig.
-              </Callout>
+              <Callout tone="warning">Mindestens eine Quelle einschalten.</Callout>
             ) : null}
 
             {/* Sources that can actually be searched, first and on their own.
@@ -256,10 +247,29 @@ function SourceRowItem({
 }) {
   const config = (source.discoveryConfig as Record<string, unknown>) ?? {};
   const gaps = missingConfig(source.discoveryAdapter, config);
-  const adapter = choices.find((c) => c.key === source.discoveryAdapter);
   const hints = source.discoveryAdapter ? adapterHints(source.discoveryAdapter) : [];
   const blocked = !source.discoveryAdapter;
   const state = sourceState(source, gaps);
+
+  // A source the code cannot read has nothing to configure, and rendering the
+  // full form for each of the eighty-odd of them put a method dropdown, a JSON
+  // box and a list of hints into the page eighty times over — most of the
+  // markup on the page, for rows nobody can switch on. Name and lamp is the
+  // whole truth about them.
+  if (blocked) {
+    return (
+      <div className="source-item">
+        <div className="switch-row is-disabled">
+          <span className="switch-track" aria-hidden>
+            <span className="switch-thumb" />
+          </span>
+          <span className="switch-text">
+            <span className="switch-label">{source.name}</span>
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="source-item">
@@ -267,11 +277,11 @@ function SourceRowItem({
         checked={source.discoveryEnabled}
         disabled={blocked}
         label={source.name}
-        hint={
-          blocked
-            ? 'Kein Verfahren hinterlegt — unter „Einstellungen" eines wählen'
-            : (adapter?.description ?? undefined)
-        }
+        // No hint on the row. The adapter's description is the same sentence
+        // on every source that uses it — printed fifty times it was most of
+        // the page, and it says nothing about *this* source. What is specific
+        // to the row is its state, and that is the lamp underneath.
+        hint={undefined}
         sourceId={source.id}
       />
 
@@ -282,7 +292,12 @@ function SourceRowItem({
         </span>
       </div>
 
-      {state.todo ? <p className="source-item-note">{state.todo}</p> : null}
+      {/* Only where somebody has to act. On the rows that are simply off, or
+          link-only, the note repeated one identical sentence down the whole
+          list and buried the few that needed attention. */}
+      {state.todo && (state.readiness === 'SETUP' || state.readiness === 'BLOCKED') ? (
+        <p className="source-item-note">{state.todo}</p>
+      ) : null}
 
       <details className="disclosure sm">
         <summary>Technische Einstellungen — nur wenn nötig</summary>
@@ -557,22 +572,13 @@ export function AccountsSection({
             Portal-Zugänge
           </h3>
           <p className="small muted" style={{ marginTop: 0 }}>
-            Damit klar ist, mit welchem Konto bei welchem Portal gearbeitet wird. Angemeldet wird sich
-            weiterhin im Portal selbst: automatisches Einloggen verstößt gegen deren Nutzungsbedingungen,
-            und gesperrt würde genau das Firmenkonto, mit dem die Anfragen geschrieben werden.
-            „Prüfen&ldquo; testet deshalb nicht die Anmeldung, sondern ob das gespeicherte Passwort noch
-            lesbar ist — das ist der Fehler, der wirklich passiert und den sonst niemand bemerkt.
+            Anmelden müssen Sie sich weiterhin selbst. „Prüfen&ldquo; testet, ob das gespeicherte
+            Passwort noch lesbar ist.
           </p>
 
-          {/* The answer to "can the app search ImmoScout and Immowelt for us?".
-              It can, but not by logging in — by letting the portal push. */}
           <Callout tone="info">
-            <strong>ImmoScout24 und Immowelt lassen sich nicht auslesen</strong> — sie sperren
-            automatische Abrufe (ImmoScout24 antwortet auf jede Anfrage außerhalb eines Browsers mit
-            HTTP 401). Der Weg, der funktioniert und erlaubt ist: im Portal mit dem Firmenkonto einen
-            <strong> Suchauftrag</strong> anlegen und die Treffer-Mails an das oben eingerichtete
-            Postfach schicken lassen. Das Portal schickt neue Anzeigen dann von selbst, meist innerhalb
-            von Minuten, und die App liest Titel, Preis und Link automatisch daraus.
+            <strong>ImmoScout24 und Immowelt sperren automatische Abrufe.</strong> Dort im Portal einen
+            Suchauftrag anlegen, der an das Postfach oben schickt.
           </Callout>
 
           {portals.length === 0 ? (
@@ -656,7 +662,7 @@ export function AccountsSection({
               label="Absenderadresse"
               value={outbound.fromAddress}
               disabled={!isAdmin}
-              hint="Muss Plus-Adressen annehmen (name+kennung@…) — daran wird jede Antwort erkannt."
+              hint="Muss name+kennung@… annehmen."
             />
             <TextField
               name="subjectTemplate"
@@ -670,7 +676,7 @@ export function AccountsSection({
               label="Max. Anfragen pro Stunde"
               value={outbound.maxPerHour}
               disabled={!isAdmin}
-              hint="Gilt für das ganze Team. Schützt die Absenderadresse vor Sperren."
+              hint="Für das ganze Team."
             />
           </div>
         </div>
@@ -742,17 +748,12 @@ function MailboxForm({ existing }: { existing?: PortalAccountView }) {
       <input type="hidden" name="siteKey" value="mailbox" />
       {existing ? <input type="hidden" name="id" value={existing.id} /> : null}
       <strong className="small">{existing ? 'Postfach bearbeiten' : 'Postfach einrichten'}</strong>
-      {/* The decision people get wrong: pointing this at the address they
-          already use for everything. The portals send one mail per matching
-          advert, several times a day, per saved search — a working inbox is
-          unusable within a week, and the flat that mattered is buried under
-          ninety alerts. */}
+      {/* The one mistake worth preventing here: pointing this at the address
+          already used for everything. Several alerts a day per saved search
+          make a working inbox unusable within a week. */}
       <Callout tone="warning">
-        <strong>Bitte eine eigene Adresse anlegen</strong>, nur für die Suchaufträge — etwa
-        <code> wohnungen@…</code>. Die Portale schicken pro gespeicherter Suche mehrere Mails am Tag;
-        in einem Postfach, das auch für alles andere genutzt wird, geht danach beides unter. Diese
-        Adresse liest nur die App: sie holt die Anzeigen heraus und ordnet sie dem richtigen
-        Kandidaten zu. Antworten von Vermietern landen weiterhin dort, wo sie hingehören.
+        <strong>Eigene Adresse verwenden</strong> — z. B. <code>wohnungen@…</code>. Nicht das normale
+        Firmenpostfach: die Portale schicken täglich mehrere Mails.
       </Callout>
       <div className="grid-2">
         <TextField idPrefix="mb-" name="label" label="Bezeichnung" value={existing?.label ?? 'Wohnungssuche-Postfach'} />
@@ -813,8 +814,7 @@ function PortalAccountForm({ sources }: { sources: Array<{ id: string; key: stri
       <input type="hidden" name="active" value="true" />
       <strong className="small">Zugang zu einem Portal hinterlegen</strong>
       <p className="small muted" style={{ margin: 0 }}>
-        Damit kann die App sich dort anmelden und Anfragen für Sie verschicken. Das Passwort wird
-        verschlüsselt gespeichert und nie wieder angezeigt.
+        Passwort wird verschlüsselt gespeichert und nie wieder angezeigt.
       </p>
 
       <div className="grid-3">
@@ -862,14 +862,14 @@ function PortalAccountForm({ sources }: { sources: Array<{ id: string; key: stri
             name="replyToAddress"
             label="Antworten kommen an"
             value=""
-            hint="Nur ausfüllen, wenn das Portal Antworten an eine andere Adresse schickt."
+            hint="Nur bei abweichender Antwortadresse."
           />
           <TextField
             idPrefix="pa-"
             name="profileUrl"
             label="Login-Adresse"
             value=""
-            hint="Nur nötig, wenn die Anmeldeseite nicht die Startseite ist."
+            hint="Nur wenn abweichend."
           />
           <TextField idPrefix="pa-" name="label" label="Eigener Name für diesen Zugang" value="" hint="Sonst der Name des Portals." />
           <TextField idPrefix="pa-" name="note" label="Notiz" value="" />

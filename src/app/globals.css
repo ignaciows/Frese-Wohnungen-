@@ -1557,3 +1557,110 @@ a.today:hover {
 .today.reply .today-num {
   color: var(--success);
 }
+
+/* ====================================================== bigger & clearer ===
+   A second pass on scale and state. The screen is read across a desk, often
+   in a hurry, by people who did not build it — so the type goes up a step,
+   the buttons get big enough to hit without aiming, and every switchable
+   thing shows plainly whether it is on. Nothing here changes the palette. */
+
+body {
+  font-size: 17px;
+}
+
+.btn {
+  min-height: 48px;
+  padding: 11px 20px;
+  font-size: 16.5px;
+}
+.btn.sm {
+  min-height: 42px;
+  padding: 8px 16px;
+  font-size: 15px;
+}
+.btn.lg {
+  min-height: 56px;
+  font-size: 18px;
+  padding: 14px 28px;
+}
+/* The primary action on a card should be findable without reading. */
+.btn.primary {
+  box-shadow: 0 1px 2px rgb(14 124 134 / 0.25);
+}
+.btn.primary:hover {
+  box-shadow: 0 3px 10px rgb(14 124 134 / 0.3);
+}
+
+h1 { font-size: 30px; }
+h2 { font-size: 21px; }
+h3 { font-size: 18px; }
+
+.input,
+.input:is(select, textarea) {
+  min-height: 48px;
+  font-size: 16.5px;
+}
+
+/* --- the step path, read as a game board ---------------------------------
+   Three states that must be distinguishable at a glance and not only by a
+   tick: finished recedes, the current one is the only thing with weight, and
+   what comes later is visibly not yet your problem. */
+.step {
+  padding: 16px 18px;
+}
+.step-title {
+  font-size: 17px;
+  font-weight: 650;
+}
+.step-desc {
+  font-size: 14.5px;
+}
+.step-num {
+  width: 34px;
+  height: 34px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.step.done {
+  opacity: 0.62;
+}
+.step.done .step-num {
+  background: var(--success-soft);
+  color: var(--success);
+  border-color: var(--success-border);
+}
+.step.active {
+  border-color: var(--brand);
+  border-width: 2px;
+  /* A ring rather than a fill: it marks the row without shouting over the
+     numbers inside it. */
+  box-shadow: 0 0 0 4px rgb(14 124 134 / 0.1);
+}
+.step.active .step-num {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}
+/* Neither done nor current: dimmed, so the eye skips it. */
+.step:not(.done):not(.active) {
+  opacity: 0.75;
+}
+
+/* --- on / off, everywhere it appears -------------------------------------
+   A card whose feature is switched off should look switched off, rather than
+   looking identical to one that is working. */
+.card.is-off {
+  opacity: 0.72;
+  background: var(--surface-2);
+}
+
+/* Labels sit above their control and are read first; at 13px they were being
+   skipped, which is how a field ends up filled in wrongly. */
+label {
+  font-size: 15px;
+  font-weight: 600;
+}
+.field-hint,
+.switch-hint {
+  font-size: 14px;
+}
