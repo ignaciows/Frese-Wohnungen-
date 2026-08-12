@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { isPlausibleHousing, type PlausibilityLimits } from '@/domain/discovery/plausible';
 import { DEFAULT_QUALITY } from '@/server/settings';
-import { classify, score, timingSubscore, DEFAULT_WEIGHTS } from '@/domain/ranking';
+import {
+  classify,
+  score,
+  timingSubscore,
+  certaintyCap,
+  DEFAULT_WEIGHTS,
+  MAX_SCORE,
+} from '@/domain/ranking';
 import type { RankingListing, RankingProfile } from '@/domain/ranking';
 
 const LIMITS: PlausibilityLimits = {
@@ -171,5 +178,53 @@ describe('short-stay platforms', () => {
   it('allows them in Notfallmodus, which is what that mode is for', () => {
     const r = classify(listing({ shortStayProvider: true }), profile({ temporaryMode: true }));
     expect(r.compatibility).not.toBe('INCOMPATIBLE');
+  });
+});
+
+describe('the ceiling', () => {
+  it('never reaches 100, even with everything known and perfect', () => {
+    const perfect = score(
+      listing({
+        availableFrom: d('2026-10-01T00:00:00Z'),
+        effectiveMonthlyCents: 40_000,
+        monthlyTotalComplete: true,
+        distanceKm: 1,
+        commuteMinutes: 3,
+        rooms: 2,
+        furnishing: 'FULLY_FURNISHED',
+      }),
+      profile({ furnished: 'EITHER', preferredRooms: 2 }),
+    );
+    expect(perfect.score).toBeLessThanOrEqual(MAX_SCORE);
+    expect(perfect.score).toBeLessThan(100);
+  });
+
+  it('caps a flat whose distance nobody could compute', () => {
+    const { cap, missing } = certaintyCap(
+      listing({ distanceKm: null, commuteMinutes: null, availableFrom: d('2026-10-01T00:00:00Z') }),
+      profile(),
+    );
+    expect(cap).toBe(85);
+    expect(missing).toContain('Entfernung unbekannt');
+  });
+
+  it('caps hardest on the advert that names no move-in date', () => {
+    const { cap } = certaintyCap(listing({ availableFrom: null }), profile());
+    expect(cap).toBe(82);
+  });
+
+  it('holds the score down to the cap, however good the rest is', () => {
+    const r = score(
+      listing({
+        availableFrom: null,
+        distanceKm: null,
+        commuteMinutes: null,
+        effectiveMonthlyCents: 30_000,
+        monthlyTotalComplete: true,
+      }),
+      profile(),
+    );
+    expect(r.score).toBeLessThanOrEqual(82);
+    expect(r.breakdown.cap).toBe(82);
   });
 });

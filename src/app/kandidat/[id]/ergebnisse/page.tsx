@@ -24,6 +24,7 @@ import {
 import { listingAge, passesAgeFilter, describeAgeFilter } from '@/domain/timing/age';
 import { DEAD_LISTING, liveListingFilter, limboListingFilter } from '@/server/listingFilters';
 import { assessRent } from '@/domain/rent';
+import { MAX_SCORE } from '@/domain/ranking';
 import {
   bandOf,
   describeBand,
@@ -558,14 +559,30 @@ function rentOf(l: {
   });
 }
 
+/**
+ * The number the row shows, and the number the list sorts by.
+ *
+ * Freshness moves it — a confirmed-live advert posted this morning outranks an
+ * equally good one nobody could verify — but it can never push a listing past
+ * the ceiling its own unknowns impose. Without that clamp the bonus produced a
+ * green **100** on an advert whose row simultaneously said the distance was
+ * unknown and no move-in date was given, which is the screen arguing with
+ * itself. See certaintyCap() in domain/ranking.
+ */
 function effectiveScore(
   match: {
     score: number;
+    breakdown?: unknown;
     listing: { onlineConfidence: number | null; postedAt: Date | null; firstSeenAt: Date | null };
   },
   policy: LivenessPolicy,
 ): number {
-  return match.score * livenessScoreFactor(match.listing, policy);
+  const boosted = match.score * livenessScoreFactor(match.listing, policy);
+  const cap =
+    match.breakdown && typeof match.breakdown === 'object' && 'cap' in match.breakdown
+      ? Number((match.breakdown as { cap: unknown }).cap) || MAX_SCORE
+      : MAX_SCORE;
+  return Math.min(boosted, cap, MAX_SCORE);
 }
 
 interface DetailMatch {
