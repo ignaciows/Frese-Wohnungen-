@@ -38,12 +38,28 @@ function toRankingListing(l: Awaited<ReturnType<typeof loadListing>>, profile: R
     // from disagreeing about what a listing's location is.
     locationPostal: l.locationPostal,
     locationCity: l.locationCity,
+    availableFrom: l.availableFrom,
+    // Judged by the source's category, not by the advert's wording: a
+    // Wunderflats listing reads exactly like a normal flat and is let by the
+    // month with no move-in date. See RankingListing.shortStayProvider.
+    shortStayProvider: SHORT_STAY_CATEGORIES.has(l.source?.category ?? ''),
   };
 }
 
+/**
+ * Categories whose whole inventory is temporary accommodation.
+ *
+ * FURNISHED covers Wunderflats, HousingAnywhere and Spotahome; TEMPORARY
+ * covers Monteurzimmer and Boardinghouses. Nothing on either is a flat somebody
+ * signs a lease for, which is what these cases need.
+ */
+const SHORT_STAY_CATEGORIES = new Set(['FURNISHED', 'TEMPORARY']);
+
 async function loadListing(id: string) {
-  const l = await prisma.listing.findUniqueOrThrow({ where: { id } });
-  return l;
+  return prisma.listing.findUniqueOrThrow({
+    where: { id },
+    include: { source: { select: { category: true } } },
+  });
 }
 
 function profileFromDb(p: {
@@ -61,6 +77,7 @@ function profileFromDb(p: {
   temporaryMode: boolean;
   workplacePostalCode?: string | null;
   workplaceCity?: string | null;
+  moveInDate?: Date | null;
 }): RankingProfile {
   return {
     workplaceLat: p.workplaceLat,
@@ -77,6 +94,7 @@ function profileFromDb(p: {
     temporaryMode: p.temporaryMode,
     workplacePostalCode: p.workplacePostalCode ?? null,
     workplaceCity: p.workplaceCity ?? null,
+    moveInDate: p.moveInDate ?? null,
   };
 }
 
@@ -124,7 +142,9 @@ export async function recomputeAllForCandidate(candidateCaseId: string): Promise
   });
   if (!candidate.searchProfile) return;
   const profile = profileFromDb(candidate.searchProfile);
-  const listings = await prisma.listing.findMany();
+  const listings = await prisma.listing.findMany({
+    include: { source: { select: { category: true } } },
+  });
   for (const l of listings) {
     const result = rank(toRankingListing(l, profile), profile);
     await prisma.candidateListingMatch.upsert({

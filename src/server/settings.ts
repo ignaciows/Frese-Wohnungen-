@@ -31,6 +31,7 @@ export const SETTING_KEYS = {
   outbound: 'outbound',
   followUp: 'followUp',
   ageFilter: 'ageFilter',
+  quality: 'quality',
 } as const;
 
 export interface DiscoverySettings {
@@ -133,6 +134,37 @@ export const DEFAULT_SYSTEM_TRANSFER: SystemTransferSettings = {
   locationLabel: 'Ort',
 };
 
+/**
+ * What cannot be a flat for one of our candidates.
+ *
+ * Every portal search returns things that are technically adverts and
+ * practically impossible: a room at 100 € a month, a "flat" with twenty rooms,
+ * a place let for four weeks around a trade fair. They are not errors in the
+ * parser — the portals really do list them — and each one is a line a
+ * colleague has to read past. The bounds are settings rather than constants
+ * because "impossible" depends on the town and the year.
+ */
+export interface QualitySettings {
+  /** Nobody moves into a flat at this price; below it, it is a room or a night. */
+  minMonthlyEuros: number;
+  /** Above it, it is a house, a holiday let or a typo. Independent of a candidate's own budget. */
+  maxMonthlyEuros: number;
+  /** A twenty-room "flat" is a building. */
+  maxRooms: number;
+  /** Below this, it is a room in a shared flat however it is labelled. */
+  minSqm: number;
+  /** Reject adverts whose own words say the let is by the week or for a season. */
+  rejectShortStay: boolean;
+}
+
+export const DEFAULT_QUALITY: QualitySettings = {
+  minMonthlyEuros: 250,
+  maxMonthlyEuros: 2500,
+  maxRooms: 6,
+  minSqm: 15,
+  rejectShortStay: true,
+};
+
 async function readSetting<T>(key: string, fallback: T): Promise<T> {
   try {
     const row = await prisma.appSetting.findUnique({ where: { key } });
@@ -186,6 +218,10 @@ export function getFollowUpSettings(): Promise<FollowUpSettings> {
 
 export function getAgeFilterSettings(): Promise<AgeFilterSettings> {
   return readSetting(SETTING_KEYS.ageFilter, DEFAULT_AGE_FILTER);
+}
+
+export function getQualitySettings(): Promise<QualitySettings> {
+  return readSetting(SETTING_KEYS.quality, DEFAULT_QUALITY);
 }
 
 export async function writeSetting(key: string, value: object, userId: string): Promise<void> {

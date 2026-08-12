@@ -104,14 +104,6 @@ function TrackRow({
   return (
     <div className={`tl-row stage-${track.stage.toLowerCase()}`}>
       <Link className="tl-axis-label tl-flat" href={`/kandidat/${candidateId}/ergebnisse?listing=${f.id}&tab=alle`}>
-        <span className="tl-thumb">
-          {f.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={f.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
-          ) : (
-            <span aria-hidden>⌂</span>
-          )}
-        </span>
         <span className="tl-flat-text">
           <span className="tl-flat-title">{f.title}</span>
           <span className="tl-flat-sub">

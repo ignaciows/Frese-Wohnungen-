@@ -2900,3 +2900,101 @@ label {
   border-radius: var(--radius-sm);
   padding: 10px 14px;
 }
+
+/* ============================================ scores you can read across ===
+   The verdict was a pale tint with quiet text — at arm's length a "passend"
+   and a "nicht passend" row looked the same. The score box is now a filled
+   chip in the verdict's colour, big enough to be the first thing the eye
+   lands on. */
+.listing-photo,
+.live-thumb,
+.tl-thumb {
+  display: none;
+}
+.listing {
+  grid-template-columns: 62px minmax(0, 1fr) auto;
+}
+.listing-score {
+  width: 58px;
+  height: 52px;
+  border-radius: 14px;
+  font-size: 21px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  background: var(--neutral-soft);
+  color: var(--text-muted);
+  border: none;
+  box-shadow: inset 0 0 0 1px rgba(15, 36, 41, 0.06);
+}
+.listing-score.good {
+  background: linear-gradient(180deg, #17916d, #0f7a5b);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(18, 121, 90, 0.35);
+}
+.listing-score.mid {
+  background: linear-gradient(180deg, #f0a52a, #d98b0e);
+  color: #3a2600;
+  box-shadow: 0 2px 8px rgba(217, 139, 14, 0.3);
+}
+.listing-score.bad {
+  background: var(--danger-soft);
+  color: var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger-border);
+}
+/* The verdict badge beside it, in the same three colours and no longer pastel. */
+.badge.success {
+  background: #e2f4ec;
+  color: #0c6247;
+  border-color: #9ed3bf;
+  font-weight: 650;
+}
+.badge.warning {
+  background: #fdf0d6;
+  color: #7a4e00;
+  border-color: #eccb8e;
+  font-weight: 650;
+}
+
+/* A row is a link plus one button that leaves the app. */
+.listing-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding-right: 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  transition: background 0.15s ease;
+}
+.listing-row:last-child {
+  border-bottom: none;
+}
+.listing-row:hover {
+  background: var(--surface-2);
+}
+.listing-row .listing {
+  border-bottom: none;
+  background: transparent;
+}
+.listing-open {
+  flex: none;
+  opacity: 0.75;
+}
+.listing-row:hover .listing-open {
+  opacity: 1;
+  border-color: var(--brand-border);
+  color: var(--brand);
+}
+
+/* Live cards without a photo are text cards; give them a left accent instead. */
+.live-card {
+  border-left: 3px solid var(--border);
+}
+.live-card.is-new {
+  border-left-color: var(--brand);
+}
+.live-new {
+  position: static;
+  align-self: flex-start;
+  margin-bottom: 2px;
+}

@@ -18,6 +18,11 @@ Klassifikation in `COMPATIBLE`, `NEAR_MATCH`, `INCOMPATIBLE`,
 - `furnished = REQUIRED` + Anzeige `UNFURNISHED` / `FURNITURE_TAKEOVER`.
 - `exchangeRequired = YES`.
 - `TEMPORARY`-Objekt außerhalb des Notfall-Modus.
+- Anbieter, die ausschließlich auf Zeit vermieten (Quellen-Kategorie
+  `FURNISHED` / `TEMPORARY`, z. B. Wunderflats, HousingAnywhere) — außerhalb
+  des Notfall-Modus. Diese Anzeigen lesen sich wie normale Wohnungen, nennen
+  aber kein Einzugsdatum und enden nach Wochen. Sie werden zusätzlich gar
+  nicht erst durchsucht, solange kein Kandidat im Notfallmodus steht.
 
 **Unbekannte Werte blockieren nicht.** Sie erzeugen sichtbare Soft-Flags und
 verschieben die Anzeige nach `NEAR_MATCH` bzw. reduzieren die Datenqualität.
@@ -26,11 +31,33 @@ verschieben die Anzeige nach `NEAR_MATCH` bzw. reduzieren die Datenqualität.
 
 Gewichtung (Default, in `DEFAULT_WEIGHTS`):
 
-- Möblierung: **35 %**
-- Zimmer-Passung: **25 %**
-- Budget: **20 %**
-- Anfahrt / Entfernung: **15 %**
+- Preis: **25 %**
+- Weg zur Arbeit: **20 %**
+- Einzugstermin: **20 %**
+- Zimmer-Passung: **15 %**
+- Möblierung: **15 %**
 - Datenvollständigkeit: **5 %**
+
+Die frühere Gewichtung stellte die Möblierung mit 35 % über Preis und
+Entfernung zusammen und bewertete den Einzugstermin überhaupt nicht — für
+Menschen, die an einem bekannten Tag ankommen, an einer bekannten Klinik
+arbeiten und ein bekanntes Budget haben, ist das die falsche Reihenfolge.
+
+### Einzugstermin-Subscore
+
+| Lage                                    | Punkte |
+| --------------------------------------- | ------ |
+| Frei vor der Ankunft                     | 100    |
+| Mehr als 60 Tage vorher frei             | 80     |
+| Bis 7 Tage Lücke                         | 80     |
+| 8–30 Tage Lücke                          | 50     |
+| Über 30 Tage Lücke                       | 15     |
+| Anzeige nennt **kein** Einzugsdatum      | 35     |
+| Kein Ankunftsdatum im Profil             | 70     |
+
+Eine Anzeige ohne Datum steht bewusst unter einer, die zwei Wochen zu spät
+frei wird: „frei ab" ist das Erste, was ein echtes Mietangebot nennt, und eine
+Wohnung, die sich nicht auf die Zeitleiste legen lässt, kann niemand planen.
 
 Alle Subscores skalieren 0–100; der gewichtete Mittelwert wird auf 0–100
 normalisiert.
