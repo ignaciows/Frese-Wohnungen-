@@ -68,13 +68,24 @@ const TABS = [
  */
 const EXPIRED_VISIBLE_DAYS = 7;
 
-/** Compatibility decides the group; the score only orders within it. */
-const COMPAT_RANK: Record<string, number> = {
-  COMPATIBLE: 0,
-  NEAR_MATCH: 1,
-  INSUFFICIENT_DATA: 2,
-  INCOMPATIBLE: 3,
-};
+/**
+ * What is holding a listing back, in three words or fewer, for the row.
+ *
+ * The score already says *how* good a flat is; a colleague's next question is
+ * always *why isn't it better*, and until now the answer only existed inside
+ * the detail pane. The scoring reasons carry it: "−" marks a weak dimension
+ * and "!" a missing fact, so those become chips and everything positive stays
+ * out of the row.
+ */
+function shortcomings(reasons: unknown, limit = 3): string[] {
+  if (!Array.isArray(reasons)) return [];
+  return (reasons as string[])
+    .filter((r) => typeof r === 'string' && (r.startsWith('−') || r.startsWith('-') || r.startsWith('!')))
+    .map((r) => r.slice(1).trim())
+    // The recency footnote is on every row and is not a shortcoming.
+    .filter((r) => r && !r.startsWith('Grundwert'))
+    .slice(0, limit);
+}
 
 type MatchStatusValue = 'NEW' | 'FAVORITE' | 'IN_PROGRESS' | 'CONTACTED' | 'REJECTED' | 'EXPIRED';
 
@@ -210,11 +221,16 @@ export default async function ErgebnissePage({
   const ageNote = describeAgeFilter(matchList.map(ageOf), ageFilter);
   const withinAge = matchList.filter((m) => passesAgeFilter(ageOf(m), ageFilter));
 
-  const matches: MatchRow[] = [...withinAge].sort((a, b) => {
-    const rank = (COMPAT_RANK[a.compatibility] ?? 9) - (COMPAT_RANK[b.compatibility] ?? 9);
-    if (rank !== 0) return rank;
-    return effectiveScore(b, liveness) - effectiveScore(a, liveness);
-  });
+  // Best first, full stop.
+  //
+  // The list used to group by compatibility and only sort by score inside each
+  // group, which meant number 1 was not necessarily the best flat on screen —
+  // and this list is meant to be worked from the top down until the day's
+  // enquiries are out. Anything unusable is already filtered out of the working
+  // tabs, so there is nothing left for the grouping to protect.
+  const matches: MatchRow[] = [...withinAge].sort(
+    (a, b) => effectiveScore(b, liveness) - effectiveScore(a, liveness),
+  );
 
   const byStatus = Object.fromEntries(counts.map((c) => [c.status, c._count]));
   const tabCount = (key: string) => {
@@ -335,17 +351,15 @@ export default async function ErgebnissePage({
               const l = m.listing;
               const comp = COMPATIBILITY[m.compatibility] ?? COMPATIBILITY.INSUFFICIENT_DATA;
               const st = MATCH_STATUS[m.status] ?? MATCH_STATUS.NEW;
-              // Colour follows the compatibility verdict, never a raw score
-              // threshold — a green box next to an amber "Fast passend" badge
-              // is a contradiction the reader has to resolve.
-              const scoreCls =
-                m.compatibility === 'COMPATIBLE'
-                  ? 'good'
-                  : m.compatibility === 'NEAR_MATCH'
-                    ? 'mid'
-                    : m.compatibility === 'INCOMPATIBLE'
-                      ? 'bad'
-                      : '';
+              // Colour follows the number on the box.
+              //
+              // It used to follow the compatibility verdict instead, so a 67
+              // was green and a 74 amber on the same screen — the one thing a
+              // colour-coded number must never do. Bands, not verdicts: 80 and
+              // up is worth writing to today, 60 to 79 is worth a look, below
+              // that is the bottom of the list.
+              const shown = Math.round(effectiveScore(m, liveness));
+              const scoreCls = shown >= 80 ? 'good' : shown >= 60 ? 'mid' : 'low';
               // The date the ad prints about itself beats the date we happened
               // to import it: an ad found this morning can already be three
               // weeks old, and that is exactly what decides whether it is worth
@@ -375,11 +389,12 @@ export default async function ErgebnissePage({
                       carried the same grey placeholder — a hundred pixels of
                       column saying nothing. The score takes the space back. */}
                   <span className={`listing-score ${scoreCls}`}>
-                    {m.compatibility === 'INCOMPATIBLE' ? '×' : Math.round(m.score)}
+                    {m.compatibility === 'INCOMPATIBLE' ? '×' : shown}
                   </span>
                   <span className="listing-main">
                     <span className="listing-title">
-                      {i + 1}. {l.title}
+                      <span className="listing-rank">{i + 1}</span>
+                      {l.title}
                     </span>
                     {/* The three facts that decide whether to open an ad, big
                         enough to read at a glance. Everything else is either in
@@ -408,7 +423,17 @@ export default async function ErgebnissePage({
                     </span>
 
                     <span className="listing-meta">
-                      <span className={`badge ${comp.tone}`}>{comp.short}</span>
+                      {/* Only when it is news. A row that says "Passend" next
+                          to a green 84 has spent a badge repeating the number.
+                          What is worth the space is what is *missing*. */}
+                      {m.compatibility !== 'COMPATIBLE' ? (
+                        <span className={`badge ${comp.tone}`}>{comp.short}</span>
+                      ) : null}
+                      {shortcomings(m.reasons).map((r, k) => (
+                        <span key={k} className="lack" title={r}>
+                          {r}
+                        </span>
+                      ))}
                       {/* Only say something about the check when it is news.
                           "Noch nicht geprüft" sat on every row, and a label
                           that never varies is one more thing to read past. */}

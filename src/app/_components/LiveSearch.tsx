@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatEuroCents } from '@/lib/money';
 import {
   maybeRunLivenessSweepAction,
   maybeRescoreAction,
@@ -42,15 +41,14 @@ interface SourceState {
   note: string | null;
 }
 
-/** More than this on screen at once and nobody reads any of them. */
-const MAX_CARDS = 24;
+/** How often the ranked list below is re-read while a sweep runs. */
+const REFRESH_EVERY_MS = 4000;
 
 export function LiveSearch({ candidateCaseId }: { candidateCaseId?: string } = {}) {
   const router = useRouter();
   const [running, setRunning] = useState(false);
   const [phase, setPhase] = useState<string | null>(null);
   const [sources, setSources] = useState<Map<string, SourceState>>(new Map());
-  const [cards, setCards] = useState<LiveListing[]>([]);
   const [foundTotal, setFoundTotal] = useState(0);
   const [createdTotal, setCreatedTotal] = useState(0);
   const [note, setNote] = useState<string | null>(null);
@@ -58,13 +56,23 @@ export function LiveSearch({ candidateCaseId }: { candidateCaseId?: string } = {
   const [enabledSources, setEnabledSources] = useState<number | null>(null);
   const startedOnce = useRef(false);
 
+  // Re-reading the list is a server round-trip, so it is throttled: at most
+  // one refresh every few seconds while a sweep is running, plus the final one
+  // when it ends.
+  const refreshAt = useRef(0);
+  const scheduleRefresh = useCallback(() => {
+    const now = Date.now();
+    if (now - refreshAt.current < REFRESH_EVERY_MS) return;
+    refreshAt.current = now;
+    router.refresh();
+  }, [router]);
+
   const search = useCallback(
     async (force: boolean) => {
       setRunning(true);
       setNote(null);
       setPhase(null);
       setSources(new Map());
-      setCards([]);
       setFoundTotal(0);
       setCreatedTotal(0);
 
@@ -153,9 +161,11 @@ export function LiveSearch({ candidateCaseId }: { candidateCaseId?: string } = {
             const listing = event.listing as LiveListing;
             setFoundTotal((n) => n + 1);
             if (listing.isNew) setCreatedTotal((n) => n + 1);
-            // Newest first, and bounded: this is a sign of life, not an
-            // archive.
-            setCards((prev) => [listing, ...prev].slice(0, MAX_CARDS));
+            // The flat itself belongs in the ranked list below, in its proper
+            // place — not in a second, unordered grid up here. A preview grid
+            // was the first attempt and it read as chaos: two dozen cards in
+            // arrival order, most of which the ranking then hid.
+            if (listing.isNew) scheduleRefresh();
             return true;
           }
           case 'phase': {
@@ -193,7 +203,7 @@ export function LiveSearch({ candidateCaseId }: { candidateCaseId?: string } = {
         });
       }
     },
-    [router],
+    [router, scheduleRefresh],
   );
 
   // On open: bring the list up to date, then search — but only if a search is
@@ -249,7 +259,7 @@ export function LiveSearch({ candidateCaseId }: { candidateCaseId?: string } = {
         </button>
       </div>
 
-      {running || cards.length > 0 ? (
+      {running ? (
         <div className="live">
           <div className="live-head">
             <div className="live-counts">
@@ -288,39 +298,9 @@ export function LiveSearch({ candidateCaseId }: { candidateCaseId?: string } = {
             </div>
           ) : null}
 
-          {cards.length > 0 ? (
-            <div className="live-grid">
-              {cards.map((c) => (
-                <a
-                  key={c.id}
-                  href={c.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`live-card ${c.isNew ? 'is-new' : ''}`}
-                >
-                  <span className="live-card-body">
-                    {c.isNew ? <span className="live-new">neu</span> : null}
-                    <span className="live-card-title">{c.title}</span>
-                    <span className="live-card-facts">
-                      {c.priceCents != null ? (
-                        <strong>{formatEuroCents(c.priceCents)}</strong>
-                      ) : (
-                        <span className="subtle">Preis unbekannt</span>
-                      )}
-                      {c.rooms != null ? <span>{c.rooms} Zi.</span> : null}
-                      {c.sqm != null ? <span>{c.sqm} m²</span> : null}
-                    </span>
-                    <span className="live-card-meta">
-                      {[c.city, c.sourceName].filter(Boolean).join(' · ')}
-                    </span>
-                  </span>
-                </a>
-              ))}
-            </div>
-          ) : running ? (
+          {running ? (
             <p className="small muted" style={{ padding: '2px 2px 4px' }}>
-              Die Portale werden der Reihe nach abgefragt — die ersten Treffer erscheinen hier, sobald
-              sie da sind.
+              Neue Treffer erscheinen unten in der Liste — nach Punktzahl sortiert, die beste zuerst.
             </p>
           ) : null}
 

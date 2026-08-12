@@ -6,8 +6,52 @@
 import { prisma } from '@/lib/prisma';
 import { rank, type RankingListing, type RankingProfile } from '@/domain/ranking';
 import { haversineKm, estimateCommuteMinutes } from '@/lib/distance';
+import { isPlausibleHousing, type PlausibilityLimits } from '@/domain/discovery/plausible';
+import { getQualitySettings } from './settings';
 
-function toRankingListing(l: Awaited<ReturnType<typeof loadListing>>, profile: RankingProfile): RankingListing {
+/**
+ * The exclusion rules, read once per recompute.
+ *
+ * They live in the settings so a colleague can move them; they are applied
+ * here, at ranking time, so they also catch everything already in the pool
+ * rather than only what arrives next.
+ */
+async function qualityLimits(): Promise<PlausibilityLimits> {
+  const q = await getQualitySettings();
+  return {
+    minMonthlyCents: Math.round(q.minMonthlyEuros * 100),
+    maxMonthlyCents: Math.round(q.maxMonthlyEuros * 100),
+    maxRooms: q.maxRooms,
+    minSqm: q.minSqm,
+    rejectShortStay: q.rejectShortStay,
+  };
+}
+
+function disqualifyingReason(
+  l: { title: string; descriptionRaw: string; effectiveMonthlyCents: number | null; kaltMieteCents: number | null; warmMieteCents: number | null; rooms: number | null; livingSpaceSqm: number | null },
+  limits: PlausibilityLimits,
+): string | null {
+  const verdict = isPlausibleHousing(
+    {
+      title: l.title,
+      description: l.descriptionRaw,
+      structured: {
+        warmMieteCents: l.warmMieteCents ?? l.effectiveMonthlyCents,
+        kaltMieteCents: l.kaltMieteCents,
+        rooms: l.rooms,
+        livingSpaceSqm: l.livingSpaceSqm,
+      },
+    },
+    limits,
+  );
+  return verdict.plausible ? null : verdict.reason;
+}
+
+function toRankingListing(
+  l: Awaited<ReturnType<typeof loadListing>>,
+  profile: RankingProfile,
+  limits: PlausibilityLimits = {},
+): RankingListing {
   let distanceKm: number | null = null;
   let commuteMinutes: number | null = null;
   if (
@@ -43,6 +87,7 @@ function toRankingListing(l: Awaited<ReturnType<typeof loadListing>>, profile: R
     // Wunderflats listing reads exactly like a normal flat and is let by the
     // month with no move-in date. See RankingListing.shortStayProvider.
     shortStayProvider: SHORT_STAY_CATEGORIES.has(l.source?.category ?? ''),
+    disqualified: disqualifyingReason(l, limits),
   };
 }
 
@@ -100,6 +145,7 @@ function profileFromDb(p: {
 
 export async function computeMatchesForListing(listingId: string): Promise<void> {
   const listing = await loadListing(listingId);
+  const limits = await qualityLimits();
   const cases = await prisma.candidateCase.findMany({
     where: { status: 'ACTIVE' },
     include: { searchProfile: true },
@@ -107,7 +153,7 @@ export async function computeMatchesForListing(listingId: string): Promise<void>
   for (const c of cases) {
     if (!c.searchProfile) continue;
     const profile = profileFromDb(c.searchProfile);
-    const result = rank(toRankingListing(listing, profile), profile);
+    const result = rank(toRankingListing(listing, profile, limits), profile);
     await prisma.candidateListingMatch.upsert({
       where: {
         candidateCaseId_listingId: { candidateCaseId: c.id, listingId: listing.id },
@@ -142,11 +188,12 @@ export async function recomputeAllForCandidate(candidateCaseId: string): Promise
   });
   if (!candidate.searchProfile) return;
   const profile = profileFromDb(candidate.searchProfile);
+  const limits = await qualityLimits();
   const listings = await prisma.listing.findMany({
     include: { source: { select: { category: true } } },
   });
   for (const l of listings) {
-    const result = rank(toRankingListing(l, profile), profile);
+    const result = rank(toRankingListing(l, profile, limits), profile);
     await prisma.candidateListingMatch.upsert({
       where: {
         candidateCaseId_listingId: { candidateCaseId: candidate.id, listingId: l.id },
