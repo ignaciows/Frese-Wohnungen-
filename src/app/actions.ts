@@ -688,6 +688,29 @@ export async function saveAgeFilterSettingsAction(formData: FormData) {
   revalidatePath('/', 'layout');
 }
 
+/**
+ * What cannot be a flat for one of our candidates.
+ *
+ * The bounds are deliberately editable: "impossible" is a fact about a town
+ * and a year, not about the software. Anything outside them never enters the
+ * pool, so nobody has to read past it.
+ */
+const QualityInput = z.object({
+  minMonthlyEuros: z.coerce.number().int().min(0).max(2000).default(250),
+  maxMonthlyEuros: z.coerce.number().int().min(300).max(20000).default(2500),
+  maxRooms: z.coerce.number().int().min(1).max(20).default(6),
+  minSqm: z.coerce.number().int().min(0).max(100).default(15),
+  rejectShortStay: z.coerce.boolean().default(false),
+});
+
+export async function saveQualitySettingsAction(formData: FormData) {
+  const user = await requireAdmin();
+  const parsed = QualityInput.parse(Object.fromEntries(formData));
+  const { writeSetting, SETTING_KEYS } = await import('@/server/settings');
+  await writeSetting(SETTING_KEYS.quality, parsed, user.id);
+  revalidatePath('/', 'layout');
+}
+
 export async function saveLivenessSettingsAction(formData: FormData) {
   const user = await requireAdmin();
   const parsed = LivenessSettingsInput.parse(Object.fromEntries(formData));

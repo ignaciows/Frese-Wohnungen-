@@ -298,21 +298,8 @@ export function LiveSearch({ candidateCaseId }: { candidateCaseId?: string } = {
                   rel="noopener noreferrer"
                   className={`live-card ${c.isNew ? 'is-new' : ''}`}
                 >
-                  <span className="live-thumb">
-                    {c.imageUrl ? (
-                      // Portal images, from hosts we do not control — plain
-                      // <img> so no image proxy has to be configured per portal,
-                      // and no referrer is leaked back to the site.
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={c.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
-                    ) : (
-                      <span className="live-thumb-empty" aria-hidden>
-                        ⌂
-                      </span>
-                    )}
-                    {c.isNew ? <span className="live-new">neu</span> : null}
-                  </span>
                   <span className="live-card-body">
+                    {c.isNew ? <span className="live-new">neu</span> : null}
                     <span className="live-card-title">{c.title}</span>
                     <span className="live-card-facts">
                       {c.priceCents != null ? (

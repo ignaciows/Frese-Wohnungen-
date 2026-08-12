@@ -32,6 +32,12 @@ export interface RankingProfile {
   temporaryMode: boolean;
   /** Cost we assume when only Kaltmiete is known; used only for near-match sorting. */
   budgetFuzzCents?: number;
+  /**
+   * The day the person lands. The single most consequential date in the case,
+   * and until now it was not part of the score at all: a perfect flat that is
+   * free three weeks too late scored the same as one free on time.
+   */
+  moveInDate?: Date | null;
 }
 
 export interface RankingListing {
@@ -53,6 +59,19 @@ export interface RankingListing {
   /** Used to sanity-check location when no distance can be computed. */
   locationPostal?: string | null;
   locationCity?: string | null;
+  /** When the advert says the flat can be moved into. */
+  availableFrom?: Date | null;
+  /**
+   * True for the platforms that only let flats by the week or month —
+   * Wunderflats, HousingAnywhere, Boardinghouses and the like.
+   *
+   * Their adverts look excellent on paper (furnished, central, complete data)
+   * and are useless for somebody moving to Germany permanently: no move-in
+   * date, a nightly-derived price, and a contract that ends. Judged by source
+   * category rather than by wording, because the wording is deliberately
+   * indistinguishable from a normal flat.
+   */
+  shortStayProvider?: boolean;
 }
 
 import { postalProximity, cityMismatch } from './postalDistance';
@@ -66,6 +85,8 @@ export interface ScoreBreakdown {
   budget: number;
   commute: number;
   completeness: number;
+  /** Fit between the flat's free-from date and the arrival. */
+  timing: number;
   total: number;
 }
 
@@ -84,20 +105,38 @@ export interface RankingWeights {
   budget: number;
   commute: number;
   completeness: number;
+  /** How well the flat's free-from date fits the arrival. */
+  timing: number;
 }
 
+/**
+ * What actually decides whether a flat is worth writing to.
+ *
+ * The old weighting had furnishing at 35 % — more than price and distance put
+ * together — and no timing at all. That is backwards for this job: the people
+ * this tool serves arrive on a known date, work at a known clinic and have a
+ * known budget, and whether the sofa is included is the least of it. So:
+ *
+ *  - **Preis 25 %** — the hard constraint that ends conversations.
+ *  - **Weg zur Arbeit 20 %** — the second one, every day for years.
+ *  - **Einzugstermin 20 %** — free before they land, or somebody pays for a
+ *    hotel. Previously unscored entirely.
+ *  - **Zimmer 15 %**, **Möblierung 15 %** — real preferences, not deciders.
+ *  - **Datenlage 5 %** — a nudge towards adverts we can actually judge.
+ */
 export const DEFAULT_WEIGHTS: RankingWeights = {
-  furnishing: 35,
-  rooms: 25,
-  budget: 20,
-  commute: 15,
+  budget: 25,
+  commute: 20,
+  timing: 20,
+  rooms: 15,
+  furnishing: 15,
   completeness: 5,
 };
 
-// Bumped when the location check landed: every match scored before this was
-// scored without any check that the flat is near the job, so those scores are
-// not comparable with new ones.
-export const RANK_VERSION = 'rank-2026-08-10';
+// Bumped whenever the meaning of a score changes, so the app knows which
+// matches were scored under older rules and re-scores them. This revision
+// added the move-in date as a scored dimension and re-weighted the rest.
+export const RANK_VERSION = 'rank-2026-08-12';
 
 const APARTMENT_TYPES = new Set<PropertyType>(['APARTMENT']);
 const HARD_INCOMPATIBLE_TYPES = new Set<PropertyType>([
@@ -159,6 +198,17 @@ export function classify(listing: RankingListing, profile: RankingProfile): {
    * whole inbox as "needs review" and destroy the signal.
    */
   const infoFlags: string[] = [];
+
+  // 0. Short-stay platforms.
+  //
+  // Ahead of everything else, because these adverts pass every other test:
+  // furnished, central, complete figures, and impossible — they are let by the
+  // week, name no move-in date, and end. For anybody arriving to stay, the
+  // whole platform is noise; in Notfallmodus, where a roof for six weeks is
+  // exactly the point, they are welcome.
+  if (listing.shortStayProvider && !profile.temporaryMode) {
+    blockers.push('Anbieter für Wohnen auf Zeit — kein dauerhafter Mietvertrag');
+  }
 
   // 1. Property type -- excluded types are hard failures.
   if (listing.propertyType === 'TEMPORARY' && !profile.temporaryMode) {
@@ -382,6 +432,48 @@ function commuteSubscore(l: RankingListing, p: RankingProfile): { pct: number; r
   return { pct: 40, reason: 'Entfernung unbekannt' };
 }
 
+/**
+ * Does the flat exist by the time the person does?
+ *
+ * A flat free before the arrival is worth full marks; every night of gap after
+ * it is a night in a hotel somebody has to pay for, so the score falls with the
+ * gap and floors out at a month, by which point another flat is cheaper.
+ *
+ * An advert with no date at all scores below a flat that is merely a fortnight
+ * late — deliberately. "Frei ab" is the first thing a real letting advert
+ * states; leaving it out is what the short-stay platforms do, and a flat we
+ * cannot place on the timeline is one nobody can plan around.
+ */
+export function timingSubscore(
+  l: RankingListing,
+  p: RankingProfile,
+): { pct: number; reason: string } {
+  const arrival = p.moveInDate ?? null;
+  if (!arrival) {
+    // No arrival date on the profile is our gap, not the advert's. Neutral, so
+    // a case without one is not silently scored down across the board.
+    return { pct: 70, reason: 'Kein Ankunftsdatum im Profil hinterlegt' };
+  }
+  if (!l.availableFrom) {
+    return { pct: 35, reason: 'Anzeige nennt kein Einzugsdatum' };
+  }
+
+  const day = 86_400_000;
+  const gapDays = Math.round((l.availableFrom.getTime() - arrival.getTime()) / day);
+
+  if (gapDays <= 0) {
+    const earlyDays = Math.abs(gapDays);
+    // Very early is fine but not free: the rent starts before anybody moves in.
+    if (earlyDays > 60) {
+      return { pct: 80, reason: `Frei ${earlyDays} Tage vor Ankunft — Miete läuft vorher an` };
+    }
+    return { pct: 100, reason: 'Frei vor der Ankunft' };
+  }
+  if (gapDays <= 7) return { pct: 80, reason: `${gapDays} Tage Lücke — mit kurzer Überbrückung machbar` };
+  if (gapDays <= 30) return { pct: 50, reason: `${gapDays} Tage Lücke bis zum Einzug` };
+  return { pct: 15, reason: `Erst ${gapDays} Tage nach Ankunft frei` };
+}
+
 function completenessSubscore(l: RankingListing): { pct: number; reason: string } {
   const knownCount =
     (l.propertyType !== 'UNKNOWN' ? 1 : 0) +
@@ -403,14 +495,21 @@ export function score(
   const bud = budgetSubscore(listing, profile);
   const comm = commuteSubscore(listing, profile);
   const comp = completenessSubscore(listing);
+  const timing = timingSubscore(listing, profile);
 
   const weightedTotal =
     (furn.pct * weights.furnishing +
       rooms.pct * weights.rooms +
       bud.pct * weights.budget +
       comm.pct * weights.commute +
-      comp.pct * weights.completeness) /
-    (weights.furnishing + weights.rooms + weights.budget + weights.commute + weights.completeness);
+      comp.pct * weights.completeness +
+      timing.pct * weights.timing) /
+    (weights.furnishing +
+      weights.rooms +
+      weights.budget +
+      weights.commute +
+      weights.completeness +
+      weights.timing);
 
   const breakdown: ScoreBreakdown = {
     furnishing: furn.pct,
@@ -418,6 +517,7 @@ export function score(
     budget: bud.pct,
     commute: comm.pct,
     completeness: comp.pct,
+    timing: timing.pct,
     total: Math.round(weightedTotal),
   };
 
@@ -431,6 +531,7 @@ export function score(
   pushReason('rooms', rooms);
   pushReason('budget', bud);
   pushReason('commute', comm);
+  pushReason('timing', timing);
   if (comp.pct < 100) reasons.push(`! ${comp.reason}`);
 
   return { score: breakdown.total, breakdown, reasons };
@@ -447,7 +548,7 @@ export function rank(
     return {
       compatibility: cls.compatibility,
       score: 0,
-      breakdown: { furnishing: 0, rooms: 0, budget: 0, commute: 0, completeness: 0, total: 0 },
+      breakdown: { furnishing: 0, rooms: 0, budget: 0, commute: 0, completeness: 0, timing: 0, total: 0 },
       reasons: cls.blockers.map((b) => `x ${b}`),
       blockers: cls.blockers,
       rankVersion: RANK_VERSION,
@@ -457,7 +558,7 @@ export function rank(
     return {
       compatibility: cls.compatibility,
       score: 0,
-      breakdown: { furnishing: 0, rooms: 0, budget: 0, commute: 0, completeness: 0, total: 0 },
+      breakdown: { furnishing: 0, rooms: 0, budget: 0, commute: 0, completeness: 0, timing: 0, total: 0 },
       reasons: ['! Zu wenige Daten für Bewertung'],
       blockers: [],
       rankVersion: RANK_VERSION,

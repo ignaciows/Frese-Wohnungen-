@@ -366,26 +366,16 @@ export default async function ErgebnissePage({
                 bridging,
               );
               return (
+                <div key={m.id} className="listing-row">
                 <Link
-                  key={m.id}
                   href={`/kandidat/${id}/ergebnisse?tab=${tab}&listing=${l.id}`}
                   className={`listing ${selected?.listingId === l.id ? 'selected' : ''}`}
                 >
-                  {/* The photo, where the portal published one. A flat is a
-                      place, and half a second of looking at it rules out more
-                      than three lines of text do. */}
-                  <span className="listing-photo">
-                    {l.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={l.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
-                    ) : (
-                      <span className="listing-photo-empty" aria-hidden>
-                        ⌂
-                      </span>
-                    )}
-                    <span className={`listing-score ${scoreCls}`}>
-                      {m.compatibility === 'INCOMPATIBLE' ? '×' : Math.round(m.score)}
-                    </span>
+                  {/* No photo: the portals' image hosts refuse us, so every row
+                      carried the same grey placeholder — a hundred pixels of
+                      column saying nothing. The score takes the space back. */}
+                  <span className={`listing-score ${scoreCls}`}>
+                    {m.compatibility === 'INCOMPATIBLE' ? '×' : Math.round(m.score)}
                   </span>
                   <span className="listing-main">
                     <span className="listing-title">
@@ -479,6 +469,19 @@ export default async function ErgebnissePage({
                     ) : null}
                   </span>
                 </Link>
+                {/* Outside the row link on purpose: an anchor inside an anchor
+                    is invalid, and this one leaves the app. It is what the row
+                    is ultimately for — read the advert at the portal. */}
+                <a
+                  href={l.rawUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn sm listing-open"
+                  title="Anzeige beim Portal öffnen"
+                >
+                  Öffnen ↗
+                </a>
+                </div>
               );
             })}
             {/* One footnote for the whole list. It used to be repeated on
@@ -644,12 +647,6 @@ async function DetailPane({
 
       <div className="pane-scroll">
         <div className="stack">
-          {l.imageUrl ? (
-            <a href={l.rawUrl} target="_blank" rel="noopener noreferrer" className="pane-photo">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={l.imageUrl} alt={l.title} referrerPolicy="no-referrer" />
-            </a>
-          ) : null}
           <h3>{l.title}</h3>
           <div className="row-wrap">
             <span className="badge">{l.source.name}</span>

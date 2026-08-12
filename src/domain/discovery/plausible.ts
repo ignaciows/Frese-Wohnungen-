@@ -121,7 +121,47 @@ const LISTING_URL_PATTERNS = [
   /\/wohnung(en)?\/[^/]*\d/i,
 ];
 
-export function isPlausibleHousing(input: PlausibilityInput): PlausibilityResult {
+/**
+ * Wording that means "for a season", whatever the advert calls itself.
+ *
+ * Kept to phrases that only ever appear in a short let. "Befristet" alone is
+ * not here: an ordinary flat can have a fixed term and still be somewhere to
+ * live for two years.
+ */
+const SHORT_STAY_WORDING = [
+  /\b(monteur|monteure|monteurzimmer|monteurwohnung)\b/i,
+  /\bboarding\s?house\b/i,
+  /\bserviced\s+apartment\b/i,
+  /\bferienwohnung\b/i,
+  /\bferienhaus\b/i,
+  /\bmessewohnung\b/i,
+  /\bauf\s+zeit\b/i,
+  /\bzwischenmiete\b/i,
+  /\bzur\s+zwischenmiete\b/i,
+  /\bpro\s+(nacht|woche)\b/i,
+  /\b(täglich|taeglich|wöchentlich|woechentlich)\s+(kündbar|kuendbar|buchbar)\b/i,
+  /\bfür\s+\d{1,2}\s+(nächte|naechte|wochen)\b/i,
+  /\bmindestmietdauer\s+\d{1,2}\s+(tage|nächte|naechte|wochen)\b/i,
+];
+
+/**
+ * Bounds a real advert for a real tenancy stays inside.
+ *
+ * Defaults mirror `DEFAULT_QUALITY` in the settings; passing nothing keeps the
+ * old behaviour, so every existing caller and test is unaffected.
+ */
+export interface PlausibilityLimits {
+  minMonthlyCents?: number;
+  maxMonthlyCents?: number;
+  maxRooms?: number;
+  minSqm?: number;
+  rejectShortStay?: boolean;
+}
+
+export function isPlausibleHousing(
+  input: PlausibilityInput,
+  limits: PlausibilityLimits = {},
+): PlausibilityResult {
   const title = (input.title ?? '').trim();
   const description = (input.description ?? '').trim();
 
@@ -151,6 +191,49 @@ export function isPlausibleHousing(input: PlausibilityInput): PlausibilityResult
   });
   if (!rent.plausible) {
     return { plausible: false, reason: rent.implausibleReason };
+  }
+
+  // The configured bounds, on top of the universal sanity check above. These
+  // are the ones a colleague can move when a town turns out to be dearer or
+  // cheaper than assumed.
+  const monthly = structured.warmMieteCents ?? structured.kaltMieteCents ?? null;
+  if (monthly != null && limits.minMonthlyCents != null && monthly < limits.minMonthlyCents) {
+    return {
+      plausible: false,
+      reason: `Nur ${Math.round(monthly / 100)} € im Monat — darunter ist es kein eigener Mietvertrag`,
+    };
+  }
+  if (monthly != null && limits.maxMonthlyCents != null && monthly > limits.maxMonthlyCents) {
+    return {
+      plausible: false,
+      reason: `${Math.round(monthly / 100)} € im Monat — außerhalb dessen, was hier vermittelt wird`,
+    };
+  }
+  if (limits.maxRooms != null && (structured.rooms ?? 0) > limits.maxRooms) {
+    return {
+      plausible: false,
+      reason: `${structured.rooms} Zimmer — das ist ein Haus, keine Wohnung für eine Person`,
+    };
+  }
+  if (
+    limits.minSqm != null &&
+    structured.livingSpaceSqm != null &&
+    structured.livingSpaceSqm > 0 &&
+    structured.livingSpaceSqm < limits.minSqm
+  ) {
+    return {
+      plausible: false,
+      reason: `${structured.livingSpaceSqm} m² — zu klein für eine eigene Wohnung`,
+    };
+  }
+  if (limits.rejectShortStay) {
+    const shortStay = SHORT_STAY_WORDING.find((p) => p.test(`${title}\n${description}`));
+    if (shortStay) {
+      return {
+        plausible: false,
+        reason: `Wohnen auf Zeit („${(`${title}\n${description}`).match(shortStay)?.[0]}“) — kein dauerhafter Mietvertrag`,
+      };
+    }
   }
 
   // A number from the result list is the strongest signal there is: navigation

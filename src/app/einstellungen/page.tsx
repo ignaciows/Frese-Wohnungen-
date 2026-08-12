@@ -12,6 +12,7 @@ import {
   getBridgingSettings,
   getLivenessSettings,
   getAgeFilterSettings,
+  getQualitySettings,
   getTelegramSettings,
 } from '@/server/settings';
 import {
@@ -22,6 +23,7 @@ import {
   saveBridgingSettingsAction,
   saveLivenessSettingsAction,
   saveAgeFilterSettingsAction,
+  saveQualitySettingsAction,
   runLivenessSweepAction,
   saveTelegramSettingsAction,
   sendTelegramTestAction,
@@ -59,6 +61,7 @@ export default async function SettingsPage({
     bridging,
     liveness,
     ageFilter,
+    quality,
     telegram,
     discovery,
     outbound,
@@ -75,6 +78,7 @@ export default async function SettingsPage({
     getBridgingSettings(),
     getLivenessSettings(),
     getAgeFilterSettings(),
+    getQualitySettings(),
     getTelegramSettings(),
     getDiscoverySettings(),
     getOutboundSettings(),
@@ -124,6 +128,7 @@ export default async function SettingsPage({
         <nav className="jumpnav" aria-label="Abschnitte">
           <span className="jumpnav-label">Springe zu:</span>
           <a href="#suche">Automatische Suche</a>
+          <a href="#qualitaet">Was ausgeschlossen wird</a>
           <a href="#quellen">Quellen</a>
           <a href="#konten">Konten &amp; Passwörter</a>
           <a href="#versand">Versand</a>
@@ -182,6 +187,108 @@ export default async function SettingsPage({
           sources={discoverySources.map((s) => ({ id: s.id, key: s.key, name: s.name }))}
           preselectPortalKey={feedback.portal ?? null}
         />
+
+        {/* ------------------------------------------- quality filter --- */}
+        <form action={saveQualitySettingsAction} className="card" id="qualitaet" style={{ marginTop: 18 }}>
+          <div className="card-head">
+            <h2>Was ausgeschlossen wird</h2>
+            <span className="sub">
+              Anzeigen außerhalb dieser Grenzen kommen gar nicht erst in die Liste.
+            </span>
+          </div>
+          <div className="card-body stack">
+            <Callout tone="info">
+              Jede Suche bringt Dinge zurück, die zwar Anzeigen sind, aber keine Wohnung für unsere
+              Kandidaten: ein Zimmer für 100 € im Monat, eine &bdquo;Wohnung&ldquo; mit zwanzig Zimmern, ein
+              Apartment für vier Wochen zur Messe. Hier steht, wo die Grenze liegt.
+            </Callout>
+            <div className="grid-2">
+              <div>
+                <label htmlFor="minMonthlyEuros">Mindestmiete (€ / Monat)</label>
+                <input
+                  id="minMonthlyEuros"
+                  name="minMonthlyEuros"
+                  type="number"
+                  min={0}
+                  max={2000}
+                  className="input"
+                  defaultValue={quality.minMonthlyEuros}
+                  disabled={!isAdmin}
+                />
+                <p className="field-hint">Darunter ist es ein Zimmer oder ein Preis pro Nacht.</p>
+              </div>
+              <div>
+                <label htmlFor="maxMonthlyEuros">Höchstmiete (€ / Monat)</label>
+                <input
+                  id="maxMonthlyEuros"
+                  name="maxMonthlyEuros"
+                  type="number"
+                  min={300}
+                  max={20000}
+                  className="input"
+                  defaultValue={quality.maxMonthlyEuros}
+                  disabled={!isAdmin}
+                />
+                <p className="field-hint">
+                  Absolute Obergrenze, unabhängig vom Budget des einzelnen Kandidaten.
+                </p>
+              </div>
+              <div>
+                <label htmlFor="maxRooms">Höchstzahl Zimmer</label>
+                <input
+                  id="maxRooms"
+                  name="maxRooms"
+                  type="number"
+                  min={1}
+                  max={20}
+                  className="input"
+                  defaultValue={quality.maxRooms}
+                  disabled={!isAdmin}
+                />
+                <p className="field-hint">Darüber ist es ein Haus, kein Wohnungsangebot.</p>
+              </div>
+              <div>
+                <label htmlFor="minSqm">Mindestfläche (m²)</label>
+                <input
+                  id="minSqm"
+                  name="minSqm"
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="input"
+                  defaultValue={quality.minSqm}
+                  disabled={!isAdmin}
+                />
+                <p className="field-hint">0 = keine Grenze.</p>
+              </div>
+            </div>
+            <div className="checkline">
+              <input
+                id="rejectShortStay"
+                name="rejectShortStay"
+                type="checkbox"
+                value="true"
+                defaultChecked={quality.rejectShortStay}
+                disabled={!isAdmin}
+              />
+              <label htmlFor="rejectShortStay">
+                Wohnen auf Zeit ausschließen (Monteurzimmer, Boardinghouse, Ferienwohnung, &bdquo;pro Woche&ldquo;)
+              </label>
+            </div>
+            <p className="field-hint">
+              Portale, die ausschließlich möbliert auf Zeit vermieten (Wunderflats, HousingAnywhere),
+              werden ohnehin nur durchsucht, wenn ein Kandidat im Notfallmodus steht.
+            </p>
+          </div>
+          {isAdmin ? (
+            <div className="card-foot row-between">
+              <span className="small muted">Gilt ab dem nächsten Suchlauf.</span>
+              <button type="submit" className="btn primary">
+                Speichern
+              </button>
+            </div>
+          ) : null}
+        </form>
 
         {/* ------------------------------------------------ WG matching --- */}
         <form action={saveSharingSettingsAction} className="card" style={{ marginTop: 18 }}>

@@ -35,7 +35,8 @@ import {
 } from '@/domain/discovery/types';
 import { ingestListing } from './listingIngest';
 import { normaliseUrl } from '@/lib/url';
-import { getDiscoverySettings, type DiscoverySettings } from './settings';
+import { getDiscoverySettings, getQualitySettings, type DiscoverySettings } from './settings';
+import type { PlausibilityLimits } from '@/domain/discovery/plausible';
 
 export interface DiscoverySweepSummary {
   ran: boolean;
@@ -110,6 +111,18 @@ export type SweepEvent =
  * spend everything before the slower ones are reached.
  */
 const PARALLEL_SOURCES = 4;
+
+/**
+ * Source categories that only ever hold temporary accommodation.
+ *
+ * Wunderflats, HousingAnywhere and the Monteurzimmer sites publish adverts that
+ * are indistinguishable from ordinary flats until you read the contract: let by
+ * the week, no move-in date, priced from a nightly rate. For somebody moving to
+ * Germany to work, the entire category is noise — so it is not even searched
+ * unless a candidate is in Notfallmodus, where six weeks under a roof is
+ * exactly what is wanted.
+ */
+const SHORT_STAY_CATEGORIES = new Set(['FURNISHED', 'TEMPORARY']);
 
 const EMPTY: DiscoverySweepSummary = {
   ran: false,
@@ -273,6 +286,18 @@ export async function runDiscoverySweep(
     };
   }
 
+  // What cannot be a flat, in this town, this year. Read once per sweep and
+  // handed to every plausibility check, so a rule changed in the settings takes
+  // effect on the next run without a deploy.
+  const quality = await getQualitySettings();
+  const limits: PlausibilityLimits = {
+    minMonthlyCents: Math.round(quality.minMonthlyEuros * 100),
+    maxMonthlyCents: Math.round(quality.maxMonthlyEuros * 100),
+    maxRooms: quality.maxRooms,
+    minSqm: quality.minSqm,
+    rejectShortStay: quality.rejectShortStay,
+  };
+
   const crawler = new Crawler({
     perHostDelayMs: settings.perHostDelayMs,
     maxRequests: options.maxRequests ?? settings.maxRequestsPerRun,
@@ -293,8 +318,15 @@ export async function runDiscoverySweep(
   // screen showed them as pending for the rest of the run and the progress bar
   // could never reach the end. An explicit run (`force`, or a hand-picked
   // source list) skips only the first rule.
+  // Nobody in the pool needs a flat for six weeks? Then the platforms that
+  // only let by the week have nothing to contribute, and every advert they
+  // return is one a colleague has to rule out by hand. Asked again the moment
+  // a candidate is switched into Notfallmodus.
+  const needsShortStay = queries.some((q) => q.query.includeTemporary);
+
   const eligible = sources.filter((source) => {
     if (!getAdapter(source.discoveryAdapter)) return false;
+    if (!needsShortStay && SHORT_STAY_CATEGORIES.has(source.category)) return false;
     if (options.force || options.sourceIds) return true;
     if (source.pollIntervalMinutes == null || !source.lastDiscoveredAt) return true;
     return now - source.lastDiscoveredAt.getTime() >= source.pollIntervalMinutes * 60_000;
@@ -430,7 +462,7 @@ export async function runDiscoverySweep(
             seenUrls.add(canonical);
             found++;
 
-            const result = await upsertDiscovered(source.id, item, importedById);
+            const result = await upsertDiscovered(source.id, item, importedById, limits);
             if (result.outcome === 'created') created++;
             else if (result.outcome === 'updated') updated++;
             else if (result.outcome === 'rejected') rejected++;
@@ -613,6 +645,7 @@ async function upsertDiscovered(
   sourceId: string,
   item: DiscoveredListing,
   importedById: string,
+  limits: PlausibilityLimits = {},
 ): Promise<UpsertResult> {
   const canonicalUrl = normaliseUrl(item.url);
   const now = new Date();
@@ -634,12 +667,15 @@ async function upsertDiscovered(
     // new items before they enter the pool — a list you have to mentally
     // filter is the thing this tool exists to remove. Anything already known
     // is left alone, because a colleague may have corrected it by hand.
-    const verdict = isPlausibleHousing({
-      title: item.title,
-      description: item.description,
-      structured: item.structured,
-      url: item.url,
-    });
+    const verdict = isPlausibleHousing(
+      {
+        title: item.title,
+        description: item.description,
+        structured: item.structured,
+        url: item.url,
+      },
+      limits,
+    );
     if (!verdict.plausible) return { outcome: 'rejected', listingId: null };
   }
 
