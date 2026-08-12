@@ -83,6 +83,26 @@ export function Timeline({
           )}
         </div>
       </div>
+
+      {view.tracks.length > 0 ? (
+        <div className="tl-legend">
+          <span className="tl-key sent">
+            <i aria-hidden /> Anfrage raus
+          </span>
+          <span className="tl-key replied">
+            <i aria-hidden /> Antwort da
+          </span>
+          <span className="tl-key viewing">
+            <i aria-hidden /> Termin steht
+          </span>
+          <span className="tl-key agreed">
+            <i aria-hidden /> Zusage
+          </span>
+          <span className="tl-key gap">
+            <i aria-hidden /> Lücke bis zum Einzug
+          </span>
+        </div>
+      ) : null}
     </section>
   );
 }

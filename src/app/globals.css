@@ -3084,3 +3084,169 @@ label {
   font-weight: 700;
   opacity: 0.7;
 }
+
+/* ================================================= the timeline, larger ===
+   The first version was correct and cramped: 12px labels, a 6px bar, flags
+   colliding with month names, and every stage the same colour. It could be
+   read only by leaning in. Everything here is size, colour and separation —
+   the positions are unchanged. */
+.tl-body {
+  padding: 16px 22px 22px;
+}
+.tl-axis,
+.tl-row {
+  grid-template-columns: 290px minmax(0, 1fr);
+  gap: 18px;
+}
+.tl-guides {
+  inset: 0 0 0 308px;
+}
+.tl-head-text strong {
+  font-size: 21px;
+}
+.tl-icon {
+  width: 42px;
+  height: 42px;
+  font-size: 20px;
+}
+
+/* Month scale: a band per month, alternating, so the eye can measure. */
+.tl-months {
+  height: 30px;
+  border-bottom: 2px solid var(--border);
+}
+.tl-month {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--text-muted);
+  bottom: 6px;
+}
+.tl-month::after {
+  bottom: -8px;
+  height: 8px;
+  background: var(--border-strong);
+}
+
+/* Flags: bigger, and given their own line so nothing overlaps. */
+.tl-flags {
+  min-height: 34px;
+  margin-bottom: 12px;
+}
+.tl-flag {
+  font-size: 13.5px;
+  padding: 5px 12px;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(15, 36, 41, 0.12);
+}
+.tl-guide.today {
+  border-left-width: 3px;
+  opacity: 0.75;
+}
+.tl-guide.arrival {
+  border-left-width: 3px;
+}
+
+/* Rows: taller, with a thicker bar and a colour per stage. */
+.tl-row {
+  padding: 12px 0;
+}
+.tl-rail {
+  min-height: 40px;
+}
+.tl-bar {
+  top: 15px;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(14, 124, 134, 0.35), rgba(14, 124, 134, 0.6));
+}
+.stage-agreed .tl-bar {
+  background: linear-gradient(90deg, #34b389, #12795a);
+  box-shadow: 0 1px 6px rgba(18, 121, 90, 0.4);
+}
+.stage-viewing .tl-bar {
+  background: linear-gradient(90deg, #4aa6de, #1a6aa8);
+  box-shadow: 0 1px 6px rgba(26, 106, 168, 0.35);
+}
+.stage-replied .tl-bar {
+  background: linear-gradient(90deg, #2bb1bd, #0e7c86);
+  box-shadow: 0 1px 6px rgba(14, 124, 134, 0.3);
+}
+.stage-sent .tl-bar {
+  background: linear-gradient(90deg, #cfe3e5, #a9cfd3);
+}
+.stage-declined .tl-bar {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--neutral-border),
+    var(--neutral-border) 6px,
+    var(--surface-3) 6px,
+    var(--surface-3) 12px
+  );
+}
+.tl-dot {
+  top: 8px;
+}
+.tl-dot-mark {
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+  border-width: 2px;
+  box-shadow: 0 1px 4px rgba(15, 36, 41, 0.18);
+  background: #fff;
+}
+.tl-dot-tip {
+  bottom: 28px;
+  font-size: 13px;
+  padding: 4px 9px;
+}
+.tl-gap {
+  top: 13px;
+  height: 14px;
+}
+.tl-flat-title {
+  font-size: 15.5px;
+}
+.tl-flat-sub,
+.tl-ready {
+  font-size: 13px;
+}
+
+/* A key, because a colour that has to be guessed is decoration. */
+.tl-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 14px 22px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.tl-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.tl-key i {
+  width: 22px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.tl-key.sent i { background: #a9cfd3; }
+.tl-key.replied i { background: linear-gradient(90deg, #2bb1bd, #0e7c86); }
+.tl-key.viewing i { background: linear-gradient(90deg, #4aa6de, #1a6aa8); }
+.tl-key.agreed i { background: linear-gradient(90deg, #34b389, #12795a); }
+.tl-key.gap i {
+  background: repeating-linear-gradient(45deg, var(--warning-soft), var(--warning-soft) 3px, var(--warning-border) 3px, var(--warning-border) 6px);
+}
+
+@media (max-width: 900px) {
+  .tl-axis,
+  .tl-row {
+    grid-template-columns: 150px minmax(0, 1fr);
+  }
+  .tl-guides {
+    inset: 0 0 0 168px;
+  }
+}

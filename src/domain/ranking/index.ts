@@ -90,6 +90,8 @@ import { assessRent } from '../rent';
 export type Compatibility = 'COMPATIBLE' | 'NEAR_MATCH' | 'INCOMPATIBLE' | 'INSUFFICIENT_DATA';
 
 export interface ScoreBreakdown {
+  /** Highest score this advert could reach given what is unknown about it. */
+  cap: number;
   furnishing: number;
   rooms: number;
   budget: number;
@@ -146,7 +148,7 @@ export const DEFAULT_WEIGHTS: RankingWeights = {
 // Bumped whenever the meaning of a score changes, so the app knows which
 // matches were scored under older rules and re-scores them. This revision
 // added the move-in date as a scored dimension and re-weighted the rest.
-export const RANK_VERSION = 'rank-2026-08-12b';
+export const RANK_VERSION = 'rank-2026-08-12c';
 
 const APARTMENT_TYPES = new Set<PropertyType>(['APARTMENT']);
 const HARD_INCOMPATIBLE_TYPES = new Set<PropertyType>([
@@ -500,6 +502,48 @@ function completenessSubscore(l: RankingListing): { pct: number; reason: string 
   return { pct, reason: knownCount === 5 ? 'Vollständige Daten' : `${knownCount}/5 Kerndaten bekannt` };
 }
 
+/**
+ * Nothing scores 100.
+ *
+ * A hundred would claim the flat is exactly what the person asked for, with
+ * nothing left to find out — and there is always something: the advert does
+ * not say when it is free, the address is a district rather than a street, the
+ * Nebenkosten are an estimate. A live list showed a 100 sitting next to three
+ * chips saying what was missing from that very advert, which is the tool
+ * contradicting itself in the space of one row.
+ *
+ * So the ceiling is 99, and every unknown lowers it further. The cap is not a
+ * penalty on top of the score — it is the honest maximum: an advert whose
+ * distance we cannot compute cannot be better than "probably fine", whatever
+ * its rent and rooms say.
+ */
+export const MAX_SCORE = 99;
+
+export function certaintyCap(
+  l: RankingListing,
+  p: RankingProfile,
+): { cap: number; missing: string[] } {
+  const caps: Array<{ at: number; label: string }> = [];
+
+  if (l.distanceKm == null && l.commuteMinutes == null) {
+    caps.push({ at: 85, label: 'Entfernung unbekannt' });
+  }
+  if (p.moveInDate && !l.availableFrom) {
+    caps.push({ at: 82, label: 'kein Einzugsdatum' });
+  }
+  if (!l.monthlyTotalComplete) {
+    caps.push({ at: 92, label: 'Gesamtkosten geschätzt' });
+  }
+  if (l.rooms == null) caps.push({ at: 88, label: 'Zimmerzahl unbekannt' });
+  if (l.propertyType === 'UNKNOWN') caps.push({ at: 88, label: 'Objekttyp unbekannt' });
+  if (p.furnished !== 'EITHER' && l.furnishing === 'UNKNOWN') {
+    caps.push({ at: 92, label: 'Möblierung unbekannt' });
+  }
+
+  const cap = caps.reduce((lowest, c) => Math.min(lowest, c.at), MAX_SCORE);
+  return { cap, missing: caps.map((c) => c.label) };
+}
+
 export function score(
   listing: RankingListing,
   profile: RankingProfile,
@@ -526,14 +570,17 @@ export function score(
       weights.completeness +
       weights.timing);
 
+  const { cap } = certaintyCap(listing, profile);
+
   const breakdown: ScoreBreakdown = {
+    cap,
     furnishing: furn.pct,
     rooms: rooms.pct,
     budget: bud.pct,
     commute: comm.pct,
     completeness: comp.pct,
     timing: timing.pct,
-    total: Math.round(weightedTotal),
+    total: Math.min(cap, Math.round(weightedTotal)),
   };
 
   const reasons: string[] = [];
@@ -563,7 +610,7 @@ export function rank(
     return {
       compatibility: cls.compatibility,
       score: 0,
-      breakdown: { furnishing: 0, rooms: 0, budget: 0, commute: 0, completeness: 0, timing: 0, total: 0 },
+      breakdown: { cap: 0, furnishing: 0, rooms: 0, budget: 0, commute: 0, completeness: 0, timing: 0, total: 0 },
       reasons: cls.blockers.map((b) => `x ${b}`),
       blockers: cls.blockers,
       rankVersion: RANK_VERSION,
@@ -573,7 +620,7 @@ export function rank(
     return {
       compatibility: cls.compatibility,
       score: 0,
-      breakdown: { furnishing: 0, rooms: 0, budget: 0, commute: 0, completeness: 0, timing: 0, total: 0 },
+      breakdown: { cap: 0, furnishing: 0, rooms: 0, budget: 0, commute: 0, completeness: 0, timing: 0, total: 0 },
       reasons: ['! Zu wenige Daten für Bewertung'],
       blockers: [],
       rankVersion: RANK_VERSION,
