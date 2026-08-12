@@ -81,6 +81,28 @@ export interface TimelineMarker {
 
 export type CaseStage = 'NO_DATES' | 'SEARCHING' | 'WAITING' | 'PROMISING' | 'SECURED';
 
+/**
+ * How close this case is to the day somebody arrives with nowhere to go.
+ *
+ * Not a mood: it is the difference between "there is time" and "this is the
+ * one to work on today". A flat has to be found, written to, viewed and signed
+ * — six weeks is comfortable, three is tight, and inside three weeks with
+ * nothing agreed somebody is about to pay for a hotel.
+ */
+export type RiskLevel = 'CALM' | 'WATCH' | 'DANGER';
+
+/** Inside this many days before the arrival, an unsolved case is in trouble. */
+export const DANGER_DAYS = 21;
+export const WATCH_DAYS = 45;
+
+export function riskOf(daysToArrival: number | null, secured: boolean): RiskLevel {
+  if (secured) return 'CALM';
+  if (daysToArrival == null) return 'CALM';
+  if (daysToArrival <= DANGER_DAYS) return 'DANGER';
+  if (daysToArrival <= WATCH_DAYS) return 'WATCH';
+  return 'CALM';
+}
+
 export interface TimelineView {
   from: Date;
   to: Date;
@@ -92,6 +114,10 @@ export interface TimelineView {
   stage: CaseStage;
   /** The one sentence above the line. */
   headline: string;
+  risk: RiskLevel;
+  /** Where the danger zone starts on the axis, in percent. Null without an arrival. */
+  dangerFromPct: number | null;
+  arrivalPct: number | null;
 }
 
 const DAY = 86_400_000;
@@ -156,6 +182,11 @@ export function buildTimeline(input: TimelineInput): TimelineView {
 
   const daysToArrival = input.arrival ? Math.round(diffDays(input.arrival, now)) : null;
   const stage = caseStage(input);
+  const risk = riskOf(daysToArrival, stage === 'SECURED');
+  const arrivalPct = input.arrival ? pctOf(input.arrival) : null;
+  const dangerFromPct = input.arrival
+    ? pctOf(new Date(input.arrival.getTime() - DANGER_DAYS * DAY))
+    : null;
 
   return {
     from,
@@ -166,6 +197,9 @@ export function buildTimeline(input: TimelineInput): TimelineView {
     daysToArrival,
     stage,
     headline: headlineFor(stage, daysToArrival, tracks),
+    risk,
+    dangerFromPct,
+    arrivalPct,
   };
 }
 

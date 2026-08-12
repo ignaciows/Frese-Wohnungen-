@@ -162,3 +162,30 @@ describe('secured case', () => {
     expect(t.tracks[0].stage).toBe('AGREED');
   });
 });
+
+describe('danger zone', () => {
+  it('is calm with seven weeks left', () => {
+    expect(buildTimeline(input({ arrival: d('2026-11-15T00:00:00Z') })).risk).toBe('CALM');
+  });
+
+  it('warns inside six weeks', () => {
+    expect(buildTimeline(input({ arrival: d('2026-10-20T00:00:00Z') })).risk).toBe('WATCH');
+  });
+
+  it('is critical inside three weeks with nothing agreed', () => {
+    const t = buildTimeline(input({ arrival: d('2026-09-30T00:00:00Z') }));
+    expect(t.risk).toBe('DANGER');
+    expect(t.dangerFromPct).toBeLessThan(t.arrivalPct!);
+  });
+
+  it('stays calm once a flat is secured, however close the arrival', () => {
+    const t = buildTimeline(
+      input({
+        arrival: d('2026-09-20T00:00:00Z'),
+        housingSecuredAt: d('2026-09-14T00:00:00Z'),
+        flats: [flat({ contactedAt: d('2026-09-01T00:00:00Z'), secured: true, outcome: 'POSITIVE' })],
+      }),
+    );
+    expect(t.risk).toBe('CALM');
+  });
+});

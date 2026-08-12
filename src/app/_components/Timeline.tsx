@@ -23,7 +23,7 @@ export function Timeline({
   const arrival = view.markers.find((m) => m.key === 'arrival');
 
   return (
-    <section className={`tl tl-${view.stage.toLowerCase()}`}>
+    <section className={`tl tl-${view.stage.toLowerCase()} risk-${view.risk.toLowerCase()}`}>
       <header className="tl-head">
         <span className="tl-icon" aria-hidden>
           {stageIcon(view.stage)}
@@ -33,10 +33,18 @@ export function Timeline({
           <span className="small muted">
             {view.markers
               .filter((m) => m.key !== 'today')
-              .map((m) => `${m.label}: ${m.at.toLocaleDateString('de-DE')}`)
-              .join(' · ') || 'Keine Termine hinterlegt'}
+              .map((m) => `${m.label} ${m.at.toLocaleDateString('de-DE')}`)
+              .join('  ·  ') || 'Keine Termine hinterlegt'}
           </span>
         </div>
+        {/* One word, in colour, for the state of the case. Under three weeks
+            with nothing signed is the moment this candidate has to jump the
+            queue, and a sentence somewhere below the fold does not say that. */}
+        {view.risk !== 'CALM' ? (
+          <span className={`tl-risk ${view.risk.toLowerCase()}`}>
+            {view.risk === 'DANGER' ? '⚠ Kritisch' : '◔ Wird eng'}
+          </span>
+        ) : null}
       </header>
 
       <div className="tl-body">
@@ -55,6 +63,17 @@ export function Timeline({
           {/* Two vertical lines run through every row: today, and the day the
               person lands. Everything to the right of the second one is late. */}
           <div className="tl-guides" aria-hidden>
+            {/* The last three weeks before the arrival: from here on there is
+                no time left to find, write, view and sign. */}
+            {view.dangerFromPct != null && view.arrivalPct != null ? (
+              <span
+                className="tl-danger"
+                style={{
+                  left: `${view.dangerFromPct}%`,
+                  width: `${Math.max(0, view.arrivalPct - view.dangerFromPct)}%`,
+                }}
+              />
+            ) : null}
             <span className="tl-guide today" style={{ left: `${today.pct}%` }} />
             {arrival ? <span className="tl-guide arrival" style={{ left: `${arrival.pct}%` }} /> : null}
           </div>
@@ -71,17 +90,19 @@ export function Timeline({
             </div>
           </div>
 
-          {view.tracks.length === 0 ? (
-            <p className="tl-empty small muted">
-              Noch keine Wohnung auf der Linie. Sobald eine Anfrage rausgeht — oder du eine Anzeige als
-              Favorit markierst — erscheint sie hier mit ihrem Datum.
-            </p>
-          ) : (
-            view.tracks.map((t) => (
-              <TrackRow key={t.flat.id} track={t} candidateId={candidateId} arrivalPct={arrival?.pct} />
-            ))
-          )}
+          {view.tracks.map((t) => (
+            <TrackRow key={t.flat.id} track={t} candidateId={candidateId} arrivalPct={arrival?.pct} />
+          ))}
         </div>
+
+        {/* Outside the rails: as a paragraph inside them it was drawn straight
+            across the "Heute" and "Ankunft" lines. */}
+        {view.tracks.length === 0 ? (
+          <p className="tl-empty">
+            <span aria-hidden>✉</span> Noch keine Wohnung auf der Linie — die erste Anfrage setzt sie
+            hierher.
+          </p>
+        ) : null}
       </div>
 
       {view.tracks.length > 0 ? (
