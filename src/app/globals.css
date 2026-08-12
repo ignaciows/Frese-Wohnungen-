@@ -3250,3 +3250,73 @@ label {
     inset: 0 0 0 168px;
   }
 }
+
+/* --- the danger zone -----------------------------------------------------
+   Three weeks before somebody lands, a case with no flat is not "in progress",
+   it is a problem. The band is drawn behind the rows so every bar that ends
+   inside it is visibly late. */
+.tl-danger {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, rgba(179, 38, 30, 0.09), rgba(179, 38, 30, 0.04));
+  border-left: 1px dashed rgba(179, 38, 30, 0.35);
+  border-right: 1px dashed rgba(179, 38, 30, 0.35);
+  pointer-events: none;
+}
+.tl-risk {
+  margin-left: auto;
+  flex: none;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 7px 14px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.tl-risk.danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
+  animation: risk-pulse 2.4s ease-in-out infinite;
+}
+.tl-risk.watch {
+  background: var(--warning-soft);
+  color: var(--warning);
+  border: 1px solid var(--warning-border);
+}
+@keyframes risk-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(179, 38, 30, 0.28); }
+  50% { box-shadow: 0 0 0 7px rgba(179, 38, 30, 0); }
+}
+.risk-danger .tl-head {
+  background: linear-gradient(90deg, rgba(253, 236, 234, 0.9), var(--surface-2));
+}
+.risk-danger .tl-icon {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.risk-danger .tl-flag.arrival {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.risk-danger .tl-guide.arrival {
+  border-left-color: var(--danger);
+}
+
+/* The empty line: its own row under the rails, never across them. */
+.tl-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  border: 1px dashed var(--border-strong);
+  color: var(--text-muted);
+  font-size: 15px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tl-risk.danger { animation: none; }
+}
