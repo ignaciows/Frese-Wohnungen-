@@ -72,6 +72,16 @@ export interface RankingListing {
    * indistinguishable from a normal flat.
    */
   shortStayProvider?: boolean;
+  /**
+   * Why this advert cannot be rented at all, if it cannot.
+   *
+   * The same rules that stop rubbish entering the pool — a rent of 18 €, a
+   * "flat" with twenty rooms, a Monteurzimmer by the week — applied to what is
+   * *already* in it. Filtering at import only fixed the future: a live pool
+   * still had "Luxuriös Unterkunft für Gamescom, 135 €" sitting at the top of
+   * the list, scored and green, because it arrived before the rule existed.
+   */
+  disqualified?: string | null;
 }
 
 import { postalProximity, cityMismatch } from './postalDistance';
@@ -136,7 +146,7 @@ export const DEFAULT_WEIGHTS: RankingWeights = {
 // Bumped whenever the meaning of a score changes, so the app knows which
 // matches were scored under older rules and re-scores them. This revision
 // added the move-in date as a scored dimension and re-weighted the rest.
-export const RANK_VERSION = 'rank-2026-08-12';
+export const RANK_VERSION = 'rank-2026-08-12b';
 
 const APARTMENT_TYPES = new Set<PropertyType>(['APARTMENT']);
 const HARD_INCOMPATIBLE_TYPES = new Set<PropertyType>([
@@ -199,7 +209,12 @@ export function classify(listing: RankingListing, profile: RankingProfile): {
    */
   const infoFlags: string[] = [];
 
-  // 0. Short-stay platforms.
+  // 0a. Adverts that are not lettable at all, whenever they arrived.
+  if (listing.disqualified) {
+    blockers.push(listing.disqualified);
+  }
+
+  // 0b. Short-stay platforms.
   //
   // Ahead of everything else, because these adverts pass every other test:
   // furnished, central, complete figures, and impossible — they are let by the
