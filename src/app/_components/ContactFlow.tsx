@@ -143,20 +143,56 @@ export function ContactFlow({
         </div>
       ) : null}
 
-      <button
-        type="button"
-        className={canSendFromApp ? 'btn block' : 'btn primary lg block'}
-        onClick={openAndContact}
-        disabled={pending}
-      >
-        {pending ? 'Öffnet …' : 'Anschreiben kopieren & Anzeige öffnen ↗'}
-      </button>
+      {/* Three steps, always visible, with the current one lit.
+          The flow was already correct and completely invisible: one button that
+          opened a portal tab, and a confirmation box that only existed after
+          you pressed it. "Wie schicke ich eine Anfrage, und woher weiß ich, was
+          daraus wurde?" had no answer on screen. Now the screen is the answer. */}
+      <ol className="flow">
+        <li className={`flow-step ${showConfirm ? 'done' : 'now'}`}>
+          <span className="flow-num" aria-hidden>
+            {showConfirm ? '✓' : '1'}
+          </span>
+          <div className="flow-main">
+            <strong>Anschreiben kopieren &amp; Anzeige öffnen</strong>
+            <button
+              type="button"
+              className={canSendFromApp ? 'btn block' : 'btn primary block'}
+              onClick={openAndContact}
+              disabled={pending}
+            >
+              {pending ? 'Öffnet …' : 'Kopieren & öffnen ↗'}
+            </button>
+          </div>
+        </li>
 
-      {!contactEmail ? (
-        <span className="small muted">
-          Diese Anzeige veröffentlicht keine Adresse — die Anfrage läuft über das Formular des Portals.
-        </span>
-      ) : null}
+        <li className={`flow-step ${showConfirm ? 'now' : ''}`}>
+          <span className="flow-num" aria-hidden>
+            2
+          </span>
+          <div className="flow-main">
+            <strong>Im Portal einfügen (⌘V) und abschicken</strong>
+            <span className="small muted">
+              {contactEmail
+                ? 'Passiert im Tab des Portals.'
+                : 'Diese Anzeige nennt keine Adresse — die Anfrage läuft über das Formular des Portals.'}
+            </span>
+          </div>
+        </li>
+
+        <li className={`flow-step ${showConfirm ? 'now' : ''}`}>
+          <span className="flow-num" aria-hidden>
+            3
+          </span>
+          <div className="flow-main">
+            <strong>Hier bestätigen</strong>
+            <span className="small muted">
+              Danach steht sie unter „Anfragen“, das Anschreiben wird unveränderlich mitgespeichert und
+              die Erinnerung „Antwort prüfen“ läuft automatisch.
+            </span>
+          </div>
+        </li>
+      </ol>
 
       {copied ? (
         <div className="callout success">
@@ -180,9 +216,9 @@ export function ContactFlow({
       ) : null}
 
       {showConfirm ? (
-        <div className="card" style={{ borderColor: 'var(--brand-border)' }}>
+        <div className="card" style={{ borderColor: 'var(--brand)' }}>
           <div className="card-body stack-sm">
-            <h4>Hast du die Nachricht wirklich abgeschickt?</h4>
+            <h4>Schritt 3 — abgeschickt?</h4>
             <p className="small muted">
               Nur eine ausdrückliche Bestätigung setzt den Status auf „Kontaktiert“ und speichert das
               Anschreiben unveränderlich mit.
