@@ -461,6 +461,35 @@ function accountReadiness(a: PortalAccountView): 'running' | 'setup' | 'blocked'
   return a.status === 'OK' ? 'running' : 'setup';
 }
 
+/**
+ * What a mailbox lamp says.
+ *
+ * "OK" alone was ambiguous — it meant "SMTP answered", which is half of what a
+ * mailbox does here. The check now covers sending *and* receiving, so the green
+ * light can honestly claim both.
+ */
+function mailboxLabel(a: PortalAccountView): string {
+  if (!a.hasSecret) return 'Passwort fehlt';
+  if (a.status === 'FAILED') return a.statusNote ? `Fehler — ${a.statusNote}` : 'Anmeldung fehlgeschlagen';
+  if (a.status === 'OK') {
+    return a.lastVerifiedAt
+      ? `Senden & Empfangen geprüft (${formatDateTime(a.lastVerifiedAt)})`
+      : 'Senden & Empfangen geprüft';
+  }
+  return 'Noch nicht geprüft';
+}
+
+function authMethodLabel(method: string): string {
+  switch (method) {
+    case 'APP_PASSWORD':
+      return 'App-Passwort';
+    case 'IMAP_ONLY':
+      return 'nur Empfang';
+    default:
+      return 'Passwort';
+  }
+}
+
 function accountLabel(a: PortalAccountView): string {
   if (!a.active) return 'Deaktiviert';
   if (!a.hasSecret) return 'Passwort fehlt';
@@ -542,7 +571,7 @@ export function AccountsSection({
   /** Portal the form should open on, from `?portal=` — see the rows above it. */
   preselectPortalKey?: string | null;
 }) {
-  const mailbox = accounts.find((a) => a.kind === 'MAILBOX');
+  const mailboxes = accounts.filter((a) => a.kind === 'MAILBOX');
   const portals = accounts.filter((a) => a.kind === 'PORTAL');
 
   return (
@@ -660,41 +689,52 @@ export function AccountsSection({
           {isAdmin ? <PortalAccountForm sources={sources} preselectKey={preselectPortalKey} /> : null}
 
           <h3 className="small" style={{ marginTop: 14 }}>
-            Gemeinsames Postfach
+            Postfächer
           </h3>
-          {mailbox ? (
-            <div className="subcard row-between">
-              <div className="stack" style={{ gap: 3 }}>
-                <strong>{mailbox.label}</strong>
-                <span className="small muted">
-                  {mailbox.loginName} · {String(mailbox.meta.smtpHost ?? '—')} ·{' '}
-                  {mailbox.hasSecret ? 'Passwort hinterlegt' : 'kein Passwort'}
-                </span>
-                <span className={mailbox.status === 'OK' ? 'badge success' : 'badge'}>
-                  {mailbox.status}
-                  {mailbox.statusNote ? ` — ${mailbox.statusNote}` : ''}
-                  {mailbox.lastVerifiedAt ? ` (${formatDateTime(mailbox.lastVerifiedAt)})` : ''}
-                </span>
-              </div>
-              {isAdmin ? (
-                <div className="row" style={{ gap: 8 }}>
-                  <form action={verifyMailboxFormAction}>
-                    <button className="btn sm" type="submit">
-                      Verbindung testen
-                    </button>
-                  </form>
-                  <form action={deleteAccountAction}>
-                    <input type="hidden" name="id" value={mailbox.id} />
-                    <button className="btn sm ghost" type="submit">
-                      Entfernen
-                    </button>
-                  </form>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
+          <p className="small muted" style={{ marginTop: 0 }}>
+            So viele wie nötig: das Postfach für die Suchaufträge, das geteilte Postfach des Teams, ein
+            Testkonto zum Ausprobieren. Jedes wird einzeln geprüft und einzeln ausgelesen.
+          </p>
 
-          {isAdmin ? <MailboxForm existing={mailbox} /> : null}
+          {mailboxes.length === 0 ? (
+            <span className="small muted">Noch kein Postfach hinterlegt.</span>
+          ) : (
+            <ul className="list">
+              {mailboxes.map((m) => (
+                <li key={m.id} className="list-row row-between">
+                  <div className="stack" style={{ gap: 3 }}>
+                    <strong>{m.label}</strong>
+                    <span className="small muted">
+                      {m.loginName ?? 'kein Benutzername'} · {String(m.meta.imapHost ?? m.meta.smtpHost ?? '—')}
+                      {m.meta.authMethod ? ` · ${authMethodLabel(String(m.meta.authMethod))}` : ''}
+                    </span>
+                    <span className={`lamp lamp-${accountReadiness(m)}`}>
+                      <span className="lamp-dot" aria-hidden />
+                      {mailboxLabel(m)}
+                    </span>
+                  </div>
+                  {isAdmin ? (
+                    <div className="row" style={{ gap: 6 }}>
+                      <form action={verifyMailboxFormAction}>
+                        <input type="hidden" name="id" value={m.id} />
+                        <button className="btn sm" type="submit">
+                          Prüfen
+                        </button>
+                      </form>
+                      <form action={deleteAccountAction}>
+                        <input type="hidden" name="id" value={m.id} />
+                        <button className="btn sm ghost" type="submit">
+                          Entfernen
+                        </button>
+                      </form>
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {isAdmin ? <MailboxForm /> : null}
         </div>
       </div>
 
@@ -811,30 +851,58 @@ export function AccountsSection({
   );
 }
 
-function MailboxForm({ existing }: { existing?: PortalAccountView }) {
-  const meta = existing?.meta ?? {};
+/**
+ * Adding a mailbox.
+ *
+ * Several are normal, so this form always adds a new one rather than editing
+ * "the" mailbox. The provider list fills in the servers, because nobody should
+ * have to look up `imap.gmail.com` to get started — and the free-text fields
+ * stay for the hoster nobody has heard of.
+ */
+function MailboxForm() {
   return (
-    <form action={saveAccountFormAction} className="subcard stack">
+    <form action={saveAccountFormAction} className="subcard stack" id="postfach-hinzufuegen">
       <input type="hidden" name="kind" value="MAILBOX" />
-      <input type="hidden" name="siteKey" value="mailbox" />
-      {existing ? <input type="hidden" name="id" value={existing.id} /> : null}
-      <strong className="small">{existing ? 'Postfach bearbeiten' : 'Postfach einrichten'}</strong>
-      {/* The one mistake worth preventing here: pointing this at the address
-          already used for everything. Several alerts a day per saved search
-          make a working inbox unusable within a week. */}
+      <input type="hidden" name="active" value="true" />
+      <strong className="small">Postfach hinzufügen</strong>
+
       <Callout tone="warning">
         <strong>Eigene Adresse verwenden</strong> — z. B. <code>wohnungen@…</code>. Nicht das normale
-        Firmenpostfach: die Portale schicken täglich mehrere Mails.
+        Firmenpostfach: die Portale schicken täglich mehrere Mails. Zum Ausprobieren reicht ein
+        Testkonto; die App verändert nichts im Postfach (siehe „Was die App im Postfach darf&ldquo;).
       </Callout>
-      <div className="grid-2">
-        <TextField idPrefix="mb-" name="label" label="Bezeichnung" value={existing?.label ?? 'Wohnungssuche-Postfach'} />
-        <TextField idPrefix="mb-" name="loginName" label="Benutzername" value={existing?.loginName ?? ''} />
-        <TextField idPrefix="mb-" name="smtpHost" label="SMTP-Server" value={String(meta.smtpHost ?? '')} />
-        <TextField idPrefix="mb-" name="smtpPort" label="SMTP-Port" value={String(meta.smtpPort ?? '587')} />
-        <TextField idPrefix="mb-" name="imapHost" label="IMAP-Server" value={String(meta.imapHost ?? '')} hint="Leer = wie SMTP." />
-        <TextField idPrefix="mb-" name="imapPort" label="IMAP-Port" value={String(meta.imapPort ?? '993')} />
+
+      <div className="grid-3">
+        <div className="field">
+          <label htmlFor="mbProvider">Anbieter</label>
+          <select id="mbProvider" name="provider" className="input" defaultValue="">
+            <option value="">Serveradressen selbst eintragen</option>
+            <option value="gmail">Gmail / Google Workspace</option>
+            <option value="outlook">Outlook / Microsoft 365</option>
+            <option value="ionos">IONOS</option>
+            <option value="strato">STRATO</option>
+            <option value="webde">WEB.DE</option>
+            <option value="gmx">GMX</option>
+          </select>
+          <p className="field-hint">Trägt IMAP- und SMTP-Server automatisch ein.</p>
+        </div>
+        <div className="field">
+          <label htmlFor="mbAuth">Anmeldung</label>
+          <select id="mbAuth" name="authMethod" className="input" defaultValue="PASSWORD">
+            <option value="PASSWORD">Passwort</option>
+            <option value="APP_PASSWORD">App-Passwort (Gmail, Outlook, GMX …)</option>
+            <option value="IMAP_ONLY">Nur Empfang (kein Versand über dieses Konto)</option>
+          </select>
+          <p className="field-hint">
+            Bei Gmail und Microsoft 365 mit aktivierter Zwei-Faktor-Anmeldung wird ein App-Passwort
+            gebraucht, nicht das normale Kennwort.
+          </p>
+        </div>
+        <TextField idPrefix="mb-" name="label" label="Bezeichnung" value="" hint="z. B. „Suchaufträge&ldquo; oder „Test&ldquo;." />
       </div>
+
       <div className="grid-2">
+        <TextField idPrefix="mb-" name="loginName" label="E-Mail-Adresse / Benutzername" value="" />
         <div>
           <label htmlFor="mailboxSecret">Passwort</label>
           <input
@@ -843,25 +911,31 @@ function MailboxForm({ existing }: { existing?: PortalAccountView }) {
             type="password"
             className="input"
             autoComplete="new-password"
-            placeholder={existing?.hasSecret ? 'unverändert lassen' : 'App-Passwort'}
-          />
-        </div>
-        <div>
-          <label htmlFor="mailboxSecret2">IMAP-Passwort (nur falls abweichend)</label>
-          <input
-            id="mailboxSecret2"
-            name="secondarySecret"
-            type="password"
-            className="input"
-            autoComplete="new-password"
-            placeholder="leer = wie oben"
+            placeholder="wird verschlüsselt gespeichert"
           />
         </div>
       </div>
-      <input type="hidden" name="active" value="true" />
+
+      <details className="disclosure">
+        <summary>Serveradressen von Hand eintragen</summary>
+        <div className="grid-2" style={{ marginTop: 10 }}>
+          <TextField idPrefix="mb-" name="imapHost" label="IMAP-Server (Empfang)" value="" />
+          <TextField idPrefix="mb-" name="imapPort" label="IMAP-Port" value="993" />
+          <TextField idPrefix="mb-" name="smtpHost" label="SMTP-Server (Versand)" value="" />
+          <TextField idPrefix="mb-" name="smtpPort" label="SMTP-Port" value="587" />
+          <TextField
+            idPrefix="mb-"
+            name="secondarySecret"
+            label="Abweichendes IMAP-Passwort"
+            value=""
+            hint="Nur wenn Empfang und Versand verschiedene Passwörter haben."
+          />
+        </div>
+      </details>
+
       <div className="row">
-        <button className="btn sm primary" type="submit">
-          Speichern
+        <button className="btn primary" type="submit">
+          Postfach speichern
         </button>
       </div>
     </form>

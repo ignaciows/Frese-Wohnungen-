@@ -7,7 +7,7 @@
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { ingestMailbox } from '@/server/mailIngest';
+import { ingestAllMailboxes } from '@/server/mailIngest';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const summary = await ingestMailbox();
+    const summary = await ingestAllMailboxes();
     return NextResponse.json({ ok: true, ...summary });
   } catch (err) {
     return NextResponse.json(

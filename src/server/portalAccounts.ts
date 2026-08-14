@@ -201,13 +201,18 @@ export interface MailboxCredentials {
  * Returns a reason rather than throwing, because "the mailbox is not set up
  * yet" is a normal state the UI has to explain, not an exception.
  */
-export async function loadMailbox(): Promise<
-  { ok: true; credentials: MailboxCredentials } | { ok: false; reason: string }
-> {
-  const account = await prisma.portalAccount.findFirst({
-    where: { kind: 'MAILBOX', active: true },
-    orderBy: { createdAt: 'asc' },
-  });
+export async function loadMailbox(
+  accountId?: string,
+): Promise<{ ok: true; credentials: MailboxCredentials } | { ok: false; reason: string }> {
+  // Without an id: the oldest active mailbox, which is what a single-mailbox
+  // setup has always meant. With one: that specific mailbox, so several can be
+  // read and verified independently.
+  const account = accountId
+    ? await prisma.portalAccount.findFirst({ where: { id: accountId, kind: 'MAILBOX' } })
+    : await prisma.portalAccount.findFirst({
+        where: { kind: 'MAILBOX', active: true },
+        orderBy: { createdAt: 'asc' },
+      });
   if (!account) {
     return {
       ok: false,
@@ -258,6 +263,23 @@ export async function loadMailbox(): Promise<
       imapPassword,
     },
   };
+}
+
+/**
+ * Every mailbox the app is allowed to read, oldest first.
+ *
+ * More than one is the normal case: the Suchauftrag mailbox, the shared inbox
+ * the team works in Front, and a test account while somebody is setting the
+ * next one up. Each is loaded, verified and read on its own, so a broken
+ * password on one never silences the others.
+ */
+export async function listMailboxes(): Promise<Array<{ id: string; label: string }>> {
+  const rows = await prisma.portalAccount.findMany({
+    where: { kind: 'MAILBOX', active: true },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, label: true },
+  });
+  return rows;
 }
 
 export async function markAccountStatus(

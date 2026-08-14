@@ -574,8 +574,8 @@ export async function saveTransferSettingsAction(formData: FormData) {
 
 export async function runMailIngestAction() {
   await requireAdmin();
-  const { ingestMailbox } = await import('@/server/mailIngest');
-  await ingestMailbox();
+  const { ingestAllMailboxes } = await import('@/server/mailIngest');
+  await ingestAllMailboxes();
   revalidatePath('/', 'layout');
 }
 
@@ -1196,7 +1196,34 @@ const AccountInput = z.object({
   profileUrl: z.string().max(400).optional().nullable(),
   note: z.string().max(1000).optional().nullable(),
   active: z.coerce.boolean().default(true),
+  /** Preset that fills in the servers; see MAIL_PROVIDERS. */
+  provider: z.string().max(40).optional().nullable(),
+  authMethod: z.enum(['PASSWORD', 'APP_PASSWORD', 'IMAP_ONLY']).optional(),
 });
+
+/**
+ * Server addresses for the providers this team actually uses.
+ *
+ * Nobody should have to look up `imap.gmail.com` to connect a mailbox, and a
+ * mistyped hostname fails in a way that looks like a wrong password. The
+ * free-text fields stay for everyone else.
+ */
+const MAIL_PROVIDERS: Record<
+  string,
+  { imapHost: string; imapPort: string; smtpHost: string; smtpPort: string }
+> = {
+  gmail: { imapHost: 'imap.gmail.com', imapPort: '993', smtpHost: 'smtp.gmail.com', smtpPort: '587' },
+  outlook: {
+    imapHost: 'outlook.office365.com',
+    imapPort: '993',
+    smtpHost: 'smtp.office365.com',
+    smtpPort: '587',
+  },
+  ionos: { imapHost: 'imap.ionos.de', imapPort: '993', smtpHost: 'smtp.ionos.de', smtpPort: '587' },
+  strato: { imapHost: 'imap.strato.de', imapPort: '993', smtpHost: 'smtp.strato.de', smtpPort: '587' },
+  webde: { imapHost: 'imap.web.de', imapPort: '993', smtpHost: 'smtp.web.de', smtpPort: '587' },
+  gmx: { imapHost: 'imap.gmx.net', imapPort: '993', smtpHost: 'mail.gmx.net', smtpPort: '587' },
+};
 
 export async function saveAccountAction(formData: FormData) {
   const user = await requireAdmin();
@@ -1212,9 +1239,27 @@ export async function saveAccountAction(formData: FormData) {
         select: { key: true, name: true },
       })
     : null;
-  const siteKey = (parsed.siteKey?.trim() || source?.key || '').trim();
+  // A mailbox needs no portal: its identifier is the address itself, which
+  // also keeps several mailboxes apart under the (siteKey, label) key.
+  const siteKey =
+    (parsed.siteKey?.trim() || source?.key || (parsed.kind === 'MAILBOX' ? 'mailbox' : '')).trim();
   if (!siteKey) {
     return { ok: false as const, error: 'Bitte ein Portal auswählen.' };
+  }
+
+  // Hand-typed servers win; the preset only fills what was left empty.
+  const preset = parsed.provider ? MAIL_PROVIDERS[parsed.provider] : undefined;
+  const imapHost = parsed.imapHost?.trim() || preset?.imapHost || null;
+  const imapPort = parsed.imapPort?.trim() || preset?.imapPort || null;
+  const smtpHost = parsed.smtpHost?.trim() || preset?.smtpHost || null;
+  const smtpPort = parsed.smtpPort?.trim() || preset?.smtpPort || null;
+
+  if (parsed.kind === 'MAILBOX' && !imapHost && !smtpHost) {
+    return {
+      ok: false as const,
+      error:
+        'Für ein Postfach fehlen die Serveradressen. Entweder einen Anbieter auswählen oder IMAP/SMTP von Hand eintragen.',
+    };
   }
 
   const result = await saveAccount({
@@ -1230,10 +1275,12 @@ export async function saveAccountAction(formData: FormData) {
     secondarySecret: parsed.secondarySecret ? parsed.secondarySecret : undefined,
     replyToAddress: parsed.replyToAddress,
     meta: {
-      smtpHost: parsed.smtpHost || null,
-      smtpPort: parsed.smtpPort || null,
-      imapHost: parsed.imapHost || null,
-      imapPort: parsed.imapPort || null,
+      smtpHost,
+      smtpPort,
+      imapHost,
+      imapPort,
+      authMethod: parsed.authMethod ?? null,
+      provider: parsed.provider || null,
       profileUrl: parsed.profileUrl || null,
       note: parsed.note || null,
     },
@@ -1253,10 +1300,10 @@ export async function deleteAccountAction(formData: FormData) {
   revalidatePath('/einstellungen');
 }
 
-export async function verifyMailboxAction() {
+export async function verifyMailboxAction(accountId?: string) {
   await requireAdmin();
   const { verifyMailbox } = await import('@/server/outbound');
-  const result = await verifyMailbox();
+  const result = await verifyMailbox(accountId);
   revalidatePath('/einstellungen');
   return result;
 }
@@ -1413,8 +1460,9 @@ export async function verifyPortalAccountFormAction(formData: FormData) {
   );
 }
 
-export async function verifyMailboxFormAction() {
-  const result = await verifyMailboxAction();
+export async function verifyMailboxFormAction(formData: FormData) {
+  const id = String(formData.get('id') ?? '').trim();
+  const result = await verifyMailboxAction(id || undefined);
   redirect(
     result.ok
       ? `/einstellungen?gespeichert=${encodeURIComponent(result.message)}`

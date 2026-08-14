@@ -351,23 +351,54 @@ export async function retrySend(
 }
 
 /** Verifies the mailbox without sending anything to a landlord. */
-export async function verifyMailbox(): Promise<{ ok: boolean; message: string }> {
-  const mailbox = await loadMailbox();
+/**
+ * Checks a mailbox the way it is actually used: sending *and* receiving.
+ *
+ * Only SMTP was checked before, which is half the story — the app's main job
+ * with a mailbox is reading replies out of it. A password that sends fine and
+ * cannot log into IMAP produced a green light and no answers, and there was
+ * nothing on screen to say which half was broken.
+ */
+export async function verifyMailbox(accountId?: string): Promise<{ ok: boolean; message: string }> {
+  const mailbox = await loadMailbox(accountId);
   if (!mailbox.ok) return { ok: false, message: mailbox.reason };
+  const c = mailbox.credentials;
+
+  const problems: string[] = [];
 
   try {
     const transport = nodemailer.createTransport({
-      host: mailbox.credentials.smtpHost,
-      port: mailbox.credentials.smtpPort,
-      secure: mailbox.credentials.smtpSecure,
-      auth: { user: mailbox.credentials.user, pass: mailbox.credentials.password },
+      host: c.smtpHost,
+      port: c.smtpPort,
+      secure: c.smtpSecure,
+      auth: { user: c.user, pass: c.password },
     });
     await transport.verify();
-    await markAccountStatus(mailbox.credentials.accountId, 'OK', null);
-    return { ok: true, message: `SMTP-Verbindung zu ${mailbox.credentials.smtpHost} erfolgreich.` };
   } catch (err) {
-    const message = (err as Error).message.slice(0, 300);
-    await markAccountStatus(mailbox.credentials.accountId, 'FAILED', message);
-    return { ok: false, message };
+    problems.push(`Senden (SMTP ${c.smtpHost}): ${(err as Error).message.slice(0, 160)}`);
   }
+
+  try {
+    const { ImapFlow } = await import('imapflow');
+    const client = new ImapFlow({
+      host: c.imapHost,
+      port: c.imapPort,
+      secure: c.imapSecure,
+      auth: { user: c.user, pass: c.imapPassword },
+      logger: false,
+    });
+    await client.connect();
+    await client.logout().catch(() => undefined);
+  } catch (err) {
+    problems.push(`Empfangen (IMAP ${c.imapHost}): ${(err as Error).message.slice(0, 160)}`);
+  }
+
+  if (problems.length > 0) {
+    const message = problems.join(' · ');
+    await markAccountStatus(c.accountId, 'FAILED', message);
+    return { ok: false, message: `${c.label}: ${message}` };
+  }
+
+  await markAccountStatus(c.accountId, 'OK', null);
+  return { ok: true, message: `${c.label}: Senden und Empfangen geprüft — beides läuft.` };
 }
