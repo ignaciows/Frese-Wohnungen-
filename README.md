@@ -154,6 +154,15 @@ Diagnose-Skripte (nur Entwicklung, nicht Teil der App):
 
 ## Weitere Dokumente
 
+**Wer neu dazukommt, fängt bei `docs/ARCHITEKTUR.md` an** — Schichten, der Weg
+einer Wohnung vom Portal in die Liste, und wo man anfasst, um etwas Bestimmtes
+zu ändern.
+
+- `docs/ARCHITEKTUR.md` — Aufbau des Codes, Datenfluss, Einstiegspunkte.
+- `docs/SCORING.md` — die Punktzahl, mathematisch begründet.
+- `docs/ZEITLEISTE.md` — die Zeitleiste: Wochen, Gefahrenzone, „frei ab".
+- `docs/DESIGN.md` — Farb-Tokens, Tag- und Nachtansicht.
+- `docs/DREI_QUELLEN.md` — Kleinanzeigen, ImmoScout24, Immowelt: Stand und was fehlt.
 - `docs/DISCOVERY.md` — automatische Suche: Verfahren, robots.txt, Grenzen.
 - `docs/PRODUCT_BRIEF.md` — Nutzer, Problem, Journey, Akzeptanzkriterien.
 - `docs/ARCHITECTURE_DECISION.md` — verglichene Optionen und Begründung.

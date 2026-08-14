@@ -3,6 +3,39 @@
 /**
  * Server actions used by the workbench UI. Each action re-authenticates
  * against the session cookie and then hands off to the service layer.
+ *
+ * ── Two rules, both learned the hard way ────────────────────────────────────
+ *
+ * 1. **Only async functions may be exported from this file.** Every export
+ *    becomes a callable endpoint, and Next.js has nothing to do with a plain
+ *    constant: the app still typechecks, still lints, still passes the tests,
+ *    and then fails at `next build` — on the deployment server, minutes later.
+ *    Shared constants belong in `src/domain/…`. `tests/serverActions.test.ts`
+ *    enforces this in about a second.
+ *
+ * 2. **An action decides nothing.** It authenticates, validates the form with
+ *    zod, calls one function in `src/server`, and revalidates. When an action
+ *    starts to reason about housing, the reasoning belongs in `src/domain`
+ *    where it can be tested without a browser.
+ *
+ * ── What lives where ────────────────────────────────────────────────────────
+ *
+ * The file is long because the app has many small forms. It is ordered by
+ * topic; search for the banner to jump.
+ *
+ *   Kandidaten            createCandidate, saveMessage, saveProfile, archive
+ *   Anzeigen              importListing, claim, favorite, reject, expired
+ *   reply tracking        confirmContact, setContactOutcome, addContactMessage
+ *   appointments          create / outcome / delete
+ *   shared housing (WG)   refreshSharing, decideSharing, saveSharingProfile
+ *   settings              every save*SettingsAction, quality, mailbox rules
+ *   mailbox import        runMailIngest
+ *   listing link checks   liveness sweep, checkListingNow, availableFrom
+ *   candidate edit        updateCandidate, maybeRescore
+ *   Wiedervorlage         setFollowUp
+ *   what-if simulation    simulateProfile, applySimulatedProfile
+ *   form-safe wrappers    the <form action={…}> shapes of typed actions above
+ *   add any source by URL probeSource, createSource, saveSourcePoll
  */
 
 import { revalidatePath } from 'next/cache';
