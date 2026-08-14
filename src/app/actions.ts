@@ -16,6 +16,7 @@ import { createSearchRun, updateSourceCheckStatus } from '@/server/searchRuns';
 import { claimListing, confirmContact } from '@/server/contact';
 import { markSystemTransferRegistered } from '@/server/systemTransfer';
 import { syncSeedCatalog } from '@/server/sources';
+import { MAIN_SOURCE_KEYS } from '@/domain/sources/catalog';
 import { RANK_VERSION } from '@/domain/ranking';
 
 /** "" -> null, otherwise a Date. Empty date inputs post as empty strings. */
@@ -702,17 +703,6 @@ const QualityInput = z.object({
   minSqm: z.coerce.number().int().min(0).max(100).default(15),
   rejectShortStay: z.coerce.boolean().default(false),
 });
-
-/**
- * The three portals nearly every flat comes from.
- *
- * Kleinanzeigen can be read directly. ImmoScout24 and Immowelt cannot — they
- * block automated reading and have no public API — so they contribute through
- * a Suchauftrag mailed to the shared mailbox. Either way, these three are where
- * the inventory is; a sweep spread over forty municipal landlords spends its
- * request budget for a handful of adverts a month.
- */
-export const MAIN_SOURCE_KEYS = ['kleinanzeigen', 'immoscout24', 'immowelt'] as const;
 
 /**
  * Narrows the automatic search to those three and switches every other source
