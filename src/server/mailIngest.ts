@@ -12,6 +12,7 @@
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { prisma } from '@/lib/prisma';
+import { getMailboxSettings } from './settings';
 import {
   classifyMail,
   extractListings,
@@ -103,6 +104,7 @@ export async function ingestMailbox(options: { limit?: number } = {}): Promise<I
   }
 
   const limit = options.limit ?? 50;
+  const mailbox = await getMailboxSettings();
   const systemUser = await prisma.user.findFirst({
     where: { active: true },
     orderBy: { createdAt: 'asc' },
@@ -124,7 +126,20 @@ export async function ingestMailbox(options: { limit?: number } = {}): Promise<I
   await client.connect();
   const lock = await client.getMailboxLock(cfg.mailbox);
   try {
-    const uids = await client.search({ seen: false });
+    // Which mails to look at.
+    //
+    // Read-only: everything that arrived in the lookback window, and the
+    // Message-ID log decides what is new. Nothing is written to the mailbox, so
+    // a shared inbox worked in Front keeps its unread state exactly as the team
+    // left it.
+    //
+    // The older behaviour — search unseen, then flag as seen — is still
+    // available for a mailbox nobody else reads, because it is cheaper on a
+    // busy account.
+    const since = new Date(Date.now() - mailbox.lookbackDays * 86_400_000);
+    const uids = mailbox.readOnly
+      ? await client.search({ since })
+      : await client.search({ seen: false });
     const slice = (uids || []).slice(-limit);
 
     for (const uid of slice) {
@@ -166,8 +181,10 @@ export async function ingestMailbox(options: { limit?: number } = {}): Promise<I
         if (result.status !== 'PROCESSED') summary.skipped++;
         if (result.note) summary.messages.push(result.note);
 
-        // Mark handled so the next run does not look at it again.
-        await client.messageFlagsAdd(String(uid), ['\\Seen'], { uid: true });
+        // Only when the mailbox is ours alone. See MailboxSettings.readOnly.
+        if (!mailbox.readOnly) {
+          await client.messageFlagsAdd(String(uid), ['\\Seen'], { uid: true });
+        }
       } catch (err) {
         summary.errors++;
         const note = (err as Error).message.slice(0, 300);

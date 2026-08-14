@@ -743,6 +743,19 @@ export async function focusMainSourcesAction() {
   revalidatePath('/', 'layout');
 }
 
+const MailboxInput = z.object({
+  readOnly: z.coerce.boolean().default(false),
+  lookbackDays: z.coerce.number().int().min(1).max(90).default(14),
+});
+
+export async function saveMailboxSettingsAction(formData: FormData) {
+  const user = await requireAdmin();
+  const parsed = MailboxInput.parse(Object.fromEntries(formData));
+  const { writeSetting, SETTING_KEYS } = await import('@/server/settings');
+  await writeSetting(SETTING_KEYS.mailbox, parsed, user.id);
+  revalidatePath('/', 'layout');
+}
+
 export async function saveQualitySettingsAction(formData: FormData) {
   const user = await requireAdmin();
   const parsed = QualityInput.parse(Object.fromEntries(formData));
