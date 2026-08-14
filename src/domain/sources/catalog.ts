@@ -1,4 +1,18 @@
 /**
+ * The three portals nearly every flat comes from.
+ *
+ * Kleinanzeigen can be read directly. ImmoScout24 and Immowelt cannot — they
+ * block automated reading and have no public API — so they contribute through
+ * a Suchauftrag mailed to the shared mailbox. See docs/DREI_QUELLEN.md.
+ *
+ * Lives here rather than next to the action that uses it: `actions.ts` carries
+ * a "use server" directive, and such a file may only export async functions.
+ * Exporting this array from there compiled and type-checked cleanly, and broke
+ * the production build at page-data collection.
+ */
+export const MAIN_SOURCE_KEYS = ['kleinanzeigen', 'immoscout24', 'immowelt'] as const;
+
+/**
  * Seed catalogue of housing sources. All connectors default to their honest
  * fallback (SEARCH_LINK / MANUAL_IMPORT / BROWSER_ONLY): the seed file makes
  * no claim of authorised automated ingestion for any portal.
