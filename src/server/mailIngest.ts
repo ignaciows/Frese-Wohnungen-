@@ -56,8 +56,8 @@ export function readMailConfigFromEnv(): MailConfig | null {
  * team can set this up themselves; the env route keeps existing deployments
  * working untouched.
  */
-export async function readMailConfig(): Promise<MailConfig | null> {
-  const stored = await loadMailbox();
+export async function readMailConfig(accountId?: string): Promise<MailConfig | null> {
+  const stored = await loadMailbox(accountId);
   if (stored.ok) {
     const meta = stored.credentials;
     return {
@@ -87,8 +87,10 @@ export interface IngestSummary {
  * Idempotent: a Message-ID we have already logged is skipped, so a re-run or an
  * overlapping cron can never duplicate a listing.
  */
-export async function ingestMailbox(options: { limit?: number } = {}): Promise<IngestSummary> {
-  const cfg = await readMailConfig();
+export async function ingestMailbox(
+  options: { limit?: number; accountId?: string } = {},
+): Promise<IngestSummary> {
+  const cfg = await readMailConfig(options.accountId);
   const summary: IngestSummary = {
     configured: cfg != null,
     examined: 0,
@@ -209,6 +211,45 @@ export async function ingestMailbox(options: { limit?: number } = {}): Promise<I
   }
 
   return summary;
+}
+
+/**
+ * Reads every mailbox that is set up, one after another.
+ *
+ * One account was the assumption for a long time; in practice there are
+ * several — the Suchauftrag address, the shared inbox the team works in Front,
+ * and a test account while the next one is being set up. A failure on one is
+ * reported and does not stop the others: a wrong password on the test account
+ * must never cost a day of replies on the real one.
+ */
+export async function ingestAllMailboxes(options: { limit?: number } = {}): Promise<IngestSummary> {
+  const { listMailboxes } = await import('@/server/portalAccounts');
+  const boxes = await listMailboxes();
+
+  // No account rows at all: fall back to the environment-configured mailbox,
+  // which is how a fresh installation and the tests are set up.
+  if (boxes.length === 0) return ingestMailbox(options);
+
+  const total: IngestSummary = {
+    configured: true,
+    examined: 0,
+    processed: 0,
+    listingsCreated: 0,
+    skipped: 0,
+    errors: 0,
+    messages: [],
+  };
+
+  for (const box of boxes) {
+    const one = await ingestMailbox({ ...options, accountId: box.id });
+    total.examined += one.examined;
+    total.processed += one.processed;
+    total.listingsCreated += one.listingsCreated;
+    total.skipped += one.skipped;
+    total.errors += one.errors;
+    for (const m of one.messages) total.messages.push(`${box.label}: ${m}`);
+  }
+  return total;
 }
 
 type ParsedAlert = ReturnType<typeof parseAlertEmail>;
