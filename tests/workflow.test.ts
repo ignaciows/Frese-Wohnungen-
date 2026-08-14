@@ -172,6 +172,45 @@ describe('listing ingest + ranking', () => {
     });
     expect(a.listingId).toBe(b.listingId);
   });
+
+  it('keeps a move-in date entered by hand when the advert is swept again', async () => {
+    // The colleague rings the landlord and learns the flat is free from 1.10.
+    // The advert still says nothing, and will keep saying nothing on every
+    // sweep from now on. Nothing must not overwrite something.
+    const { colleague } = await seedBaseline();
+    const source = await prisma.source.findFirstOrThrow({ where: { key: 'immoscout24' } });
+    const { ingestListing } = await import('@/server/listingIngest');
+    const advert = {
+      sourceId: source.id,
+      rawUrl: 'https://www.immobilienscout24.de/expose/1000000003',
+      title: 'Wohnung ohne Datum',
+      descriptionRaw: 'Warmmiete 800 €. Kein Einzugstermin genannt.',
+      importedById: colleague.id,
+    };
+    const first = await ingestListing(advert);
+    expect((await prisma.listing.findUniqueOrThrow({ where: { id: first.listingId } })).availableFrom).toBeNull();
+
+    const byHand = new Date('2026-10-01T12:00:00');
+    await prisma.listing.update({
+      where: { id: first.listingId },
+      data: { availableFrom: byHand },
+    });
+    await prisma.listingFact.create({
+      data: {
+        listingId: first.listingId,
+        key: 'availableFrom',
+        valueJson: byHand.toISOString(),
+        origin: 'MANUAL',
+        confidence: 1,
+        isOverride: true,
+        createdById: colleague.id,
+      },
+    });
+
+    await ingestListing(advert);
+    const after = await prisma.listing.findUniqueOrThrow({ where: { id: first.listingId } });
+    expect(after.availableFrom?.toISOString()).toBe(byHand.toISOString());
+  });
 });
 
 describe('contact workflow', () => {

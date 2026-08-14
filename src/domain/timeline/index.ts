@@ -103,10 +103,34 @@ export function riskOf(daysToArrival: number | null, secured: boolean): RiskLeve
   return 'CALM';
 }
 
+/**
+ * One Monday on the axis.
+ *
+ * The months alone answer "roughly when"; a colleague ringing a landlord needs
+ * "which week", which is the unit the whole business is actually run in — an
+ * enquiry goes out this week, a viewing happens next week, the flat is free in
+ * the week after. `label` is the Monday's date, `week` its calendar-week
+ * number, which is what a German landlord will say on the telephone.
+ */
+export interface TimelineWeek {
+  at: Date;
+  /** "3.8." — the Monday. */
+  label: string;
+  /** ISO calendar week, the number Germans schedule by. */
+  week: number;
+  pct: number;
+  /** True for the Monday that contains today, so it can be marked. */
+  current: boolean;
+  /** The first Monday of a month, which is where the month label sits. */
+  monthStart: boolean;
+}
+
 export interface TimelineView {
   from: Date;
   to: Date;
   months: Array<{ at: Date; label: string; pct: number }>;
+  /** Every Monday on the axis, thinned out when the span is long. */
+  weeks: TimelineWeek[];
   markers: TimelineMarker[];
   tracks: TimelineTrack[];
   /** Positive = arrival still ahead, negative = they are already here. */
@@ -162,6 +186,8 @@ export function buildTimeline(input: TimelineInput): TimelineView {
     });
   }
   markers.push({ key: 'today', at: now, pct: pctOf(now), label: 'Heute' });
+  // Note the marker dates are also carried on `at`, so the component can print
+  // "Ankunft 18.9." rather than "Ankunft" and a position.
   if (input.arrival) {
     markers.push({ key: 'arrival', at: input.arrival, pct: pctOf(input.arrival), label: 'Ankunft' });
   }
@@ -192,6 +218,7 @@ export function buildTimeline(input: TimelineInput): TimelineView {
     from,
     to,
     months: monthTicks(from, to, pctOf),
+    weeks: weekTicks(from, to, now, pctOf),
     markers,
     tracks,
     daysToArrival,
@@ -356,6 +383,72 @@ function monthTicks(
     i++;
   }
   return ticks;
+}
+
+/**
+ * A tick on every Monday, thinned out so the labels never touch.
+ *
+ * Roughly 26 labels is what fits across the rail before the dates start
+ * overlapping, so beyond that only every second or third Monday is drawn. The
+ * ticks themselves are cheap; it is the text under them that runs out of room.
+ */
+function weekTicks(
+  from: Date,
+  to: Date,
+  now: Date,
+  pctOf: (d: Date) => number,
+): TimelineWeek[] {
+  const ticks: TimelineWeek[] = [];
+  const cursor = mondayOf(from);
+  // Start strictly inside the axis: a Monday at or before `from` is drawn at
+  // 0%, right on top of the first month label.
+  if (cursor <= from) cursor.setDate(cursor.getDate() + 7);
+
+  const totalWeeks = Math.ceil((to.getTime() - cursor.getTime()) / (7 * DAY));
+  const step = totalWeeks > 52 ? 4 : totalWeeks > 26 ? 2 : 1;
+  const thisMonday = mondayOf(now);
+
+  let i = 0;
+  while (cursor <= to) {
+    if (i % step === 0) {
+      const at = new Date(cursor);
+      ticks.push({
+        at,
+        label: `${at.getDate()}.${at.getMonth() + 1}.`,
+        week: isoWeek(at),
+        pct: pctOf(at),
+        current: at.getTime() === thisMonday.getTime(),
+        monthStart: at.getDate() <= 7,
+      });
+    }
+    cursor.setDate(cursor.getDate() + 7);
+    i++;
+  }
+  return ticks;
+}
+
+/** The Monday of the week `d` falls in. German weeks start on Monday. */
+export function mondayOf(d: Date): Date {
+  const day = startOfDay(d);
+  // getDay(): 0 = Sunday, so Sunday belongs to the week that began six days ago.
+  const shift = (day.getDay() + 6) % 7;
+  day.setDate(day.getDate() - shift);
+  return day;
+}
+
+/**
+ * ISO 8601 calendar week — the "KW" on every German calendar.
+ *
+ * The rule: week 1 is the week containing the first Thursday of the year. The
+ * standard trick is to jump to that Thursday and count weeks from the year's
+ * first day, which avoids every off-by-one around New Year.
+ */
+export function isoWeek(d: Date): number {
+  const thursday = mondayOf(d);
+  thursday.setDate(thursday.getDate() + 3);
+  const firstThursday = new Date(thursday.getFullYear(), 0, 4);
+  const offset = mondayOf(firstThursday);
+  return 1 + Math.round((thursday.getTime() - offset.getTime()) / (7 * DAY));
 }
 
 function monthsBetween(a: Date, b: Date): number {

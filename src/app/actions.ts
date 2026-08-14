@@ -654,6 +654,78 @@ export async function checkListingNowAction(formData: FormData) {
   revalidatePath('/', 'layout');
 }
 
+const AvailableFromInput = z.object({
+  listingId: z.string().min(1),
+  // Empty clears a date that was entered by mistake; the field is a plain
+  // <input type="date">, so the browser guarantees the shape.
+  availableFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).or(z.literal('')),
+});
+
+/**
+ * Set the move-in date by hand.
+ *
+ * Most adverts simply do not print one, and without it the flat cannot be
+ * placed against the arrival — it sits on the timeline saying "kein Datum" and
+ * scores nothing for timing. But a colleague who has just been on the phone to
+ * the landlord *knows* the date. This is where that knowledge gets written
+ * down.
+ *
+ * It is stored as an override, the mechanism the importer already respects, so
+ * the next sweep over the same advert cannot quietly replace it with the
+ * nothing the advert still says.
+ */
+export async function setListingAvailableFromAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = AvailableFromInput.safeParse({
+    listingId: formData.get('listingId'),
+    availableFrom: formData.get('availableFrom') ?? '',
+  });
+  if (!parsed.success) return;
+
+  const { listingId, availableFrom } = parsed.data;
+  // Midday, not midnight: the timeline compares whole days, and a midnight
+  // stamp lands on the previous day in any timezone west of Berlin.
+  const value = availableFrom ? new Date(`${availableFrom}T12:00:00`) : null;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.listing.update({
+      where: { id: listingId },
+      data: { availableFrom: value, availableNow: false },
+    });
+    await tx.listingFact.deleteMany({
+      where: { listingId, key: 'availableFrom', isOverride: true },
+    });
+    if (value) {
+      await tx.listingFact.create({
+        data: {
+          listingId,
+          key: 'availableFrom',
+          valueJson: value.toISOString(),
+          origin: 'MANUAL',
+          evidence: 'Von Hand eingetragen',
+          confidence: 1,
+          isOverride: true,
+          createdById: user.id,
+        },
+      });
+    }
+    await tx.auditEvent.create({
+      data: {
+        userId: user.id,
+        entityType: 'Listing',
+        entityId: listingId,
+        action: 'listing.availableFrom.manual',
+      },
+    });
+  });
+
+  // The date is worth a fifth of the score, so every candidate's ranking of
+  // this flat is now wrong until it is recomputed.
+  const { computeMatchesForListing } = await import('@/server/ranking');
+  await computeMatchesForListing(listingId);
+  revalidatePath('/', 'layout');
+}
+
 const LivenessSettingsInput = z
   .object({
     enabled: z.coerce.boolean().default(false),
