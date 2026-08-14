@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTimeline, type TimelineFlat, type TimelineInput } from '@/domain/timeline';
+import { buildTimeline, isoWeek, mondayOf, type TimelineFlat, type TimelineInput } from '@/domain/timeline';
 
 const NOW = new Date('2026-09-15T10:00:00Z');
 const d = (iso: string) => new Date(iso);
@@ -65,6 +65,68 @@ describe('timeline axis', () => {
     const t = buildTimeline(input());
     expect(t.months.length).toBeGreaterThanOrEqual(3);
     expect(t.months[0].pct).toBe(0);
+  });
+});
+
+describe('week ticks', () => {
+  it('puts a tick on every Monday of the span', () => {
+    const t = buildTimeline(input());
+    expect(t.weeks.length).toBeGreaterThan(8);
+    for (const w of t.weeks) expect(w.at.getDay()).toBe(1);
+  });
+
+  it('never draws one on top of the first month label', () => {
+    const t = buildTimeline(input());
+    expect(t.weeks[0].pct).toBeGreaterThan(0);
+  });
+
+  it('marks the week today falls in, and only that one', () => {
+    const t = buildTimeline(input());
+    expect(t.weeks.filter((w) => w.current)).toHaveLength(1);
+    // 15.9.2026 is a Tuesday; its Monday is the 14th.
+    expect(t.weeks.find((w) => w.current)!.at.getDate()).toBe(14);
+  });
+
+  it('labels a tick with the Monday date', () => {
+    const t = buildTimeline(input());
+    const current = t.weeks.find((w) => w.current)!;
+    expect(current.label).toBe('14.9.');
+  });
+
+  it('thins the ticks out rather than letting the labels collide', () => {
+    // Two and a half years: every Monday would be 130 labels on one rail.
+    const t = buildTimeline(
+      input({ contractSignedAt: d('2026-01-01T00:00:00Z'), arrival: d('2028-06-01T00:00:00Z') }),
+    );
+    const gapDays = (t.weeks[1].at.getTime() - t.weeks[0].at.getTime()) / 86_400_000;
+    expect(gapDays).toBe(28);
+    expect(t.weeks.length).toBeLessThan(40);
+  });
+
+  it('keeps the ticks inside the axis', () => {
+    const t = buildTimeline(input());
+    for (const w of t.weeks) {
+      expect(w.pct).toBeGreaterThanOrEqual(0);
+      expect(w.pct).toBeLessThanOrEqual(100);
+    }
+  });
+});
+
+describe('calendar weeks', () => {
+  it('walks back to Monday from any day of the week', () => {
+    // Sunday belongs to the week that started six days earlier, not the next.
+    expect(mondayOf(d('2026-09-20T12:00:00')).getDate()).toBe(14);
+    expect(mondayOf(d('2026-09-14T00:00:00')).getDate()).toBe(14);
+    expect(mondayOf(d('2026-09-15T23:30:00')).getDate()).toBe(14);
+  });
+
+  it('counts ISO weeks the way a German calendar does', () => {
+    expect(isoWeek(new Date(2026, 0, 1))).toBe(1);
+    expect(isoWeek(new Date(2026, 8, 15))).toBe(38);
+    // 1.1.2027 is a Friday, so it still belongs to the last week of 2026.
+    expect(isoWeek(new Date(2027, 0, 1))).toBe(53);
+    // 1.1.2025 is a Wednesday: week 1 of its own year.
+    expect(isoWeek(new Date(2025, 0, 1))).toBe(1);
   });
 });
 

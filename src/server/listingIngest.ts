@@ -127,6 +127,10 @@ export async function ingestListing(input: IngestInput): Promise<IngestResult> {
         'abloeseCents',
         'rooms',
         'livingSpaceSqm',
+        // A move-in date entered by hand usually came from a telephone call
+        // with the landlord. The advert will still say nothing on the next
+        // sweep, and nothing must not overwrite something.
+        'availableFrom',
         'wbsRequired',
         'exchangeRequired',
         'petsAllowed',

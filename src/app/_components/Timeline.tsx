@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { formatEuroCents } from '@/lib/money';
 import type { TimelineTrack, TimelineView } from '@/domain/timeline';
+import { AvailableFromPicker } from './AvailableFromPicker';
 
 /**
  * The case, drawn as one line from left to right.
@@ -59,6 +60,27 @@ export function Timeline({
           </div>
         </div>
 
+        {/* Under the months, the weeks — because nothing in this business is
+            scheduled in months. A landlord says "ab KW 38", a colleague plans
+            "raus diese Woche, Besichtigung nächste", and the axis has to be
+            readable in the same unit. The date is the Monday. */}
+        <div className="tl-axis tl-weekaxis">
+          <div className="tl-axis-label" />
+          <div className="tl-rail tl-weeks">
+            {view.weeks.map((w) => (
+              <span
+                key={w.at.toISOString()}
+                className={`tl-week${w.current ? ' current' : ''}${w.monthStart ? ' month-start' : ''}`}
+                style={{ left: `${w.pct}%` }}
+                title={`KW ${w.week} · ab ${w.at.toLocaleDateString('de-DE')}`}
+              >
+                <i aria-hidden />
+                <em>{w.label}</em>
+              </span>
+            ))}
+          </div>
+        </div>
+
         <div className="tl-rows">
           {/* Two vertical lines run through every row: today, and the day the
               person lands. Everything to the right of the second one is late. */}
@@ -85,6 +107,9 @@ export function Timeline({
                 <span key={m.key} className={`tl-flag ${m.key}`} style={{ left: `${m.pct}%` }}>
                   <span className="tl-flag-dot" aria-hidden />
                   {m.label}
+                  {/* The date on the flag itself. "Ankunft" alone means the
+                      reader has to find the same date again in the header. */}
+                  {m.key !== 'today' ? <b>{formatDay(m.at)}</b> : null}
                 </span>
               ))}
             </div>
@@ -144,8 +169,8 @@ function TrackRow({
 
   return (
     <div className={`tl-row stage-${track.stage.toLowerCase()}`}>
-      <Link className="tl-axis-label tl-flat" href={`/kandidat/${candidateId}/ergebnisse?listing=${f.id}&tab=alle`}>
-        <span className="tl-flat-text">
+      <div className="tl-axis-label tl-flat">
+        <Link className="tl-flat-text" href={`/kandidat/${candidateId}/ergebnisse?listing=${f.id}&tab=alle`}>
           <span className="tl-flat-title">{f.title}</span>
           <span className="tl-flat-sub">
             {[f.priceCents != null ? formatEuroCents(f.priceCents) : null, f.city]
@@ -163,8 +188,10 @@ function TrackRow({
                 : ` · ${Math.abs(track.gapDays)} Tage vorher`
               : ''}
           </span>
-        </span>
-      </Link>
+        </Link>
+        {/* Outside the link, or pressing the date field would navigate away. */}
+        <AvailableFromPicker listingId={f.id} current={f.availableFrom} compact />
+      </div>
 
       <div className="tl-rail">
         <span
@@ -189,6 +216,11 @@ function TrackRow({
       </div>
     </div>
   );
+}
+
+/** "18.9." — short enough to sit on a flag without widening it. */
+function formatDay(d: Date): string {
+  return `${d.getDate()}.${d.getMonth() + 1}.`;
 }
 
 function stageIcon(stage: TimelineView['stage']): string {

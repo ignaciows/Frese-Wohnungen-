@@ -4,6 +4,7 @@ import { Empty, Callout } from '@/app/_components/Shell';
 import { LiveSearch } from '@/app/_components/LiveSearch';
 import { WhatIfPanel } from '@/app/_components/WhatIfPanel';
 import { ContactFlow } from '@/app/_components/ContactFlow';
+import { AvailableFromPicker } from '@/app/_components/AvailableFromPicker';
 import { favoriteListingAction, rejectListingAction } from '@/app/actions';
 import { formatEuroCents } from '@/lib/money';
 import { COMPATIBILITY, FURNISHING, MATCH_STATUS, formatDate } from '@/lib/labels';
@@ -712,6 +713,9 @@ async function DetailPane({
                 {l.availableFrom ? formatDate(l.availableFrom) : 'Unbekannt'}
               </div>
               <div className="stat-label">Verfügbar ab</div>
+              {/* The date the advert did not print, but the landlord said on
+                  the phone. Without it this flat scores nothing for timing. */}
+              <AvailableFromPicker listingId={l.id} current={l.availableFrom} />
             </div>
           </div>
 
