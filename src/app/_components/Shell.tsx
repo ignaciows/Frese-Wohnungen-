@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ThemeToggle } from './ThemeToggle';
 
 export function AppBar({
   user,
@@ -42,6 +43,7 @@ export function AppBar({
           </Link>
         </nav>
         <div className="grow" />
+        <ThemeToggle />
         <span className="small muted nowrap">
           {user.name}
           {user.role === 'ADMIN' ? ' · Admin' : ''}

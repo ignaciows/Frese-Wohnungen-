@@ -47,6 +47,19 @@
   --neutral-soft: #f0f3f4;
   --neutral-border: #dde4e6;
 
+  /* Glass — the frosted card surfaces.
+     Named tokens rather than literal rgba() at the point of use, because the
+     night theme has to swap them: white translucency over a dark background
+     is fog, not glass. */
+  --glass: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 252, 252, 0.92));
+  --glass-solid: rgba(255, 255, 255, 0.99);
+  --glass-quiet: rgba(255, 255, 255, 0.9);
+  --hairline: rgba(15, 36, 41, 0.07);
+  --knob: #ffffff;
+  /* The neon edge: invisible by day, the whole look by night. */
+  --neon: 0 0 0 rgba(0, 0, 0, 0);
+  --neon-soft: 0 0 0 rgba(0, 0, 0, 0);
+
   /* Shape */
   --radius: 10px;
   --radius-sm: 7px;
@@ -56,6 +69,8 @@
   --shadow-lg: 0 8px 28px rgba(15, 36, 41, 0.1);
 
   --header-h: 56px;
+
+  color-scheme: light;
 }
 
 * {
@@ -1221,7 +1236,7 @@ label {
   width: 21px;
   height: 21px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--knob);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.28);
   transition: transform 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
@@ -3010,13 +3025,13 @@ label {
   box-shadow: none;
 }
 .listing-row {
-  border: 1px solid rgba(15, 36, 41, 0.07);
+  border: 1px solid var(--hairline);
   border-radius: 18px;
   margin-bottom: 12px;
   padding-right: 20px;
   /* Frosted rather than flat: a hint of translucency and a soft inner
      highlight, which is what makes the surface read as glass. */
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 252, 252, 0.92));
+  background: var(--glass);
   backdrop-filter: saturate(140%) blur(6px);
   box-shadow: 0 1px 2px rgba(15, 36, 41, 0.04), 0 6px 20px rgba(15, 36, 41, 0.05);
   transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
@@ -3024,8 +3039,8 @@ label {
 .listing-row:hover {
   transform: translateY(-2px);
   border-color: rgba(14, 124, 134, 0.28);
-  box-shadow: 0 2px 4px rgba(15, 36, 41, 0.05), 0 14px 32px rgba(15, 36, 41, 0.1);
-  background: rgba(255, 255, 255, 0.99);
+  box-shadow: 0 2px 4px rgba(15, 36, 41, 0.05), 0 14px 32px rgba(15, 36, 41, 0.1), var(--neon-soft);
+  background: var(--glass-solid);
 }
 .listing-row:last-child {
   margin-bottom: 0;
@@ -3042,8 +3057,8 @@ label {
 }
 .listing-note {
   border-radius: 18px;
-  border: 1px solid rgba(15, 36, 41, 0.07);
-  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--hairline);
+  background: var(--glass-quiet);
   margin-top: 12px;
 }
 
@@ -3192,7 +3207,7 @@ label {
   font-size: 12px;
   border-width: 2px;
   box-shadow: 0 1px 4px rgba(15, 36, 41, 0.18);
-  background: #fff;
+  background: var(--knob);
 }
 .tl-dot-tip {
   bottom: 28px;
@@ -3375,4 +3390,176 @@ label {
 }
 .flow-main strong {
   font-size: 15.5px;
+}
+
+/* ============================================== the switch, day and night ===
+   One button in the app bar. Round, quiet, and the same size in both states so
+   the header never shifts when it is pressed. */
+.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.theme-toggle:hover {
+  background: var(--surface-3);
+  color: var(--text);
+  border-color: var(--brand-border);
+  box-shadow: var(--neon-soft);
+}
+
+/* ==================================================== the night version =====
+   Everything below is tokens. No layout, no sizes, no new rules for components
+   that already read their colour from a variable — which, after the passes
+   above, is nearly all of them. The handful of rules at the end are the places
+   that had a colour baked in and could not be reached any other way.
+
+   Why the palette is not simply "light, inverted": at night the surfaces have
+   to separate from each other by lightness, and pure white text on pure black
+   glares. So the ground is a deep blue-green rather than black, the surfaces
+   step up in three visible stages, and the text stops just short of white.
+
+   The neon is the brand colour spent as light rather than as ink: a soft ring
+   around whatever is active, and a glow under the bar at the top. It is a
+   shadow, so it costs no layout and can be switched off in one token. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --brand: #109aa6;
+  --brand-hover: #14b0bd;
+  --brand-active: #0c8791;
+  --brand-soft: rgba(16, 154, 166, 0.18);
+  --brand-soft-hover: rgba(16, 154, 166, 0.26);
+  --brand-border: rgba(16, 154, 166, 0.45);
+  --brand-text-on: #ffffff;
+
+  --bg: #070f12;
+  --surface: #0e181d;
+  --surface-2: #132228;
+  --surface-3: #1a2c33;
+
+  --border: #1f333a;
+  --border-strong: #2d4750;
+
+  --text: #e7f1f3;
+  --text-muted: #9db2ba;
+  --text-subtle: #74898f;
+
+  --success: #3ddc97;
+  --success-soft: rgba(61, 220, 151, 0.14);
+  --success-border: rgba(61, 220, 151, 0.34);
+  --warning: #f5b942;
+  --warning-soft: rgba(245, 185, 66, 0.14);
+  --warning-border: rgba(245, 185, 66, 0.34);
+  --danger: #ff7a70;
+  --danger-soft: rgba(255, 122, 112, 0.14);
+  --danger-border: rgba(255, 122, 112, 0.36);
+  --info: #6cb6f0;
+  --info-soft: rgba(108, 182, 240, 0.14);
+  --info-border: rgba(108, 182, 240, 0.34);
+  --neutral-soft: #182a31;
+  --neutral-border: #243c44;
+
+  /* Glass over a dark ground: a lit pane, not a white film. */
+  --glass: linear-gradient(180deg, rgba(28, 47, 55, 0.82), rgba(15, 26, 31, 0.76));
+  --glass-solid: rgba(33, 55, 63, 0.94);
+  --glass-quiet: rgba(19, 33, 39, 0.8);
+  --hairline: rgba(150, 225, 235, 0.1);
+  --knob: #e7f1f3;
+
+  --neon: 0 0 0 1px rgba(20, 176, 189, 0.3), 0 0 24px rgba(20, 176, 189, 0.26);
+  --neon-soft: 0 0 20px rgba(20, 176, 189, 0.18);
+
+  /* Black, and deeper: on a dark ground a shadow only reads if it is stronger
+     than the surface it falls on. */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow: 0 2px 6px rgba(0, 0, 0, 0.45), 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+/* The bar at the top, lit from below. */
+[data-theme='dark'] .appbar {
+  background: rgba(14, 24, 29, 0.85);
+  backdrop-filter: saturate(160%) blur(12px);
+  box-shadow: 0 1px 0 rgba(20, 176, 189, 0.22), 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+[data-theme='dark'] .brand-dot {
+  box-shadow: var(--neon-soft);
+}
+[data-theme='dark'] .appbar-nav a[aria-current='page'] {
+  box-shadow: inset 0 0 0 1px var(--brand-border);
+}
+
+/* The selected tab is an inverted pill: by day a near-black lozenge on white,
+   which at night inverts into a white slab — the loudest thing on the screen,
+   with its count badge (white on 22% white) unreadable inside it. Brand
+   instead: still the only filled pill in the row, and the badge works again. */
+[data-theme='dark'] .tab[aria-current='page'] {
+  background: var(--brand);
+  color: var(--brand-text-on);
+  box-shadow: var(--neon-soft);
+}
+
+/* The two verdict badges and the "what is missing" chip had their colours
+   written out, back when there was only one theme. */
+[data-theme='dark'] .badge.success {
+  background: var(--success-soft);
+  color: var(--success);
+  border-color: var(--success-border);
+}
+[data-theme='dark'] .badge.warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+  border-color: var(--warning-border);
+}
+[data-theme='dark'] .lack {
+  background: var(--warning-soft);
+  color: var(--warning);
+  border-color: var(--warning-border);
+}
+[data-theme='dark'] .listing-score.low {
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+[data-theme='dark'] .listing-score.good,
+[data-theme='dark'] .listing-score.mid {
+  /* The filled chips stay as they are — they are the one place where a strong
+     colour is the point — but they get a glow instead of a drop shadow, which
+     is invisible against the dark card. */
+  box-shadow: 0 0 18px rgba(0, 0, 0, 0.45);
+}
+
+/* The alarm strip behind a case that is running out of time. */
+[data-theme='dark'] .tl-danger {
+  background: linear-gradient(180deg, rgba(255, 122, 112, 0.14), rgba(255, 122, 112, 0.05));
+  border-left-color: rgba(255, 122, 112, 0.45);
+  border-right-color: rgba(255, 122, 112, 0.45);
+}
+[data-theme='dark'] .risk-danger .tl-head {
+  background: linear-gradient(90deg, rgba(255, 122, 112, 0.16), var(--surface-2));
+}
+/* "Written to, no answer yet" was a pale grey-blue bar — the right weight on
+   white, and brighter than everything around it on black, which would have
+   made the least interesting stage the loudest. */
+[data-theme='dark'] .stage-sent .tl-bar {
+  background: linear-gradient(90deg, #2b4a50, #3c6b73);
+}
+[data-theme='dark'] .tl-key.sent i {
+  background: #3c6b73;
+}
+
+/* The one thing that keeps its own light: the live search, so a colleague can
+   see from across the room that it is running. */
+[data-theme='dark'] .live-bar span,
+[data-theme='dark'] .live-source.running .live-source-dot {
+  box-shadow: var(--neon-soft);
 }
