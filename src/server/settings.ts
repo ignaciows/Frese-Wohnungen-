@@ -32,6 +32,7 @@ export const SETTING_KEYS = {
   followUp: 'followUp',
   ageFilter: 'ageFilter',
   quality: 'quality',
+  mailbox: 'mailbox',
 } as const;
 
 export interface DiscoverySettings {
@@ -165,6 +166,32 @@ export const DEFAULT_QUALITY: QualitySettings = {
   rejectShortStay: true,
 };
 
+/**
+ * How the app is allowed to behave inside somebody else's inbox.
+ *
+ * The mailbox this reads is a shared one — the team works it in Front, and a
+ * landlord's reply sitting there unread is how a colleague knows to answer it.
+ * Marking mail as read to remember "already handled" is convenient for us and
+ * destructive for them: replies would silently vanish from the unread list of
+ * the person whose job it is to see them.
+ *
+ * So read-only is the default. It costs nothing: idempotency never depended on
+ * the flag, it comes from the unique Message-ID in `EmailIngestLog`. The flag
+ * was only an optimisation for which mails to fetch, and a lookback window
+ * does that job without writing anything at all.
+ */
+export interface MailboxSettings {
+  /** Never write to the mailbox — no flags, no moves, no deletions. */
+  readOnly: boolean;
+  /** In read-only mode: how far back to look on each run. */
+  lookbackDays: number;
+}
+
+export const DEFAULT_MAILBOX: MailboxSettings = {
+  readOnly: true,
+  lookbackDays: 14,
+};
+
 async function readSetting<T>(key: string, fallback: T): Promise<T> {
   try {
     const row = await prisma.appSetting.findUnique({ where: { key } });
@@ -222,6 +249,10 @@ export function getAgeFilterSettings(): Promise<AgeFilterSettings> {
 
 export function getQualitySettings(): Promise<QualitySettings> {
   return readSetting(SETTING_KEYS.quality, DEFAULT_QUALITY);
+}
+
+export function getMailboxSettings(): Promise<MailboxSettings> {
+  return readSetting(SETTING_KEYS.mailbox, DEFAULT_MAILBOX);
 }
 
 export async function writeSetting(key: string, value: object, userId: string): Promise<void> {

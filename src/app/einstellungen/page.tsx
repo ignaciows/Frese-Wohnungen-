@@ -13,6 +13,7 @@ import {
   getLivenessSettings,
   getAgeFilterSettings,
   getQualitySettings,
+  getMailboxSettings,
   getTelegramSettings,
 } from '@/server/settings';
 import {
@@ -24,6 +25,7 @@ import {
   saveLivenessSettingsAction,
   saveAgeFilterSettingsAction,
   saveQualitySettingsAction,
+  saveMailboxSettingsAction,
   runLivenessSweepAction,
   saveTelegramSettingsAction,
   sendTelegramTestAction,
@@ -62,6 +64,7 @@ export default async function SettingsPage({
     liveness,
     ageFilter,
     quality,
+    mailbox,
     telegram,
     discovery,
     outbound,
@@ -79,6 +82,7 @@ export default async function SettingsPage({
     getLivenessSettings(),
     getAgeFilterSettings(),
     getQualitySettings(),
+    getMailboxSettings(),
     getTelegramSettings(),
     getDiscoverySettings(),
     getOutboundSettings(),
@@ -133,6 +137,7 @@ export default async function SettingsPage({
           <a href="#konten">Konten &amp; Passwörter</a>
           <a href="#versand">Versand</a>
           <a href="#wiedervorlagen">Wiedervorlagen</a>
+          <a href="#postfachregeln">Postfach-Regeln</a>
           <a href="#suchagent">Suchagent-Postfach</a>
         </nav>
 
@@ -820,6 +825,67 @@ export default async function SettingsPage({
             <button type="submit" className="btn">Alle fälligen Anzeigen jetzt prüfen</button>
           </form>
         ) : null}
+
+        {/* --------------------------------------------- mailbox rules --- */}
+        <form action={saveMailboxSettingsAction} className="card" id="postfachregeln" style={{ marginTop: 18 }}>
+          <div className="card-head">
+            <h2>Was die App im Postfach darf</h2>
+            <span className={`lamp lamp-${mailbox.readOnly ? 'running' : 'setup'}`}>
+              <span className="lamp-dot" aria-hidden />
+              {mailbox.readOnly ? 'Nur lesen' : 'Darf als gelesen markieren'}
+            </span>
+          </div>
+          <div className="card-body stack">
+            <Callout tone="info">
+              Die App <strong>löscht nie</strong> eine E-Mail, verschiebt nichts und antwortet nicht von
+              allein. Das Einzige, was sie überhaupt schreiben könnte, ist die Markierung
+              &bdquo;gelesen&ldquo; — und auch das nur, wenn der Haken unten gesetzt ist.
+            </Callout>
+            <div className="checkline">
+              <input
+                id="mailboxReadOnly"
+                name="readOnly"
+                type="checkbox"
+                value="true"
+                defaultChecked={mailbox.readOnly}
+                disabled={!isAdmin}
+              />
+              <label htmlFor="mailboxReadOnly">
+                Nur lesen — nichts im Postfach verändern (empfohlen bei einem geteilten Postfach, z. B.
+                in Front)
+              </label>
+            </div>
+            <p className="field-hint">
+              Ein geteiltes Postfach lebt von seinem Ungelesen-Status: markiert die App eine Antwort als
+              gelesen, verschwindet sie aus der Liste der Kollegin, die sie beantworten soll. Doppelte
+              Einträge entstehen dadurch nicht — dagegen schützt die Message-ID, nicht die Markierung.
+            </p>
+            <div className="grid-2">
+              <div>
+                <label htmlFor="lookbackDays">Wie weit zurückschauen (Tage)</label>
+                <input
+                  id="lookbackDays"
+                  name="lookbackDays"
+                  type="number"
+                  min={1}
+                  max={90}
+                  className="input"
+                  defaultValue={mailbox.lookbackDays}
+                  disabled={!isAdmin}
+                />
+                <p className="field-hint">Gilt nur im Nur-lesen-Modus.</p>
+              </div>
+            </div>
+          </div>
+          {isAdmin ? (
+            <div className="card-foot row-between">
+              <span className="small muted">Gilt ab der nächsten Abholung.</span>
+              <button type="submit" className="btn primary">
+                Speichern
+              </button>
+            </div>
+          ) : null}
+        </form>
 
         {/* ---------------------------------------------- mail ingest --- */}
         <div className="card" id="suchagent" style={{ marginTop: 18 }}>
