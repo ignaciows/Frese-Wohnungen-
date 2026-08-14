@@ -8,6 +8,7 @@ import {
   verifyMailboxFormAction,
   verifyPortalAccountFormAction,
   runDiscoverySweepFormAction,
+  focusMainSourcesAction,
 } from '@/app/actions';
 import { Callout } from '@/app/_components/Shell';
 import { InstantNumber, InstantSwitch } from './_instant';
@@ -152,6 +153,11 @@ export function DiscoverySection({
                 : `${enabledCount} von ${searchable.length} aktiv. Änderungen werden sofort gespeichert.`}
             </span>
             <div className="grow" />
+            <form action={focusMainSourcesAction}>
+              <button className="btn sm" type="submit" title="Kleinanzeigen, ImmoScout24, Immowelt">
+                Nur die drei Hauptquellen
+              </button>
+            </form>
             <form action={runDiscoverySweepFormAction}>
               <button className="btn sm primary" type="submit">
                 Jetzt suchen
