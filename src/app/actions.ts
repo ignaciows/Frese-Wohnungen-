@@ -703,6 +703,46 @@ const QualityInput = z.object({
   rejectShortStay: z.coerce.boolean().default(false),
 });
 
+/**
+ * The three portals nearly every flat comes from.
+ *
+ * Kleinanzeigen can be read directly. ImmoScout24 and Immowelt cannot — they
+ * block automated reading and have no public API — so they contribute through
+ * a Suchauftrag mailed to the shared mailbox. Either way, these three are where
+ * the inventory is; a sweep spread over forty municipal landlords spends its
+ * request budget for a handful of adverts a month.
+ */
+export const MAIN_SOURCE_KEYS = ['kleinanzeigen', 'immoscout24', 'immowelt'] as const;
+
+/**
+ * Narrows the automatic search to those three and switches every other source
+ * off. Reversible: nothing is deleted, and any source can be switched back on
+ * individually.
+ */
+export async function focusMainSourcesAction() {
+  await requireAdmin();
+  const main = await prisma.source.findMany({
+    where: { key: { in: [...MAIN_SOURCE_KEYS] } },
+    select: { id: true, discoveryAdapter: true },
+  });
+  const mainIds = main.map((s) => s.id);
+
+  await prisma.$transaction([
+    // Only the ones that can actually be searched are switched on; ImmoScout24
+    // and Immowelt stay off where they have no adapter, because switching them
+    // on would only produce blocked runs in the log.
+    prisma.source.updateMany({
+      where: { id: { in: main.filter((s) => s.discoveryAdapter).map((s) => s.id) } },
+      data: { discoveryEnabled: true },
+    }),
+    prisma.source.updateMany({
+      where: { id: { notIn: mainIds } },
+      data: { discoveryEnabled: false },
+    }),
+  ]);
+  revalidatePath('/', 'layout');
+}
+
 export async function saveQualitySettingsAction(formData: FormData) {
   const user = await requireAdmin();
   const parsed = QualityInput.parse(Object.fromEntries(formData));
