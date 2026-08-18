@@ -78,7 +78,14 @@ export function LiveSearch({ candidateCaseId }: { candidateCaseId?: string } = {
 
       let ran = false;
       try {
-        const res = await fetch(`/api/discovery/live${force ? '?force=1' : ''}`, {
+        // The candidate travels with the request: without it the server can
+        // only ask "did any sweep run recently", which is not the question —
+        // see sweepSkipReason.
+        const params = new URLSearchParams();
+        if (force) params.set('force', '1');
+        if (candidateCaseId) params.set('candidate', candidateCaseId);
+        const query = params.toString();
+        const res = await fetch(`/api/discovery/live${query ? `?${query}` : ''}`, {
           method: 'POST',
         });
         if (!res.ok || !res.body) {
@@ -203,7 +210,7 @@ export function LiveSearch({ candidateCaseId }: { candidateCaseId?: string } = {
         });
       }
     },
-    [router, scheduleRefresh],
+    [router, scheduleRefresh, candidateCaseId],
   );
 
   // On open: bring the list up to date, then search — but only if a search is

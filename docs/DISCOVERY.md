@@ -170,6 +170,12 @@ Wer bereits angeschrieben wurde, bleibt in jedem Fall sichtbar: das Gespräch
 
 - **Beim Öffnen der Ergebnisseite** — gedrosselt über `sweepIntervalMinutes`
   (Standard 90), damit häufiges Aufrufen nichts auslöst.
+- **Einmal täglich je Kandidat**, und zwar auch dann, wenn die Drossel gerade
+  „nein" sagen würde. Der Suchlauf ist gemeinsam — fünf Pflegekräfte in
+  derselben Stadt ergeben eine Suche —, also sagt „vor einer halben Stunde
+  gelaufen" nichts darüber aus, ob dabei nach *dieser* Kandidatin gesucht
+  wurde. `CandidateCase.lastSweptAt` beantwortet genau das: die erste Öffnung
+  des Falls an einem Tag sucht, die vierte tut nichts.
 - **Per Cron** auf `POST /api/discovery/run` mit `x-ingest-token`. Das hält den
   Bestand nachts und am Wochenende frisch, also genau dann, wenn gute Wohnungen
   auftauchen und wieder weg sind.

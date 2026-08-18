@@ -7,6 +7,7 @@ import { ContactFlow } from '@/app/_components/ContactFlow';
 import { AvailableFromPicker } from '@/app/_components/AvailableFromPicker';
 import { favoriteListingAction, rejectListingAction } from '@/app/actions';
 import { formatEuroCents } from '@/lib/money';
+import { telHref } from '@/domain/contact';
 import { COMPATIBILITY, FURNISHING, MATCH_STATUS, formatDate } from '@/lib/labels';
 import {
   evaluateFreshness,
@@ -23,7 +24,6 @@ import {
   getAgeFilterSettings,
 } from '@/server/settings';
 import { listingAge, passesAgeFilter, describeAgeFilter } from '@/domain/timing/age';
-import { DEAD_LISTING, liveListingFilter, limboListingFilter } from '@/server/listingFilters';
 import { assessRent } from '@/domain/rent';
 import { MAX_SCORE } from '@/domain/ranking';
 import {
@@ -35,30 +35,10 @@ import {
   type LivenessSignal,
 } from '@/domain/liveness';
 import { markListingExpiredAction, checkListingNowAction, setFollowUpAction } from '@/app/actions';
+import { RESULT_TABS, liveListingFilter, matchWhere } from '@/server/listingFilters';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * Nine tabs, of which two are the job.
- *
- * Somebody opens this screen every few days to write five or ten Anfragen.
- * "Zu kontaktieren" is what they came for and "Kontaktiert" is how they check
- * themselves; the other seven are bookkeeping, and shown at equal weight they
- * made the two that matter hard to find. `always` stays visible even at zero,
- * because an empty "Zu kontaktieren" is itself the answer. The rest appear
- * only once they hold something.
- */
-const TABS = [
-  { key: 'zu-kontaktieren', label: 'Zu kontaktieren', always: true },
-  { key: 'kontaktiert', label: 'Kontaktiert', always: true },
-  { key: 'in-arbeit', label: 'In Arbeit', always: false },
-  { key: 'wiedervorlage', label: 'Wiedervorlage', always: false },
-  { key: 'favoriten', label: 'Favoriten', always: false },
-  { key: 'zu-pruefen', label: 'Zu prüfen', always: false },
-  { key: 'abgelehnt', label: 'Abgelehnt', always: false },
-  { key: 'abgelaufen', label: 'Abgelaufen', always: false },
-  { key: 'alle', label: 'Alle', always: true },
-] as const;
 
 /**
  * How long a vanished ad stays visible after it goes.
@@ -89,38 +69,6 @@ function shortcomings(reasons: unknown, limit = 3): string[] {
     .slice(0, limit);
 }
 
-type MatchStatusValue = 'NEW' | 'FAVORITE' | 'IN_PROGRESS' | 'CONTACTED' | 'REJECTED' | 'EXPIRED';
-
-/**
- * The working list holds nothing that cannot be written to.
- *
- * On a real candidate, 234 of 311 live matches were INCOMPATIBLE — three
- * quarters of the screen was flats in the wrong city, over budget, or the
- * wrong kind of property, each one already marked "Nicht passend". Nobody is
- * going to write to those, and having to look past them to find the twenty-one
- * that work is the exact job this tool exists to remove. They stay reachable
- * under "Alle", with a line saying how many were set aside and why.
- */
-function statusFilter(tab: string): {
-  status?: MatchStatusValue | { in: MatchStatusValue[] };
-  compatibility?: { not: 'INCOMPATIBLE' };
-} {
-  switch (tab) {
-    case 'zu-kontaktieren':
-      return { status: { in: ['NEW', 'FAVORITE'] }, compatibility: { not: 'INCOMPATIBLE' } };
-    case 'favoriten':
-      return { status: 'FAVORITE' };
-    case 'in-arbeit':
-      return { status: 'IN_PROGRESS' };
-    case 'kontaktiert':
-      return { status: 'CONTACTED' };
-    case 'abgelehnt':
-      return { status: { in: ['REJECTED', 'EXPIRED'] } };
-    default:
-      return {};
-  }
-}
-
 export default async function ErgebnissePage({
   params,
   searchParams,
@@ -140,58 +88,27 @@ export default async function ErgebnissePage({
 
   const [matchList, counts, message, profile, freshnessSettings, bridging] = await Promise.all([
     prisma.candidateListingMatch.findMany({
-      where: {
-        candidateCaseId: id,
-        ...statusFilter(tab),
-        ...(tab === 'wiedervorlage' ? { followUpAt: { not: null } } : {}),
-        // Dead ads only show in their own tab, so the working list stays
-        // trustworthy. A single confident GONE already hides the listing —
-        // waiting for the second strike would keep sending people to a 404.
-        //
-        // The exception is anything we have already written to: a conversation
-        // outlives the ad behind it, and hiding it would lose the reply we are
-        // still waiting for. Those tabs therefore show live and dead alike.
-        ...(tab === 'kontaktiert' || tab === 'in-arbeit'
-          ? {}
-          : {
-              listing:
-                tab === 'abgelaufen'
-                  ? { ...DEAD_LISTING, expiredAt: { gte: expiredCutoff } }
-                  : tab === 'zu-pruefen'
-                    ? limboListingFilter(liveness)
-                    : liveListingFilter(liveness),
-            }),
-      },
+      where: matchWhere({ candidateCaseId: id, tab, liveness, expiredCutoff }),
       orderBy: [{ compatibility: 'asc' }, { score: 'desc' }],
       include: { listing: { include: { source: { select: { name: true } } } } },
     }),
-    prisma.candidateListingMatch.groupBy({
-      by: ['status'],
-      where: { candidateCaseId: id },
-      _count: true,
-    }),
+    // One count per tab, through the very same filter the list uses. Nine
+    // small indexed counts, and every number on screen is a promise the list
+    // below can keep.
+    Promise.all(
+      RESULT_TABS.map(async (t) => [
+        t.key,
+        await prisma.candidateListingMatch.count({
+          where: matchWhere({ candidateCaseId: id, tab: t.key, liveness, expiredCutoff }),
+        }),
+      ] as const),
+    ),
     prisma.applicationMessage.findUnique({ where: { candidateCaseId: id } }),
     prisma.searchProfile.findUnique({ where: { candidateCaseId: id } }),
     getFreshnessSettings(),
     getBridgingSettings(),
   ]);
   const arrival = profile?.moveInDate ?? null;
-  const expiredCount = await prisma.candidateListingMatch.count({
-    where: {
-      candidateCaseId: id,
-      // Counted over the same window the tab shows, or the number promises
-      // rows the list will not produce.
-      listing: { ...DEAD_LISTING, expiredAt: { gte: expiredCutoff } },
-    },
-  });
-
-  const followUpCount = await prisma.candidateListingMatch.count({
-    where: { candidateCaseId: id, followUpAt: { not: null } },
-  });
-
-  const limboCount = await prisma.candidateListingMatch.count({
-    where: { candidateCaseId: id, listing: limboListingFilter(liveness) },
-  });
 
   // Nothing vanishes without being counted. Three quarters of a real
   // candidate's matches are unusable, and a list that silently drops them is
@@ -234,34 +151,11 @@ export default async function ErgebnissePage({
     (a, b) => effectiveScore(b, liveness) - effectiveScore(a, liveness),
   );
 
-  const byStatus = Object.fromEntries(counts.map((c) => [c.status, c._count]));
-  const tabCount = (key: string) => {
-    switch (key) {
-      case 'alle':
-        return counts.reduce((n, c) => n + c._count, 0);
-      case 'zu-kontaktieren':
-        return (byStatus.NEW ?? 0) + (byStatus.FAVORITE ?? 0);
-      case 'favoriten':
-        return byStatus.FAVORITE ?? 0;
-      case 'in-arbeit':
-        return byStatus.IN_PROGRESS ?? 0;
-      case 'kontaktiert':
-        return byStatus.CONTACTED ?? 0;
-      case 'abgelehnt':
-        return (byStatus.REJECTED ?? 0) + (byStatus.EXPIRED ?? 0);
-      case 'wiedervorlage':
-        return followUpCount;
-      case 'zu-pruefen':
-        return limboCount;
-      case 'abgelaufen':
-        return expiredCount;
-      default:
-        return 0;
-    }
-  };
+  const countByTab = new Map<string, number>(counts);
+  const tabCount = (key: string) => countByTab.get(key) ?? 0;
 
   const selected = sp.listing ? matches.find((m) => m.listingId === sp.listing) ?? null : null;
-  const totalAll = counts.reduce((n, c) => n + c._count, 0);
+  const totalAll = tabCount('alle');
 
   const usableNow = await prisma.candidateListingMatch.count({
     where: {
@@ -301,7 +195,7 @@ export default async function ErgebnissePage({
       ) : null}
 
       <nav className="tabs" aria-label="Status">
-        {TABS.filter((t) => t.always || tabCount(t.key) > 0 || tab === t.key).map((t) => (
+        {RESULT_TABS.filter((t) => t.always || tabCount(t.key) > 0 || tab === t.key).map((t) => (
           <Link
             key={t.key}
             href={`/kandidat/${id}/ergebnisse?tab=${t.key}`}
@@ -341,7 +235,7 @@ export default async function ErgebnissePage({
       ) : matches.length === 0 ? (
         <div className="card">
           <Empty icon="○" title="Nichts in diesem Reiter">
-            In „{TABS.find((t) => t.key === tab)?.label}“ liegt gerade nichts. Wechsle auf „Alle“, um alle
+            In „{RESULT_TABS.find((t) => t.key === tab)?.label}“ liegt gerade nichts. Wechsle auf „Alle“, um alle
             {' '}
             {totalAll} Anzeigen zu sehen.
           </Empty>
@@ -509,9 +403,23 @@ export default async function ErgebnissePage({
                     ) : null}
                   </span>
                 </Link>
-                {/* Outside the row link on purpose: an anchor inside an anchor
-                    is invalid, and this one leaves the app. It is what the row
-                    is ultimately for — read the advert at the portal. */}
+                {/* Both outside the row link on purpose: an anchor inside an
+                    anchor is invalid, and both of these leave the app. */}
+                {l.contactPhone ? (
+                  /* The fastest route to a viewing there is, and it belongs
+                     here rather than two clicks deep in the detail pane. A
+                     portal message is answered on Thursday; this is answered
+                     now. Only ever a number the advert published itself. */
+                  <a
+                    href={telHref(l.contactPhone)}
+                    className="btn sm primary listing-call"
+                    title={`Direkt anrufen: ${l.contactPhone}${
+                      l.contactName ? ` (${l.contactName})` : ''
+                    }`}
+                  >
+                    ☎ Anrufen
+                  </a>
+                ) : null}
                 <a
                   href={l.rawUrl}
                   target="_blank"

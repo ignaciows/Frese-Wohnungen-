@@ -80,6 +80,15 @@ model CandidateCase {
   /// Set once a flat is secured; retires the case from the priority queue.
   housingSecuredAt DateTime?
 
+  /// Last time a discovery sweep actually ran a search for *this* candidate.
+  ///
+  /// Separate from the global sweep timestamp on purpose. The sweep is shared
+  /// — five nurses at the same clinic produce one search — so "a sweep ran an
+  /// hour ago" says nothing about whether it covered this candidate. Somebody
+  /// opening a case wants today's flats for *this* person, and this is the
+  /// only column that can answer that.
+  lastSweptAt DateTime?
+
   /// --- shared-flat (WG) matching ---
   /// Only candidates who explicitly agreed are ever suggested as flatmates.
   /// Nothing is proposed to a candidate automatically; a colleague asks first.

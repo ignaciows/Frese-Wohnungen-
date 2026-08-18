@@ -573,6 +573,21 @@ export async function runDiscoverySweep(
   summary.requests = crawler.stats.requests;
   summary.durationMs = Date.now() - startedAt;
 
+  // Stamp the candidates this run actually searched for.
+  //
+  // Only when at least one source came back cleanly: a sweep in which every
+  // portal was blocked has looked for nobody, and recording it as coverage
+  // would keep the next person from getting a real search until tomorrow.
+  if (summary.sourcesSucceeded > 0) {
+    const covered = [...new Set(queries.flatMap((q) => q.candidateCaseIds))];
+    if (covered.length > 0) {
+      await prisma.candidateCase.updateMany({
+        where: { id: { in: covered } },
+        data: { lastSweptAt: new Date() },
+      });
+    }
+  }
+
   if (summary.sourcesBlocked > 0) {
     summary.notes.push(
       `${summary.sourcesBlocked} Quelle(n) blockieren automatische Abrufe — dort bleibt der manuelle Weg bzw. der E-Mail-Suchauftrag.`,
@@ -1134,11 +1149,22 @@ export async function maybeRunDiscoverySweep(
  * to open a stream *before* opening it — a stream that immediately says "just
  * searched" is a flicker of a progress bar for no reason.
  */
-export async function sweepSkipReason(): Promise<string | null> {
+export async function sweepSkipReason(candidateCaseId?: string): Promise<string | null> {
   const settings = await getDiscoverySettings();
   if (!settings.enabled) {
     return 'Automatische Suche ist ausgeschaltet.';
   }
+
+  // Opening a case that has not been searched for today always searches, even
+  // if the global throttle would say no.
+  //
+  // The throttle asks "did *a* sweep run recently", and the sweep is shared —
+  // so a run half an hour ago for a candidate in Hamburg would silence the
+  // search for one in Köln whose list is a week old. Somebody who opens a case
+  // wants today's flats for that person; anything else is a list they have to
+  // distrust. The fourth visit on the same day changes nothing and searches
+  // nothing, which is the other half of the same rule.
+  if (candidateCaseId && (await needsDailySweep(candidateCaseId))) return null;
 
   // Throttle against the *fastest* source, not a single global interval.
   // Otherwise a Telegram channel set to ten minutes would still only be read
@@ -1161,4 +1187,22 @@ export async function sweepSkipReason(): Promise<string | null> {
   }
 
   return null;
+}
+
+/** Has today's search for this candidate not happened yet? */
+async function needsDailySweep(candidateCaseId: string): Promise<boolean> {
+  const candidate = await prisma.candidateCase.findUnique({
+    where: { id: candidateCaseId },
+    select: { lastSweptAt: true, status: true, housingSecuredAt: true },
+  });
+  // A closed case or one that already has a flat is nobody's daily work.
+  if (!candidate || candidate.status !== 'ACTIVE' || candidate.housingSecuredAt) return false;
+  if (!candidate.lastSweptAt) return true;
+
+  // Calendar day, not 24 hours: "has it been searched today" is the question
+  // somebody actually asks, and a 24-hour window makes the answer depend on
+  // what time they happened to look yesterday.
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  return candidate.lastSweptAt < startOfToday;
 }

@@ -69,8 +69,11 @@ Zwei Regeln dabei:
 
 ## Wo es auf dem Bildschirm auftaucht
 
-- **Ergebnisliste:** Badge `☎ Telefon in der Anzeige` bzw. `✉ Direkt erreichbar`.
-  Ein Grund, diese Zeile zuerst anzufassen.
+- **Ergebnisliste:** Badge `☎ Telefon in der Anzeige` bzw. `✉ Direkt erreichbar`,
+  und am rechten Rand der Zeile ein **Anrufen**-Knopf, der direkt wählt. Beides
+  ohne die Anzeige zu öffnen: eine gedruckte Nummer ist das Seltenste und
+  Schnellste auf diesem Bildschirm, und wer sie erst zwei Klicks tief findet,
+  findet sie nicht.
 - **Detailbereich rechts:** ganz oben, über allem anderen, ein Anruf-Knopf mit
   der Nummer und — falls bekannt — dem Namen. Danach unten „Kontakt bestätigen",
   dann laufen Verlauf und Wiedervorlage genauso wie bei einer gesendeten

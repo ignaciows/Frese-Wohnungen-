@@ -3001,6 +3001,15 @@ label {
   color: var(--brand);
 }
 
+/* The call button on a row.
+   Full strength at rest, unlike "Öffnen" next to it: a printed phone number is
+   the rarest and fastest thing on this screen, and dimming it until hover
+   would hide exactly the row somebody should work first. */
+.listing-call {
+  flex: none;
+  white-space: nowrap;
+}
+
 /* Live cards without a photo are text cards; give them a left accent instead. */
 .live-card {
   border-left: 3px solid var(--border);
