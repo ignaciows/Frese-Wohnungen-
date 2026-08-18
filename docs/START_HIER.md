@@ -150,6 +150,7 @@ Wochen später auf.
 | --- | --- |
 | `ARCHITEKTUR.md` | Schichten, Datenfluss, Einstiegspunkte — die lange Fassung |
 | `ANMELDUNG.md` | Passwort und „Mit Google anmelden" einrichten |
+| `BETRIEB.md` | Wo sie läuft, welche Variablen nötig sind, was tun wenn es klemmt |
 | `QUELLEN.md` | Kleinanzeigen, ImmoScout24, Immowelt anschließen |
 | `KONTAKT.md` | Telefonnummer & Co. aus dem Anzeigentext |
 | `DISCOVERY.md` | Suchlauf: Adapter, robots.txt, Höflichkeit, Grenzen |

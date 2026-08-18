@@ -115,11 +115,20 @@ export async function GET() {
     const applied = await prisma.$queryRaw<Array<{ migration_name: string; finished_at: Date | null }>>`
       SELECT migration_name, finished_at
       FROM "_prisma_migrations"
-      ORDER BY started_at DESC
+      WHERE finished_at IS NOT NULL
+      ORDER BY finished_at DESC
       LIMIT 1
     `;
+    // `rolled_back_at IS NULL` gehört dazu, sonst meldet diese Prüfung für
+    // immer Alarm: eine gescheiterte und danach ordentlich aufgelöste Migration
+    // hinterlässt ihren Fehlversuch als Zeile mit leerem `finished_at`. Das ist
+    // Geschichtsschreibung, kein Problem — Prisma selbst sagt zu genau diesem
+    // Zustand „Database schema is up to date!". Steckengeblieben ist nur, was
+    // weder fertig noch zurückgerollt ist.
     const failed = await prisma.$queryRaw<Array<{ n: bigint }>>`
-      SELECT COUNT(*)::bigint AS n FROM "_prisma_migrations" WHERE finished_at IS NULL
+      SELECT COUNT(*)::bigint AS n
+      FROM "_prisma_migrations"
+      WHERE finished_at IS NULL AND rolled_back_at IS NULL
     `;
     const failedCount = Number(failed[0]?.n ?? 0);
     report.checks.migrations = {

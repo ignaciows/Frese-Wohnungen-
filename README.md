@@ -166,6 +166,7 @@ man anfasst, um etwas Bestimmtes zu ändern.
 
 - `docs/START_HIER.md` — der Einstieg. Erst das, dann der Rest.
 - `docs/ANMELDUNG.md` — Anmeldung per Passwort und per Google einrichten.
+- `docs/BETRIEB.md` — Hosting, Umgebungsvariablen, Migrationen, Fehlersuche.
 - `docs/ARCHITEKTUR.md` — Aufbau des Codes, Datenfluss, Einstiegspunkte.
 - `docs/SCORING.md` — die Punktzahl, mathematisch begründet.
 - `docs/ZEITLEISTE.md` — die Zeitleiste: Wochen, Gefahrenzone, „frei ab".
