@@ -110,6 +110,7 @@ Datenbank, deren Inhalt die Tests löschen.
 | was als unmögliche Anzeige gilt | Einstellungen; Regel in `domain/discovery/plausible.ts` |
 | einen Text auf dem Bildschirm | die jeweilige `page.tsx`; Beschriftungen in `lib/labels.ts` |
 | eine Farbe | die Tokens in `globals.css`, siehe `DESIGN.md` |
+| wer sich anmelden darf | `lib/googleAuth.ts`, siehe `ANMELDUNG.md` |
 | das Datenbankschema | `prisma/schema.prisma`, danach `npm run db:migrate:dev` |
 
 ## Zwei Versionsnummern, die etwas auslösen
@@ -127,6 +128,7 @@ Wochen später auf.
 | Datei | Wofür |
 | --- | --- |
 | `ARCHITEKTUR.md` | Schichten, Datenfluss, Einstiegspunkte — die lange Fassung |
+| `ANMELDUNG.md` | Passwort und „Mit Google anmelden" einrichten |
 | `QUELLEN.md` | Kleinanzeigen, ImmoScout24, Immowelt anschließen |
 | `KONTAKT.md` | Telefonnummer & Co. aus dem Anzeigentext |
 | `DISCOVERY.md` | Suchlauf: Adapter, robots.txt, Höflichkeit, Grenzen |

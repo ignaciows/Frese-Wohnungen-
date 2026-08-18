@@ -3714,3 +3714,74 @@ label {
   color: var(--danger);
   background: var(--danger-soft);
 }
+
+
+/* ------------------------------------------- advanced settings block --- */
+/* One fold for everything that is a knob rather than a task. Closed it is a
+   single line; open it is the page it used to be. */
+.advanced > summary {
+  cursor: pointer;
+  padding: 16px 18px;
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.advanced > summary::-webkit-details-marker {
+  display: none;
+}
+.advanced > summary::before {
+  content: '▸';
+  color: var(--muted);
+  margin-right: 4px;
+}
+.advanced[open] > summary::before {
+  content: '▾';
+}
+.advanced[open] > summary {
+  border-bottom: 1px solid var(--border);
+}
+.advanced > .stack {
+  padding: 4px 18px 18px;
+}
+/* The cards inside are already cards; nesting the borders reads as clutter. */
+.advanced > .stack > .card {
+  border-color: var(--border);
+}
+
+
+/* ------------------------------------------------------ google login --- */
+.or-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.or-divider::before,
+.or-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+}
+/* Googles Wortmarke wird nicht nachgebaut — ein neutraler Kreis mit dem
+   Buchstaben sagt dasselbe und erfindet kein fremdes Logo. */
+.google-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  font-weight: 700;
+  font-size: 11px;
+}

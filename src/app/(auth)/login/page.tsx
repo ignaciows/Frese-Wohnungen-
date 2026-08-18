@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { verifyPassword } from '@/lib/auth';
 import { getSession } from '@/lib/session';
+import { googleLoginEnabled } from '@/lib/googleAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,11 @@ async function loginAction(formData: FormData) {
   if (!email || !password) return;
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || !user.active) redirect('/login?error=Ungültige+Zugangsdaten');
+  // Konten, die nur über Google hereinkommen, haben kein Passwort. Die
+  // Fehlermeldung nennt den Weg, statt „falsch" zu behaupten.
+  if (!user.passwordHash) {
+    redirect('/login?error=' + encodeURIComponent('Dieses Konto meldet sich über Google an.'));
+  }
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok) redirect('/login?error=Ungültige+Zugangsdaten');
   const session = await getSession();
@@ -28,6 +34,9 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
+  // Der Knopf erscheint nur, wenn Google-Login wirklich eingerichtet ist —
+  // ein Knopf, der zu einer 404 führt, ist schlimmer als keiner.
+  const withGoogle = googleLoginEnabled();
   return (
     <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24 }}>
       <div style={{ width: '100%', maxWidth: 380 }}>
@@ -69,6 +78,22 @@ export default async function LoginPage({
           <button type="submit" className="btn primary block">
             Anmelden
           </button>
+
+          {withGoogle ? (
+            <>
+              <div className="or-divider">
+                <span>oder</span>
+              </div>
+              {/* Ein Link, kein Formular: der Weg beginnt mit einer
+                  Weiterleitung zu Google, nicht mit einem Absenden. */}
+              <a href="/google/start" className="btn block google-btn">
+                <span className="google-mark" aria-hidden>
+                  G
+                </span>
+                Mit Google anmelden
+              </a>
+            </>
+          ) : null}
         </form>
       </div>
     </main>

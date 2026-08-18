@@ -187,6 +187,36 @@ export function DiscoverySection({
         </div>
       ) : null}
 
+    </>
+  );
+}
+
+
+/**
+ * What each source actually did on the last few runs.
+ *
+ * Diagnostics, not a setting — it lives under "Erweiterte Einstellungen"
+ * because nobody opens it on a normal day, and it is the first thing to open
+ * when nothing is coming in.
+ */
+export function DiscoveryRunsSection({
+  runs,
+}: {
+  runs: Array<{
+    id: string;
+    sourceName: string;
+    adapter: string;
+    status: string;
+    found: number;
+    created: number;
+    retired: number;
+    message: string | null;
+    startedAt: Date;
+  }>;
+}) {
+  if (runs.length === 0) return null;
+  return (
+    <>
       {runs.length > 0 ? (
         <div className="card" style={{ marginTop: 18 }}>
           <div className="card-head">
