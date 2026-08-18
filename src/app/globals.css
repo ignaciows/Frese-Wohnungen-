@@ -3785,3 +3785,59 @@ label {
   font-weight: 700;
   font-size: 11px;
 }
+
+
+/* Die Knöpfe am rechten Rand einer Zeile teilen sich eine Spalte. Ohne diesen
+   Wrapper wäre „Öffnen" das dritte Kind eines Zwei-Spalten-Rasters und würde
+   auf eine eigene Zeile über die ganze Breite rutschen. */
+.listing-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+/* ------------------------------------------- Zeilen mit Telefonnummer --- */
+/*
+ * Die Anzeige nennt selbst eine Nummer — die einzige Zeile auf diesem Bildschirm,
+ * bei der jemand in zehn Minuten eine Antwort bekommt statt am Donnerstag.
+ *
+ * Deshalb ein eigener Zustand für die ganze Zeile und nicht nur ein Symbol
+ * irgendwo darin: ein Zeichen unter zwanzig anderen liest niemand, ein grün
+ * leuchtender Balken schon. Grün ist im Rest der App „erledigt/gut", und genau
+ * das ist gemeint — das hier ist die Zeile, die man zuerst anfasst.
+ */
+.listing-row.has-phone {
+  border-left: 3px solid var(--success);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--success) 9%, transparent), transparent 220px),
+    var(--surface);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 22%, transparent),
+    0 0 14px -4px color-mix(in srgb, var(--success) 45%, transparent);
+}
+.listing-row.has-phone:hover {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 38%, transparent),
+    0 0 20px -3px color-mix(in srgb, var(--success) 60%, transparent);
+}
+.listing-row.has-phone .listing {
+  background: transparent;
+}
+/* Der Anrufen-Knopf trägt dieselbe Farbe wie der Balken, damit die Zeile als
+   ein Ding gelesen wird und nicht als Zeile plus fremder Knopf. */
+.listing-row.has-phone .listing-call {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
+}
+.listing-row.has-phone .listing-call:hover {
+  filter: brightness(1.08);
+}
+
+/* Wer „Bewegung stört mich" eingestellt hat, bekommt die Farbe ohne das
+   Leuchten — die Information bleibt, der Effekt geht. */
+@media (prefers-reduced-motion: reduce) {
+  .listing-row.has-phone,
+  .listing-row.has-phone:hover {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 30%, transparent);
+  }
+}

@@ -276,7 +276,7 @@ export default async function ErgebnissePage({
                 bridging,
               );
               return (
-                <div key={m.id} className="listing-row">
+                <div key={m.id} className={`listing-row ${l.contactPhone ? 'has-phone' : ''}`}>
                 <Link
                   href={`/kandidat/${id}/ergebnisse?tab=${tab}&listing=${l.id}`}
                   className={`listing ${selected?.listingId === l.id ? 'selected' : ''}`}
@@ -355,8 +355,12 @@ export default async function ErgebnissePage({
                           — und deshalb ein Grund, diese Zeile zuerst
                           anzufassen. Details stehen im Kontakt-Bereich rechts. */}
                       {l.contactPhone ? (
-                        <span className="badge success" title={`Telefon: ${l.contactPhone}`}>
-                          ☎ Telefon in der Anzeige
+                        /* Die Nummer selbst, nicht nur ein Hinweis darauf: wer
+                           die Liste durchgeht, soll sie sehen können, ohne
+                           irgendwo hineinzuklicken. */
+                        <span className="badge success" title={l.contactName ?? undefined}>
+                          ☎ {l.contactPhone}
+                          {l.contactName ? ` · ${l.contactName}` : ''}
                         </span>
                       ) : l.contactEmail ? (
                         <span className="badge" title={`E-Mail: ${l.contactEmail}`}>
@@ -404,7 +408,11 @@ export default async function ErgebnissePage({
                   </span>
                 </Link>
                 {/* Both outside the row link on purpose: an anchor inside an
-                    anchor is invalid, and both of these leave the app. */}
+                    anchor is invalid, and both of these leave the app. They
+                    share a wrapper because the row is a two-column grid — a
+                    third child wraps onto its own full-width line, which is
+                    what "Öffnen" did the moment "Anrufen" appeared next to it. */}
+                <span className="listing-actions">
                 {l.contactPhone ? (
                   /* The fastest route to a viewing there is, and it belongs
                      here rather than two clicks deep in the detail pane. A
@@ -429,6 +437,7 @@ export default async function ErgebnissePage({
                 >
                   Öffnen ↗
                 </a>
+                </span>
                 </div>
               );
             })}

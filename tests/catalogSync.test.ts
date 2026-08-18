@@ -127,6 +127,22 @@ describe('syncSeedCatalog', () => {
     expect(after.discoveryEnabled).toBe(false);
   });
 
+  it('schaltet den Suchlauf bei den Mail-Portalen ab — dort gibt es nichts zu suchen', async () => {
+    await syncSeedCatalog();
+    await prisma.source.update({
+      where: { key: 'immowelt' },
+      data: { discoveryEnabled: true },
+    });
+    await syncSeedCatalog();
+    const immowelt = await prisma.source.findUniqueOrThrow({ where: { key: 'immowelt' } });
+    expect(immowelt.discoveryEnabled).toBe(false);
+    // Kleinanzeigen entscheidet weiterhin der Admin.
+    await prisma.source.update({ where: { key: 'kleinanzeigen' }, data: { discoveryEnabled: true } });
+    await syncSeedCatalog();
+    const ka = await prisma.source.findUniqueOrThrow({ where: { key: 'kleinanzeigen' } });
+    expect(ka.discoveryEnabled).toBe(true);
+  });
+
   it('setzt den Weg je Quelle: Kleinanzeigen läuft, die anderen zwei kommen per Mail', async () => {
     await syncSeedCatalog();
     const byKey = new Map(

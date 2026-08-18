@@ -69,11 +69,14 @@ Zwei Regeln dabei:
 
 ## Wo es auf dem Bildschirm auftaucht
 
-- **Ergebnisliste:** Badge `☎ Telefon in der Anzeige` bzw. `✉ Direkt erreichbar`,
-  und am rechten Rand der Zeile ein **Anrufen**-Knopf, der direkt wählt. Beides
-  ohne die Anzeige zu öffnen: eine gedruckte Nummer ist das Seltenste und
-  Schnellste auf diesem Bildschirm, und wer sie erst zwei Klicks tief findet,
-  findet sie nicht.
+- **Ergebnisliste:** die ganze Zeile bekommt einen grünen Rand und ein leichtes
+  Leuchten, die Nummer steht als Badge mit dabei (`☎ +49 176 12345678 · Herr
+  Weber`), und rechts sitzt ein grüner **Anrufen**-Knopf, der direkt wählt.
+
+  Bewusst die ganze Zeile und nicht nur ein Symbol: ein Zeichen unter zwanzig
+  anderen liest niemand. Das hier ist die Zeile, die man von der ganzen Liste
+  zuerst anfassen sollte, und so sieht sie auch aus. Wer „Bewegung reduzieren"
+  eingestellt hat, bekommt die Farbe ohne das Leuchten.
 - **Detailbereich rechts:** ganz oben, über allem anderen, ein Anruf-Knopf mit
   der Nummer und — falls bekannt — dem Namen. Danach unten „Kontakt bestätigen",
   dann laufen Verlauf und Wiedervorlage genauso wie bei einer gesendeten

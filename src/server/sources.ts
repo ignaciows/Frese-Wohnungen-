@@ -47,6 +47,12 @@ export async function syncSeedCatalog(): Promise<SyncResult> {
         websiteUrl: s.websiteUrl,
         route: s.route,
         priority: s.priority,
+        // Auf einer Quelle, die uns die Treffer mailt, bedeutet der
+        // Suchlauf-Schalter nichts — es gibt keinen Adapter, der laufen
+        // könnte. Blieb er von früher an (Immowelt hatte einmal einen), zählte
+        // /api/diagnostics sie als „aktive Quelle" mit und versprach damit ein
+        // Suchen, das nie stattfindet.
+        ...(s.route === 'EMAIL_ALERT' ? { discoveryEnabled: false } : {}),
         // Which adapter *can* read the source is a fact about the code, so the
         // catalogue owns it. Whether it actually runs (discoveryEnabled) and
         // how it is configured stay with the admin.
