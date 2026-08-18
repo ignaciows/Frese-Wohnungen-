@@ -1,7 +1,17 @@
 import Link from 'next/link';
 import { ThemeToggle } from './ThemeToggle';
+import { getFeatureSettings } from '@/server/settings';
+import { isFeatureOn } from '@/domain/features';
 
-export function AppBar({
+/**
+ * Die Hauptnavigation liest selbst nach, welche Bausteine an sind.
+ *
+ * Als async Server Component und nicht über eine Prop: die Leiste steht auf
+ * acht Seiten, und die Alternative wäre, dieselbe Einstellung achtmal
+ * durchzureichen — beim neunten Bildschirm vergisst das jemand, und dann hat
+ * eine Seite einen Menüpunkt, den es nicht mehr gibt.
+ */
+export async function AppBar({
   user,
   active,
   pending,
@@ -11,6 +21,9 @@ export function AppBar({
   /** Fällige Aufgaben + ungelesene Antworten, für das Badge in der Navigation. */
   pending?: number;
 }) {
+  const features = await getFeatureSettings();
+  const showWg = isFeatureOn(features, 'wgMatching');
+
   return (
     <header className="appbar">
       <div className="container-wide appbar-inner">
@@ -32,9 +45,11 @@ export function AppBar({
               </span>
             ) : null}
           </Link>
-          <Link href="/wg" aria-current={active === 'wg' ? 'page' : undefined}>
-            WG-Vorschläge
-          </Link>
+          {showWg ? (
+            <Link href="/wg" aria-current={active === 'wg' ? 'page' : undefined}>
+              WG-Vorschläge
+            </Link>
+          ) : null}
           <Link href="/quellen" aria-current={active === 'quellen' ? 'page' : undefined}>
             Quellen
           </Link>

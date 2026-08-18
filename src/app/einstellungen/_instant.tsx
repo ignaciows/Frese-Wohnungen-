@@ -16,7 +16,11 @@ import { useRouter } from 'next/navigation';
 // defined in a Server Component cannot cross into a Client Component, and
 // React only refuses at runtime, so the build says nothing. Calling the
 // 'use server' action straight from the client is the supported way.
-import { saveDiscoverySettingsPatchAction, toggleSourceAction } from '@/app/actions';
+import {
+  saveDiscoverySettingsPatchAction,
+  toggleFeatureAction,
+  toggleSourceAction,
+} from '@/app/actions';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -98,6 +102,74 @@ export function InstantSwitch({
       <span className="switch-text">
         <span className="switch-label">{label}</span>
         {hint ? <span className="switch-hint">{hint}</span> : null}
+      </span>
+      <Status state={state} />
+    </label>
+  );
+}
+
+/**
+ * Ein Baustein der App, an oder aus.
+ *
+ * Eigene Komponente statt eines weiteren Modus im Quellen-Schalter: dort geht
+ * es um „diese Seite durchsuchen oder nicht", hier um „diese Funktion gibt es
+ * oder nicht". Zwei Fragen, zwei Schalter — auch wenn sie gleich aussehen.
+ *
+ * Der Hinweis unter dem Schalter wechselt: an steht da, was die Funktion tut,
+ * aus steht da, was gerade fehlt. Ein Schalter, der nicht sagt, was das
+ * Umlegen kostet, wird nicht umgelegt.
+ */
+export function FeatureSwitch({
+  featureKey,
+  checked,
+  label,
+  description,
+  offMeans,
+}: {
+  featureKey: string;
+  checked: boolean;
+  label: string;
+  description: string;
+  offMeans: string;
+}) {
+  const [on, setOn] = useState(checked);
+  const [state, setState] = useTransientState();
+  const [, startTransition] = useTransition();
+  const router = useRouter();
+
+  useEffect(() => setOn(checked), [checked]);
+
+  async function change(next: boolean) {
+    // Sofort umlegen, Server danach — und nur bei einem Fehler zurück.
+    setOn(next);
+    setState('saving');
+    try {
+      const data = new FormData();
+      data.set('key', featureKey);
+      data.set('on', next ? 'true' : '');
+      await toggleFeatureAction(data);
+      setState('saved');
+      startTransition(() => router.refresh());
+    } catch {
+      setOn(!next);
+      setState('error');
+    }
+  }
+
+  return (
+    <label className={`switch-row feature-row ${on ? '' : 'is-off'}`}>
+      <input
+        type="checkbox"
+        className="switch-input"
+        checked={on}
+        onChange={(e) => void change(e.target.checked)}
+      />
+      <span className="switch-track" aria-hidden>
+        <span className="switch-thumb" />
+      </span>
+      <span className="switch-text">
+        <span className="switch-label">{label}</span>
+        <span className="switch-hint">{on ? description : `Aus — ${offMeans}`}</span>
       </span>
       <Status state={state} />
     </label>

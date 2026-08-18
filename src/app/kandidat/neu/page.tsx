@@ -27,7 +27,21 @@ export default async function NewCandidatePage() {
 
         <form action={createCandidateAction} className="card">
           <div className="card-body stack">
+            {/* Der Name zuerst, weil er auf jedem Bildschirm die Überschrift
+                ist. Die interne Referenz steht daneben und nicht davor: sie
+                ist zum Wiederfinden im Firmen-System da, nicht zum Erkennen. */}
             <div className="grid-2">
+              <div>
+                <label htmlFor="displayName">Name der Kandidatin *</label>
+                <input
+                  id="displayName"
+                  name="displayName"
+                  className="input"
+                  required
+                  placeholder="Tanvi Gupta"
+                />
+                <p className="field-hint">Steht als Überschrift über dem ganzen Fall.</p>
+              </div>
               <div>
                 <label htmlFor="reference">Interne Referenz *</label>
                 <input
@@ -37,17 +51,7 @@ export default async function NewCandidatePage() {
                   required
                   placeholder={`CAND-${year}-001`}
                 />
-                <p className="field-hint">Pseudonyme Kennung, z. B. aus dem Firmen-System.</p>
-              </div>
-              <div>
-                <label htmlFor="displayName">Anzeigename *</label>
-                <input
-                  id="displayName"
-                  name="displayName"
-                  className="input"
-                  required
-                  placeholder="Pflegekraft Heilbronn"
-                />
+                <p className="field-hint">Kennung aus dem Firmen-System, zum Wiederfinden.</p>
               </div>
             </div>
 
@@ -68,6 +72,21 @@ export default async function NewCandidatePage() {
 
             <hr className="divider" />
 
+            {/* Arbeitgeber und Arbeitsort gehören zusammen und stehen deshalb
+                nebeneinander: um genau diese Adresse herum wird gesucht, und
+                der Name des Trägers macht sie einordenbar, ohne sie
+                nachzuschlagen. */}
+            <div>
+              <label htmlFor="employer">Arbeitgeber</label>
+              <input
+                id="employer"
+                name="employer"
+                className="input"
+                placeholder="SLK-Kliniken Heilbronn"
+              />
+              <p className="field-hint">Klinik, Pflegeheim oder Träger — wo die Kandidatin arbeiten wird.</p>
+            </div>
+
             <div>
               <label htmlFor="workplaceAddress">Arbeitsort (Adresse) *</label>
               <input
@@ -77,6 +96,10 @@ export default async function NewCandidatePage() {
                 required
                 placeholder="Salinenstraße 2, 74906 Bad Rappenau"
               />
+              <p className="field-hint">
+                <strong>Um diese Adresse herum wird gesucht.</strong> Alles Weitere — Umkreis, Anfahrt,
+                welche Wohnung wie gut passt — rechnet von hier aus.
+              </p>
             </div>
             <div className="grid-2">
               <div>

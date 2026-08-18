@@ -1,9 +1,9 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { inboxCounts } from '@/server/followUps';
 import { currentUser } from '@/lib/auth';
 import { loadOpenSuggestions } from '@/server/sharing';
-import { getSharingSettings } from '@/server/settings';
+import { featureOn, getSharingSettings } from '@/server/settings';
 import { refreshSharingAction, decideSharingAction } from '@/app/actions';
 import { AppBar, Empty, Callout } from '@/app/_components/Shell';
 import { formatDate } from '@/lib/labels';
@@ -11,6 +11,9 @@ import { formatDate } from '@/lib/labels';
 export const dynamic = 'force-dynamic';
 
 export default async function WgPage() {
+  // Der Menüpunkt ist weg, wenn der Baustein aus ist — die Adresse aber nicht.
+  // Wer sie noch im Verlauf hat, soll nicht auf einer halben Seite landen.
+  if (!(await featureOn('wgMatching'))) notFound();
   const user = await currentUser();
   if (!user) redirect('/login');
   const pending = await inboxCounts();

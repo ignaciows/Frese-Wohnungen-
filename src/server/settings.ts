@@ -18,6 +18,7 @@ import {
 import { DEFAULT_LIVENESS, type LivenessPolicy } from '@/domain/liveness';
 import { DEFAULT_AGE_FILTER, type AgeFilterSettings } from '@/domain/timing/age';
 import { DEFAULT_TELEGRAM, type NotificationSettings } from './telegram';
+import { DEFAULT_FEATURES, type FeatureKey, type FeatureSettings, isFeatureOn } from '@/domain/features';
 
 export const SETTING_KEYS = {
   sharing: 'sharing',
@@ -33,6 +34,7 @@ export const SETTING_KEYS = {
   ageFilter: 'ageFilter',
   quality: 'quality',
   mailbox: 'mailbox',
+  features: 'features',
 } as const;
 
 export interface DiscoverySettings {
@@ -261,4 +263,27 @@ export async function writeSetting(key: string, value: object, userId: string): 
     create: { key, valueJson: value as never, updatedById: userId },
     update: { valueJson: value as never, updatedById: userId },
   });
+}
+
+
+/* -------------------------------------------------------- Bausteine ----- */
+
+/**
+ * Welche Bausteine der App an sind — siehe `domain/features`.
+ *
+ * Gespeichert wird nur, was ein Mensch bewusst umgestellt hat; alles andere
+ * fehlt schlicht und bekommt seinen Standard. Ein neuer Baustein taucht damit
+ * automatisch in seinem Auslieferungszustand auf, statt für alle bestehenden
+ * Installationen als „aus" zu gelten.
+ */
+export function getFeatureSettings(): Promise<FeatureSettings> {
+  return readSetting(SETTING_KEYS.features, DEFAULT_FEATURES);
+}
+
+/**
+ * Ist dieser Baustein an? Die Abkürzung für den häufigsten Fall — eine Seite
+ * will genau eine Funktion abfragen und nicht die ganze Tabelle lesen.
+ */
+export async function featureOn(key: FeatureKey): Promise<boolean> {
+  return isFeatureOn(await getFeatureSettings(), key);
 }

@@ -61,6 +61,7 @@ const optionalDate = z
 const CandidateInput = z.object({
   reference: z.string().min(2).max(64),
   displayName: z.string().min(2).max(128),
+  employer: z.string().max(160).optional().nullable(),
   workplaceAddress: z.string().min(2).max(256),
   workplaceCity: z.string().max(128).optional().nullable(),
   workplacePostalCode: z.string().max(16).optional().nullable(),
@@ -85,6 +86,7 @@ export async function createCandidateAction(formData: FormData) {
     reference: parsed.reference,
     displayName: parsed.displayName,
     createdById: user.id,
+    employer: parsed.employer || null,
     workplace: {
       address: parsed.workplaceAddress,
       city: parsed.workplaceCity || null,
@@ -125,6 +127,7 @@ export async function saveMessageAction(formData: FormData) {
 
 const ProfileInput = z.object({
   candidateCaseId: z.string(),
+  employer: z.string().max(160).optional().nullable(),
   workplaceAddress: z.string().min(2).max(256),
   workplaceCity: z.string().max(128).optional().nullable(),
   workplacePostalCode: z.string().max(16).optional().nullable(),
@@ -144,6 +147,7 @@ export async function saveProfileAction(formData: FormData) {
   await updateSearchProfile({
     candidateCaseId: parsed.candidateCaseId,
     patch: {
+      employer: parsed.employer || null,
       workplaceAddress: parsed.workplaceAddress,
       workplaceCity: parsed.workplaceCity || null,
       workplacePostalCode: parsed.workplacePostalCode || null,
@@ -413,6 +417,59 @@ export async function archiveCandidateAction(formData: FormData) {
     }),
   ]);
   revalidatePath('/', 'layout');
+}
+
+/**
+ * Einen Fall endgültig löschen.
+ *
+ * Archivieren ist der Normalfall und reicht fast immer: der Fall verschwindet
+ * aus der Arbeitsliste, bleibt aber nachlesbar. Löschen ist für den anderen
+ * Fall — versehentlich angelegt, Dublette, oder jemand verlangt seine Daten
+ * zurück (Art. 17 DSGVO). Deshalb Admin-Recht und eine ausgeschriebene
+ * Bestätigung, nicht nur ein Knopf.
+ *
+ * Was mitgeht, regelt das Schema: Suchprofil, Treffer, Anfragen, Termine,
+ * Nachrichten und Aufgaben hängen mit `onDelete: Cascade` am Fall. Was
+ * *bleibt*, ist der Audit-Eintrag — er hängt mit `SetNull` daran, und das ist
+ * Absicht: die Notiz „X hat diesen Fall gelöscht" darf nicht das Erste sein,
+ * was eine Löschung mitnimmt. Der Name wird deshalb vorher in die Notiz
+ * geschrieben, sonst bliebe eine Zeile ohne Gegenstand übrig.
+ */
+export async function deleteCandidateAction(formData: FormData) {
+  const user = await requireAdmin();
+  const candidateCaseId = String(formData.get('candidateCaseId'));
+  // Der Name des Falls, ausgeschrieben — dieselbe Hürde wie beim Löschen eines
+  // Repositories, und aus demselben Grund: ein Klick reicht hier nicht.
+  const confirmation = String(formData.get('confirmName') ?? '').trim();
+
+  const candidate = await prisma.candidateCase.findUnique({
+    where: { id: candidateCaseId },
+    select: { displayName: true, reference: true },
+  });
+  if (!candidate) redirect('/?fehler=' + encodeURIComponent('Dieser Fall existiert nicht mehr.'));
+
+  if (confirmation !== candidate!.displayName) {
+    redirect(
+      `/kandidat/${candidateCaseId}/stammdaten?fehler=` +
+        encodeURIComponent('Zum Löschen den Namen exakt eingeben.'),
+    );
+  }
+
+  await prisma.auditEvent.create({
+    data: {
+      userId: user.id,
+      candidateCaseId,
+      entityType: 'CandidateCase',
+      entityId: candidateCaseId,
+      action: 'case.delete',
+      fromState: 'ACTIVE',
+      reason: `Fall „${candidate!.displayName}" (${candidate!.reference}) endgültig gelöscht.`,
+    },
+  });
+  await prisma.candidateCase.delete({ where: { id: candidateCaseId } });
+
+  revalidatePath('/', 'layout');
+  redirect('/?gespeichert=' + encodeURIComponent(`Fall „${candidate!.displayName}" gelöscht.`));
 }
 
 export async function markRegisteredAction(formData: FormData) {
@@ -826,6 +883,34 @@ export async function saveQualitySettingsAction(formData: FormData) {
   const parsed = QualityInput.parse(Object.fromEntries(formData));
   const { writeSetting, SETTING_KEYS } = await import('@/server/settings');
   await writeSetting(SETTING_KEYS.quality, parsed, user.id);
+  revalidatePath('/', 'layout');
+}
+
+/**
+ * Einen Baustein an- oder ausschalten.
+ *
+ * Ein Schalter, ein Aufruf, sofort gespeichert — dieselbe Bedienung wie bei
+ * den Quellen. Ein „Speichern"-Knopf unter zwanzig Kästchen führt dazu, dass
+ * jemand zwei umstellt, weggeht und sich wundert.
+ *
+ * Gespeichert wird nur, was jemand angefasst hat: die übrigen Bausteine
+ * bleiben ohne Eintrag und behalten ihren Standard. Kommt später ein neuer
+ * dazu, erscheint er dadurch in seinem Auslieferungszustand, statt für jede
+ * bestehende Installation als „aus" zu zählen.
+ */
+export async function toggleFeatureAction(formData: FormData) {
+  const user = await requireAdmin();
+  const { FEATURES } = await import('@/domain/features');
+  const parsed = z
+    .object({
+      key: z.enum(FEATURES.map((f) => f.key) as [string, ...string[]]),
+      on: z.coerce.boolean(),
+    })
+    .parse(Object.fromEntries(formData));
+
+  const { getFeatureSettings, writeSetting, SETTING_KEYS } = await import('@/server/settings');
+  const current = await getFeatureSettings();
+  await writeSetting(SETTING_KEYS.features, { ...current, [parsed.key]: parsed.on }, user.id);
   revalidatePath('/', 'layout');
 }
 

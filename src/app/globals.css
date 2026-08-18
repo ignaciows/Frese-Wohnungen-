@@ -3841,3 +3841,45 @@ label {
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 30%, transparent);
   }
 }
+
+
+/* ------------------------------------------------------- Löschbereich --- */
+/*
+ * Zugeklappt, rot umrandet, am Ende der Seite. Archivieren ist der Normalfall;
+ * das hier soll man suchen müssen und nicht im Vorbeigehen treffen.
+ */
+.danger-zone {
+  border-color: var(--danger-border, var(--danger));
+  margin-top: 18px;
+}
+.danger-zone > summary {
+  cursor: pointer;
+  padding: 16px 18px;
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  color: var(--danger);
+}
+.danger-zone > summary::-webkit-details-marker {
+  display: none;
+}
+.danger-zone > summary::before {
+  content: '▸';
+  margin-right: 4px;
+}
+.danger-zone[open] > summary::before {
+  content: '▾';
+}
+.danger-zone[open] > summary {
+  border-bottom: 1px solid var(--border);
+}
+.btn.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.btn.danger:hover {
+  filter: brightness(1.08);
+}

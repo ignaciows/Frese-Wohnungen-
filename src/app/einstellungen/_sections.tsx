@@ -10,7 +10,15 @@ import {
   runDiscoverySweepFormAction,
 } from '@/app/actions';
 import { Callout } from '@/app/_components/Shell';
-import { InstantNumber, InstantSwitch } from './_instant';
+import { FeatureSwitch, InstantNumber, InstantSwitch } from './_instant';
+import {
+  FEATURES,
+  FEATURE_GROUP_LABELS,
+  featureGroups,
+  featuresByGroup,
+  isFeatureOn,
+  type FeatureSettings,
+} from '@/domain/features';
 import { formatDateTime } from '@/lib/labels';
 import type { DiscoverySettings, OutboundSettings, FollowUpSettings } from '@/server/settings';
 import type { PortalAccountView } from '@/server/portalAccounts';
@@ -554,6 +562,75 @@ function sendingState(outbound: OutboundSettings): SourceState {
 
 function adapterHints(key: string) {
   return ADAPTERS.find((a) => a.key === key)?.configKeys ?? [];
+}
+
+/* ========================================================= Bausteine ==== */
+
+/**
+ * Die Bausteine der App, gruppiert, jeder mit einem Schalter.
+ *
+ * Steht ganz oben in den erweiterten Einstellungen, weil es die einzige Stelle
+ * ist, an der sich die Oberfläche selbst ändert: alles andere dort sind
+ * Schwellenwerte innerhalb einer Funktion, das hier entscheidet, ob es die
+ * Funktion überhaupt gibt.
+ */
+export function FeaturesSection({
+  features,
+  isAdmin,
+}: {
+  features: FeatureSettings;
+  isAdmin: boolean;
+}) {
+  const on = FEATURES.filter((f) => isFeatureOn(features, f.key)).length;
+
+  return (
+    <div className="card" id="bausteine">
+      <div className="card-head">
+        <h2>Funktionen der App</h2>
+        <span className="sub">
+          {on} von {FEATURES.length} aktiv. Ausschalten blendet aus und löscht nichts.
+        </span>
+      </div>
+      <div className="card-body stack">
+        {!isAdmin ? (
+          <Callout tone="info">Nur Admins können Funktionen an- und abschalten.</Callout>
+        ) : null}
+        {featureGroups().map((group) => (
+          <div key={group} className="stack-sm">
+            <h3 className="small">{FEATURE_GROUP_LABELS[group]}</h3>
+            <div className="source-list">
+              {featuresByGroup(group).map((f) =>
+                isAdmin ? (
+                  <FeatureSwitch
+                    key={f.key}
+                    featureKey={f.key}
+                    checked={isFeatureOn(features, f.key)}
+                    label={f.label}
+                    description={f.description}
+                    offMeans={f.offMeans}
+                  />
+                ) : (
+                  <div key={f.key} className="source-item">
+                    <div className="switch-row is-disabled">
+                      <span className="switch-track" aria-hidden>
+                        <span className="switch-thumb" />
+                      </span>
+                      <span className="switch-text">
+                        <span className="switch-label">{f.label}</span>
+                        <span className="switch-hint">
+                          {isFeatureOn(features, f.key) ? 'aktiv' : 'aus'}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                ),
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 /* ==================================================== accounts & mail ==== */

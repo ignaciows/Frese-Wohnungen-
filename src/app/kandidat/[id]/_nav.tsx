@@ -31,18 +31,26 @@ const SETUP = [
 export function CandidateNav({
   candidateId,
   counts,
+  hidden = [],
 }: {
   candidateId: string;
   counts: Partial<Record<string, number>>;
+  /**
+   * Reiter, deren Baustein ausgeschaltet ist. Als Liste von Segmenten und
+   * nicht als einzelne Flags, damit ein neuer abschaltbarer Reiter hier gar
+   * nichts ändert.
+   */
+  hidden?: string[];
 }) {
   const pathname = usePathname();
   const base = `/kandidat/${candidateId}`;
   const isOn = (seg: string) => (seg ? pathname.startsWith(`${base}/${seg}`) : pathname === base);
+  const visible = (seg: string) => !hidden.includes(seg);
 
   return (
     <div className="stack-sm">
       <nav className="tabs" aria-label="Kandidaten-Bereiche">
-        {MAIN.map((t) => {
+        {MAIN.filter((t) => visible(t.seg)).map((t) => {
           const count = counts[t.countKey];
           return (
             <Link
@@ -59,7 +67,7 @@ export function CandidateNav({
       </nav>
       <nav className="subnav" aria-label="Einstellungen zu diesem Fall">
         <span className="subnav-label">Zum Fall:</span>
-        {SETUP.map((t) => (
+        {SETUP.filter((t) => visible(t.seg)).map((t) => (
           <Link
             key={t.seg}
             href={`${base}/${t.seg}`}

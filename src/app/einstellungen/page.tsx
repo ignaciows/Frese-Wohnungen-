@@ -15,6 +15,7 @@ import {
   getQualitySettings,
   getMailboxSettings,
   getTelegramSettings,
+  getFeatureSettings,
 } from '@/server/settings';
 import {
   saveSharingSettingsAction,
@@ -38,7 +39,7 @@ import { runMailIngestAction } from '@/app/actions';
 import { formatDateTime } from '@/lib/labels';
 import { listAccounts } from '@/server/portalAccounts';
 import { credentialKeyConfigured } from '@/lib/crypto';
-import { AccountsSection, DiscoveryRunsSection, DiscoverySection } from './_sections';
+import { AccountsSection, DiscoveryRunsSection, DiscoverySection, FeaturesSection } from './_sections';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +67,7 @@ export default async function SettingsPage({
     mailbox,
     telegram,
     discovery,
+    features,
     outbound,
     followUp,
     accounts,
@@ -84,6 +86,7 @@ export default async function SettingsPage({
     getMailboxSettings(),
     getTelegramSettings(),
     getDiscoverySettings(),
+    getFeatureSettings(),
     getOutboundSettings(),
     getFollowUpSettings(),
     listAccounts(),
@@ -269,6 +272,7 @@ export default async function SettingsPage({
             <span className="small muted"> — Schwellenwerte, Textprüfung, Telegram, Feldnamen</span>
           </summary>
           <div className="stack">
+            <FeaturesSection features={features} isAdmin={isAdmin} />
             <DiscoveryRunsSection
               runs={discoveryRuns.map((r) => ({
                 id: r.id,

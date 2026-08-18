@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
-import { updateCandidateAction, archiveCandidateAction } from '@/app/actions';
+import { updateCandidateAction, archiveCandidateAction, deleteCandidateAction } from '@/app/actions';
+import { currentUser } from '@/lib/auth';
 import { Callout } from '@/app/_components/Shell';
 
 export const dynamic = 'force-dynamic';
@@ -11,10 +12,11 @@ export default async function StammdatenPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; error?: string }>;
+  searchParams: Promise<{ saved?: string; error?: string; fehler?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
+  const user = await currentUser();
 
   const c = await prisma.candidateCase.findUnique({
     where: { id },
@@ -127,7 +129,7 @@ export default async function StammdatenPage({
         <div className="card-body row-between">
           <p className="small muted" style={{ maxWidth: 460 }}>
             Archivierte Fälle verschwinden aus der Arbeitsliste, behalten aber Kontakt-Historie und
-            Nachweise. Zum endgültigen Löschen siehe docs/PRIVACY_AND_SECURITY.md.
+            Nachweise. Das ist der normale Weg, wenn eine Suche zu Ende ist.
           </p>
           <form action={archiveCandidateAction}>
             <input type="hidden" name="candidateCaseId" value={c.id} />
@@ -138,6 +140,46 @@ export default async function StammdatenPage({
           </form>
         </div>
       </div>
+
+      {/* Löschen steht zugeklappt und hinter dem ausgeschriebenen Namen.
+          Archivieren ist der Normalfall; das hier ist für den versehentlich
+          angelegten Fall, die Dublette, oder wenn jemand seine Daten
+          zurückverlangt. Kein Knopf, den man im Vorbeigehen trifft. */}
+      {user?.role === 'ADMIN' ? (
+        <details className="card danger-zone">
+          <summary>
+            <strong>Fall endgültig löschen</strong>
+            <span className="small muted"> — kann nicht rückgängig gemacht werden</span>
+          </summary>
+          <div className="card-body stack">
+            {sp.fehler ? <Callout tone="danger">{sp.fehler}</Callout> : null}
+            <p className="small muted">
+              Gelöscht werden Suchprofil, Treffer, Anfragen, Termine und Nachrichten dieses Falls. Der
+              Eintrag im Protokoll bleibt — dass gelöscht wurde, ist selbst eine Tatsache, die nachlesbar
+              bleiben muss.
+            </p>
+            <form action={deleteCandidateAction} className="stack-sm">
+              <input type="hidden" name="candidateCaseId" value={c.id} />
+              <label htmlFor="confirmName">
+                Zum Bestätigen den Namen eingeben: <strong>{c.displayName}</strong>
+              </label>
+              <input
+                id="confirmName"
+                name="confirmName"
+                className="input"
+                autoComplete="off"
+                placeholder={c.displayName}
+                required
+              />
+              <div className="row" style={{ justifyContent: 'flex-end' }}>
+                <button type="submit" className="btn danger">
+                  Endgültig löschen
+                </button>
+              </div>
+            </form>
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }

@@ -162,6 +162,12 @@ model SearchProfile {
   id              String @id @default(cuid())
   candidateCaseId String @unique
 
+  /// Wo die Kandidatin arbeiten wird — Klinik, Pflegeheim, Träger.
+  ///
+  /// Steht hier und nicht am Fall, weil es zur Suche gehört: die Wohnung wird
+  /// um den Arbeitsplatz herum gesucht, und wer den Arbeitgeber kennt, kann
+  /// eine Adresse einordnen, ohne sie nachzuschlagen.
+  employer            String?
   workplaceAddress    String
   workplaceCity       String?
   workplacePostalCode String?

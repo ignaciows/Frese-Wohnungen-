@@ -12,6 +12,8 @@ export interface CreateCandidateInput {
   displayName: string;
   notes?: string;
   createdById: string;
+  /** Klinik, Pflegeheim oder Träger — wo die Kandidatin arbeiten wird. */
+  employer?: string | null;
   workplace: {
     address: string;
     city?: string | null;
@@ -47,6 +49,7 @@ export async function createCandidateCase(input: CreateCandidateInput) {
         applicationMessage: { create: { body: '' } },
         searchProfile: {
           create: {
+            employer: input.employer ?? null,
             workplaceAddress: input.workplace.address,
             workplaceCity: input.workplace.city ?? null,
             workplacePostalCode: input.workplace.postalCode ?? null,
@@ -106,6 +109,7 @@ export async function updateApplicationMessage(input: {
 export async function updateSearchProfile(input: {
   candidateCaseId: string;
   patch: Partial<{
+    employer?: string | null;
     workplaceAddress: string;
     workplaceCity: string | null;
     workplacePostalCode: string | null;

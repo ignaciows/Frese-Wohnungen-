@@ -36,6 +36,8 @@ import {
 } from '@/domain/liveness';
 import { markListingExpiredAction, checkListingNowAction, setFollowUpAction } from '@/app/actions';
 import { RESULT_TABS, liveListingFilter, matchWhere } from '@/server/listingFilters';
+import { getFeatureSettings } from '@/server/settings';
+import { isFeatureOn } from '@/domain/features';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,7 +88,7 @@ export default async function ErgebnissePage({
   const [liveness, ageFilter] = await Promise.all([getLivenessSettings(), getAgeFilterSettings()]);
   const expiredCutoff = new Date(Date.now() - EXPIRED_VISIBLE_DAYS * 86_400_000);
 
-  const [matchList, counts, message, profile, freshnessSettings, bridging] = await Promise.all([
+  const [matchList, counts, message, profile, freshnessSettings, bridging, features] = await Promise.all([
     prisma.candidateListingMatch.findMany({
       where: matchWhere({ candidateCaseId: id, tab, liveness, expiredCutoff }),
       orderBy: [{ compatibility: 'asc' }, { score: 'desc' }],
@@ -107,6 +109,7 @@ export default async function ErgebnissePage({
     prisma.searchProfile.findUnique({ where: { candidateCaseId: id } }),
     getFreshnessSettings(),
     getBridgingSettings(),
+    getFeatureSettings(),
   ]);
   const arrival = profile?.moveInDate ?? null;
 
@@ -179,7 +182,7 @@ export default async function ErgebnissePage({
         </Callout>
       ) : null}
 
-      {profile ? (
+      {profile && isFeatureOn(features, 'whatIf') ? (
         <WhatIfPanel
           candidateCaseId={id}
           startOpen={totalAll > 0 && usableNow === 0}

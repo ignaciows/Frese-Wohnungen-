@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { inboxCounts } from '@/server/followUps';
 import { currentUser } from '@/lib/auth';
 import { AppBar, Crumbs } from '@/app/_components/Shell';
+import { getFeatureSettings } from '@/server/settings';
+import { isFeatureOn } from '@/domain/features';
 import { CandidateNav } from './_nav';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +20,7 @@ export default async function CandidateLayout({
   if (!user) redirect('/login');
   const pending = await inboxCounts();
   const { id } = await params;
+  const features = await getFeatureSettings();
 
   const candidate = await prisma.candidateCase.findUnique({
     where: { id },
@@ -26,7 +29,14 @@ export default async function CandidateLayout({
       reference: true,
       displayName: true,
       status: true,
-      searchProfile: { select: { workplaceCity: true, workplaceAddress: true, maxWarmmieteCents: true } },
+      searchProfile: {
+        select: {
+          employer: true,
+          workplaceCity: true,
+          workplaceAddress: true,
+          maxWarmmieteCents: true,
+        },
+      },
       _count: { select: { contactAttempts: true } },
     },
   });
@@ -60,11 +70,20 @@ export default async function CandidateLayout({
               <span className="badge">{candidate.reference}</span>
               {candidate.status === 'ARCHIVED' ? <span className="badge">Archiviert</span> : null}
             </div>
+            {/* Arbeitgeber, dann Arbeitsort, dann Budget — in der Reihenfolge,
+                in der jemand den Fall im Kopf sortiert: für wen arbeitet sie,
+                wo, und wie viel darf es kosten. Die Adresse ist zugleich der
+                Punkt, um den herum gesucht wird. */}
             <div className="small muted">
-              {candidate.searchProfile?.workplaceCity || candidate.searchProfile?.workplaceAddress || '—'}
-              {candidate.searchProfile
-                ? ` · max. ${Math.round(candidate.searchProfile.maxWarmmieteCents / 100)} € warm`
-                : ''}
+              {[
+                candidate.searchProfile?.employer,
+                candidate.searchProfile?.workplaceCity || candidate.searchProfile?.workplaceAddress,
+                candidate.searchProfile
+                  ? `max. ${Math.round(candidate.searchProfile.maxWarmmieteCents / 100)} € warm`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(' · ') || '—'}
             </div>
           </div>
         </div>
@@ -75,6 +94,10 @@ export default async function CandidateLayout({
             kontakte: candidate._count.contactAttempts,
             termine: upcomingAppointments,
           }}
+          // Ausgeschaltete Bausteine verlieren ihren Reiter. Die Daten
+          // dahinter bleiben — wer den Baustein wieder anschaltet, findet
+          // seine Termine unverändert vor.
+          hidden={isFeatureOn(features, 'appointments') ? [] : ['termine']}
         />
       </div>
       <main className="container-wide" style={{ paddingTop: 22, paddingBottom: 72 }}>

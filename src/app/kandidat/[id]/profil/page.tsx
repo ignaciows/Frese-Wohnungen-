@@ -31,6 +31,18 @@ export default async function ProfilPage({ params }: { params: Promise<{ id: str
         </div>
         <div className="card-body stack">
           <div>
+            <label htmlFor="employer">Arbeitgeber</label>
+            <input
+              id="employer"
+              name="employer"
+              className="input"
+              defaultValue={p.employer ?? ''}
+              placeholder="SLK-Kliniken Heilbronn"
+            />
+            <p className="field-hint">Klinik, Pflegeheim oder Träger — wo die Kandidatin arbeitet.</p>
+          </div>
+
+          <div>
             <label htmlFor="workplaceAddress">Arbeitsort (Adresse)</label>
             <input
               id="workplaceAddress"
@@ -40,8 +52,8 @@ export default async function ProfilPage({ params }: { params: Promise<{ id: str
               required
             />
             <p className="field-hint">
-              Ohne Geokodierung rechnet die App keine Entfernung aus und zeigt „Entfernung unbekannt“ — die
-              Suche funktioniert trotzdem.
+              <strong>Um diese Adresse herum wird gesucht.</strong> Ohne Geokodierung rechnet die App keine
+              Entfernung aus und zeigt „Entfernung unbekannt“ — die Suche funktioniert trotzdem.
             </p>
           </div>
 

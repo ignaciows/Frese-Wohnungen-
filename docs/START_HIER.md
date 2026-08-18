@@ -132,6 +132,7 @@ Datenbank, deren Inhalt die Tests löschen.
 | einen Text auf dem Bildschirm | die jeweilige `page.tsx`; Beschriftungen in `lib/labels.ts` |
 | eine Farbe | die Tokens in `globals.css`, siehe `DESIGN.md` |
 | wer sich anmelden darf | `lib/googleAuth.ts`, siehe `ANMELDUNG.md` |
+| eine Funktion an-/abschaltbar machen | `domain/features/index.ts`, siehe `BAUSTEINE.md` |
 | das Datenbankschema | `prisma/schema.prisma`, danach `npm run db:migrate:dev` |
 
 ## Zwei Versionsnummern, die etwas auslösen
@@ -151,6 +152,7 @@ Wochen später auf.
 | `ARCHITEKTUR.md` | Schichten, Datenfluss, Einstiegspunkte — die lange Fassung |
 | `ANMELDUNG.md` | Passwort und „Mit Google anmelden" einrichten |
 | `BETRIEB.md` | Wo sie läuft, welche Variablen nötig sind, was tun wenn es klemmt |
+| `BAUSTEINE.md` | Funktionen an- und abschalten, und wie man eine neue baut |
 | `QUELLEN.md` | Kleinanzeigen, ImmoScout24, Immowelt anschließen |
 | `KONTAKT.md` | Telefonnummer & Co. aus dem Anzeigentext |
 | `DISCOVERY.md` | Suchlauf: Adapter, robots.txt, Höflichkeit, Grenzen |

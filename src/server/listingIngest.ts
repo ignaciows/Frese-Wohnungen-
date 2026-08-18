@@ -19,7 +19,8 @@ import { normaliseUrl, extractSourceListingId } from '@/lib/url';
 import { parseListing, type StructuredHints } from '@/domain/parser';
 import { computeMatchesForListing } from './ranking';
 import { registerDuplicates } from './duplicates';
-import { findContact } from '@/domain/contact';
+import { findContact, NO_CONTACT } from '@/domain/contact';
+import { featureOn } from '@/server/settings';
 
 export interface IngestInput {
   sourceId: string;
@@ -63,7 +64,13 @@ export async function ingestListing(input: IngestInput): Promise<IngestResult> {
   });
   // What the ad itself published about reaching the landlord. A number in the
   // text is the fastest route there is — see domain/contact.
-  const found = findContact(`${input.title}\n${input.descriptionRaw}`);
+  //
+  // Abschaltbar: wer die Nummern nicht lesen lassen will, bekommt hier nichts
+  // Gelesenes. Bereits gespeicherte Nummern bleiben, weil unten ohnehin nie
+  // ein Leerwert eine vorhandene Angabe überschreibt.
+  const found = (await featureOn('contactExtraction'))
+    ? findContact(`${input.title}\n${input.descriptionRaw}`)
+    : NO_CONTACT;
   const contact = {
     contactEmail: input.contactEmail ?? found.email,
     contactName: input.contactName ?? found.name,

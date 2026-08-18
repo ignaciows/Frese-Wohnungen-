@@ -11,6 +11,10 @@ import {
   retrySendFormAction,
 } from '@/app/actions';
 import { formatDateTime } from '@/lib/labels';
+import { getFeatureSettings } from '@/server/settings';
+import { isFeatureOn } from '@/domain/features';
+import { responseStats, stalledCases } from '@/server/insights';
+import { describeResponseRate } from '@/domain/insights';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +35,11 @@ export default async function AufgabenPage({
   const sp = await searchParams;
   const showFuture = sp.alle === '1';
 
-  const [tasks, notifications, counts, unreadReplies, failedSends] = await Promise.all([
+  const features = await getFeatureSettings();
+  const showStalled = isFeatureOn(features, 'stalledCases');
+  const showRates = isFeatureOn(features, 'responseStats');
+
+  const [tasks, notifications, counts, unreadReplies, failedSends, stalled, rates] = await Promise.all([
     listDueTasks({ includeFuture: showFuture }),
     listNotifications(20),
     inboxCounts(),
@@ -59,6 +67,10 @@ export default async function AufgabenPage({
         candidateCase: { select: { id: true, displayName: true } },
       },
     }),
+    // Beide nur rechnen, wenn sie auch gezeigt werden — ein abgeschalteter
+    // Baustein soll auch keine Abfrage kosten.
+    showStalled ? stalledCases() : Promise.resolve([]),
+    showRates ? responseStats() : Promise.resolve(null),
   ]);
 
   return (
@@ -77,6 +89,76 @@ export default async function AufgabenPage({
           <Stat value={counts.dueTasks} label="Fällige Aufgaben" accent={counts.dueTasks > 0} />
           <Stat value={failedSends.length} label="Fehlgeschlagene Anfragen" />
         </div>
+
+        {/* Steht ein Fall still?
+            Die Liste beantwortet gut, welche Wohnung als nächstes — aber nicht,
+            für wen gerade gar nichts nachkommt. Ein Fall mit 200 Anzeigen,
+            von denen keine passt, sieht auf jeder Liste beschäftigt aus. */}
+        {showStalled && stalled.length > 0 ? (
+          <div className="card" style={{ marginBottom: 18 }}>
+            <div className="card-head">
+              <h2>Fälle ohne passende Wohnung</h2>
+              <span className="sub">
+                Hier kommt nichts nach — fast immer ist das Suchprofil zu eng, nicht der Markt leer.
+              </span>
+            </div>
+            <div className="card-body stack-sm">
+              {stalled.map((c) => (
+                <div key={c.candidateCaseId} className="row-between">
+                  <div className="stack-sm grow">
+                    <Link href={`/kandidat/${c.candidateCaseId}/profil`}>
+                      <strong>{c.displayName}</strong>
+                    </Link>
+                    <span className="small muted">{c.reason}</span>
+                  </div>
+                  {c.urgency === 'high' ? <span className="badge danger">dringend</span> : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Wird überhaupt geantwortet?
+            Ohne Zahl bleibt „der Markt ist schwierig" ein Gefühl. Mit Zahl ist
+            es entweder wahr oder ein Hinweis aufs Anschreiben. */}
+        {showRates && rates && rates.overall.sent > 0 ? (
+          <div className="card" style={{ marginBottom: 18 }}>
+            <div className="card-head">
+              <h2>Antwortquote</h2>
+              <span className="sub">{describeResponseRate(rates.overall)}</span>
+            </div>
+            {rates.perSource.length > 1 ? (
+              <div className="card-body table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Quelle</th>
+                      <th>Angeschrieben</th>
+                      <th>Beantwortet</th>
+                      <th>Quote</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rates.perSource.map((r) => (
+                      <tr key={r.sourceName}>
+                        <td>{r.sourceName}</td>
+                        <td>{r.sent}</td>
+                        <td>{r.answered}</td>
+                        <td>
+                          {r.ratePercent === null ? (
+                            <span className="muted small">zu wenige</span>
+                          ) : (
+                            `${r.ratePercent} %`
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         {/* -------------------------------------------------- replies --- */}
         <section className="card" style={{ marginTop: 18 }}>
