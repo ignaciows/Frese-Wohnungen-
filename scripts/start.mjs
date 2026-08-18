@@ -23,37 +23,41 @@ function run(cmd, args, { allowFailure = false } = {}) {
 }
 
 /**
- * Reads back which migrations Prisma considers failed.
+ * Which migrations are stuck, asked of the database rather than of a CLI.
  *
- * A failed migration is sticky: `migrate deploy` refuses to apply anything at
- * all while one is on record (P3009), so a single bad migration freezes the
- * history for every later one. Falling back to `db push` keeps the *schema*
- * right and hides exactly that — the schema then tracks, and every data step
- * in every future migration silently never runs.
+ * The first version of this parsed `prisma migrate status`, and it worked
+ * locally and did nothing in production — the same Prisma version, a different
+ * enough shape of output. Scraping a CLI for a decision this consequential was
+ * the mistake; `_prisma_migrations` is a plain table and answers exactly.
  *
- * The names are parsed out of `migrate status`, which prints them bare, one
- * per line, under a "Following migration have failed:" heading:
- *
- *     Following migration have failed:
- *     20260818120000_drei_quellen
- *
- * Only the text after that heading is scanned, so the suggestion block further
- * down (which repeats the same names inside example commands) cannot add
- * anything, and a healthy database yields an empty list.
+ * Stuck means: started, never finished, and never rolled back. A row with
+ * `rolled_back_at` set is the *record* of a failed attempt that has since been
+ * resolved — history, not a problem.
  */
-function failedMigrations() {
-  const r = spawnSync('npx', ['prisma', 'migrate', 'status'], {
-    encoding: 'utf8',
-    env: process.env,
-    shell: false,
-  });
-  const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
-  const heading = out.search(/following migration.*failed/i);
-  if (heading < 0) return [];
-  return [...new Set([...out.slice(heading).matchAll(/\b(\d{14}_[a-z0-9_]+)\b/g)].map((m) => m[1]))];
+async function failedMigrations() {
+  let client;
+  try {
+    const { PrismaClient } = await import('@prisma/client');
+    client = new PrismaClient();
+    const rows = await client.$queryRawUnsafe(
+      'SELECT migration_name FROM "_prisma_migrations"' +
+        ' WHERE finished_at IS NULL AND rolled_back_at IS NULL' +
+        ' ORDER BY started_at',
+    );
+    return rows.map((r) => r.migration_name);
+  } catch (err) {
+    // No table yet (first ever deploy), or no database. Either way there is
+    // nothing stuck to clean up — but say so, because a silent [] here is
+    // indistinguishable from "everything is fine" and that is exactly how the
+    // first version of this went unnoticed in production.
+    console.warn(`[start] Could not read migration history: ${err?.message ?? err}`);
+    return [];
+  } finally {
+    await client?.$disconnect().catch(() => {});
+  }
 }
 
-function migrate() {
+async function migrate() {
   step('Applying database migrations…');
   if (run('npx', ['prisma', 'migrate', 'deploy'], { allowFailure: true })) {
     console.log('[start] Migrations applied.');
@@ -64,7 +68,7 @@ function migrate() {
   // be re-runnable (IF EXISTS / IF NOT EXISTS throughout), so the honest
   // recovery is to mark it rolled back and let it run again — rather than
   // papering over it with `db push` and leaving the history broken forever.
-  const failed = failedMigrations();
+  const failed = await failedMigrations();
   if (failed.length > 0) {
     console.warn(`[start] Failed migration(s) on record: ${failed.join(', ')}`);
     for (const name of failed) {
@@ -98,7 +102,7 @@ function seed() {
 }
 
 step(`Booting Frese Wohnung (commit ${(process.env.RAILWAY_GIT_COMMIT_SHA ?? 'unknown').slice(0, 8)})`);
-migrate();
+await migrate();
 seed();
 
 step('Starting Next.js…');
