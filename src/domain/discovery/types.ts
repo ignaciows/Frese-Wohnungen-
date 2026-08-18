@@ -60,8 +60,14 @@ export interface DiscoveredListing {
   imageUrl?: string | null;
   /** Structured values read straight from the markup, handed to the parser. */
   structured?: StructuredHints;
+  /**
+   * How to reach the landlord without going through the portal's form. Only
+   * ever what the ad itself published; see domain/contact for how it is read
+   * and why a phone number is worth this much trouble.
+   */
   contactEmail?: string | null;
   contactName?: string | null;
+  contactPhone?: string | null;
   /** Portal-side enquiry form, when the list view links one. */
   contactFormUrl?: string | null;
   /**

@@ -6,6 +6,12 @@
  *  - persist extraction evidence as ListingFact rows,
  *  - compute duplicate suggestions,
  *  - re-compute CandidateListingMatch rows for all active candidates.
+ *
+ * Every route into the app ends up here: the manual paste, the search-agent
+ * mails from ImmoScout24 and Immowelt, and the Kleinanzeigen sweep. So this is
+ * also the one place where the contact details get read out of the ad text —
+ * do it here and every route gets phone numbers, not just the one somebody
+ * remembered to wire up.
  */
 
 import { prisma } from '@/lib/prisma';
@@ -13,6 +19,7 @@ import { normaliseUrl, extractSourceListingId } from '@/lib/url';
 import { parseListing, type StructuredHints } from '@/domain/parser';
 import { computeMatchesForListing } from './ranking';
 import { registerDuplicates } from './duplicates';
+import { findContact } from '@/domain/contact';
 
 export interface IngestInput {
   sourceId: string;
@@ -26,6 +33,14 @@ export interface IngestInput {
   notes?: string | null;
   importedById: string;
   structured?: StructuredHints;
+  /**
+   * Contact details the *source* already knew — Kleinanzeigen names the seller
+   * in its markup, for instance. These win over anything read out of the text.
+   */
+  contactEmail?: string | null;
+  contactName?: string | null;
+  contactPhone?: string | null;
+  contactFormUrl?: string | null;
 }
 
 export interface IngestResult {
@@ -46,6 +61,15 @@ export async function ingestListing(input: IngestInput): Promise<IngestResult> {
     description: input.descriptionRaw,
     structured: input.structured,
   });
+  // What the ad itself published about reaching the landlord. A number in the
+  // text is the fastest route there is — see domain/contact.
+  const found = findContact(`${input.title}\n${input.descriptionRaw}`);
+  const contact = {
+    contactEmail: input.contactEmail ?? found.email,
+    contactName: input.contactName ?? found.name,
+    contactPhone: input.contactPhone ?? found.phone,
+    contactFormUrl: input.contactFormUrl ?? null,
+  };
 
   const listing = await prisma.$transaction(async (tx) => {
     const existing = await tx.listing.findUnique({ where: { canonicalUrl } });
@@ -91,6 +115,7 @@ export async function ingestListing(input: IngestInput): Promise<IngestResult> {
       anmeldungPossible: facts.anmeldungPossible,
 
       warnings: facts.warnings,
+      ...contact,
       extractorVersion: facts.extractorVersion,
       expired: false,
       importedById: input.importedById,
@@ -137,9 +162,18 @@ export async function ingestListing(input: IngestInput): Promise<IngestResult> {
       ] as const) {
         preserveIf(key);
       }
+      // A contact detail we once had is never dropped because this pass did
+      // not find it. Portals hide the number again once an ad gets popular,
+      // and losing it would mean losing the only fast way to that landlord.
+      const keptContact = {
+        contactEmail: contact.contactEmail ?? existing.contactEmail,
+        contactName: contact.contactName ?? existing.contactName,
+        contactPhone: contact.contactPhone ?? existing.contactPhone,
+        contactFormUrl: contact.contactFormUrl ?? existing.contactFormUrl,
+      };
       record = await tx.listing.update({
         where: { id: existing.id },
-        data: { ...data, ...preserved, version: { increment: 1 } },
+        data: { ...data, ...preserved, ...keptContact, version: { increment: 1 } },
       });
     } else {
       record = await tx.listing.create({ data });

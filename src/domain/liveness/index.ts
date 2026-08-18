@@ -101,7 +101,7 @@ const DECISIVE_GONE = [
   'anzeige wurde geloescht',
   'diese anzeige existiert nicht',
   'anzeige ist leider nicht mehr verfügbar',
-  // --- WG-Gesucht --------------------------------------------------------
+  // --- other German portals ----------------------------------------------
   'angebot wurde gelöscht',
   'angebot wurde geloescht',
   'dieses inserat ist nicht mehr',

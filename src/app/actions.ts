@@ -49,7 +49,6 @@ import { createSearchRun, updateSourceCheckStatus } from '@/server/searchRuns';
 import { claimListing, confirmContact } from '@/server/contact';
 import { markSystemTransferRegistered } from '@/server/systemTransfer';
 import { syncSeedCatalog } from '@/server/sources';
-import { MAIN_SOURCE_KEYS } from '@/domain/sources/catalog';
 import { RANK_VERSION } from '@/domain/ranking';
 
 /** "" -> null, otherwise a Date. Empty date inputs post as empty strings. */
@@ -809,35 +808,6 @@ const QualityInput = z.object({
   rejectShortStay: z.coerce.boolean().default(false),
 });
 
-/**
- * Narrows the automatic search to those three and switches every other source
- * off. Reversible: nothing is deleted, and any source can be switched back on
- * individually.
- */
-export async function focusMainSourcesAction() {
-  await requireAdmin();
-  const main = await prisma.source.findMany({
-    where: { key: { in: [...MAIN_SOURCE_KEYS] } },
-    select: { id: true, discoveryAdapter: true },
-  });
-  const mainIds = main.map((s) => s.id);
-
-  await prisma.$transaction([
-    // Only the ones that can actually be searched are switched on; ImmoScout24
-    // and Immowelt stay off where they have no adapter, because switching them
-    // on would only produce blocked runs in the log.
-    prisma.source.updateMany({
-      where: { id: { in: main.filter((s) => s.discoveryAdapter).map((s) => s.id) } },
-      data: { discoveryEnabled: true },
-    }),
-    prisma.source.updateMany({
-      where: { id: { notIn: mainIds } },
-      data: { discoveryEnabled: false },
-    }),
-  ]);
-  revalidatePath('/', 'layout');
-}
-
 const MailboxInput = z.object({
   readOnly: z.coerce.boolean().default(false),
   lookbackDays: z.coerce.number().int().min(1).max(90).default(14),
@@ -1581,108 +1551,6 @@ export async function runDiscoverySweepFormAction() {
     ? summary.skippedReason
     : `${summary.created} neu, ${summary.updated} bestätigt, ${summary.retired} entfernt (${summary.requests} Abrufe).`;
   redirect(`/einstellungen?gespeichert=${encodeURIComponent(note)}`);
-}
-
-/* ------------------------------------------------- add any source by URL */
-
-/**
- * Probes a website and reports how — or whether — it can be read
- * automatically. This is what makes the long tail of municipal landlords,
- * cooperatives and regional agents addable without a developer.
- */
-export async function probeSourceAction(formData: FormData) {
-  await requireAdmin();
-  const url = z.string().url().max(500).parse(String(formData.get('url') ?? '').trim());
-  const { probeSource } = await import('@/server/sourceProbe');
-  const report = await probeSource(url);
-  return report;
-}
-
-const NewSourceInput = z.object({
-  name: z.string().min(2).max(120),
-  websiteUrl: z.string().url().max(500),
-  category: z
-    .enum([
-      'MARKETPLACE',
-      'GENERAL_PORTAL',
-      'FURNISHED',
-      'INSTITUTIONAL_LANDLORD',
-      'COOPERATIVE',
-      'MUNICIPAL',
-      'TEMPORARY',
-      'SOCIAL_LOCAL',
-      'DIRECTORY',
-    ])
-    .default('GENERAL_PORTAL'),
-  discoveryAdapter: z.string().max(40).optional().nullable(),
-  config: z.string().max(8000).optional().nullable(),
-  pollIntervalMinutes: z.coerce.number().int().min(5).max(10080).optional().nullable(),
-  enable: z.coerce.boolean().default(false),
-});
-
-/** Creates a source from the probe result (or by hand). */
-export async function createSourceAction(formData: FormData) {
-  await requireAdmin();
-  const parsed = NewSourceInput.parse(Object.fromEntries(formData));
-
-  let config: Record<string, unknown> = {};
-  if (parsed.config?.trim()) {
-    try {
-      const decoded = JSON.parse(parsed.config) as unknown;
-      if (decoded && typeof decoded === 'object' && !Array.isArray(decoded)) {
-        config = decoded as Record<string, unknown>;
-      }
-    } catch {
-      return { ok: false as const, error: 'Konfiguration ist kein gültiges JSON.' };
-    }
-  }
-
-  // A readable, stable key derived from the name; collisions get a suffix
-  // rather than silently overwriting somebody else's source.
-  const base =
-    parsed.name
-      .toLowerCase()
-      .replace(/ä/g, 'ae')
-      .replace(/ö/g, 'oe')
-      .replace(/ü/g, 'ue')
-      .replace(/ß/g, 'ss')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-      .slice(0, 40) || 'quelle';
-  let key = base;
-  for (let i = 2; await prisma.source.findUnique({ where: { key } }); i++) {
-    key = `${base}-${i}`;
-  }
-
-  await prisma.source.create({
-    data: {
-      key,
-      name: parsed.name,
-      websiteUrl: parsed.websiteUrl,
-      category: parsed.category,
-      priority: 200,
-      integrationMode: 'CUSTOM_SOURCE',
-      // Added by hand after a probe, so the admin has seen what it does.
-      termsReviewStatus: 'MANUAL_ONLY',
-      housingTypes: ['APARTMENT'],
-      discoveryAdapter: parsed.discoveryAdapter?.trim() || null,
-      discoveryEnabled: parsed.enable,
-      discoveryConfig: config as never,
-      pollIntervalMinutes: parsed.pollIntervalMinutes ?? null,
-    },
-  });
-
-  revalidatePath('/', 'layout');
-  return { ok: true as const, key };
-}
-
-export async function createSourceFormAction(formData: FormData) {
-  const result = await createSourceAction(formData);
-  redirect(
-    result.ok
-      ? `/einstellungen?gespeichert=${encodeURIComponent(`Quelle „${formData.get('name')}" angelegt.`)}`
-      : `/einstellungen?fehler=${encodeURIComponent(result.error)}`,
-  );
 }
 
 const SourcePollInput = z.object({

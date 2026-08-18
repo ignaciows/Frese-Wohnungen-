@@ -11,7 +11,6 @@ import { describe, expect, it } from 'vitest';
 import { listPostedAt } from '@/domain/discovery/listPostedAt';
 import { parseRelative } from '@/domain/liveness/postedAt';
 import { kleinanzeigenAdapter } from '@/domain/discovery/adapters/kleinanzeigen';
-import { telegramAdapter } from '@/domain/discovery/adapters/telegram';
 import type { FetchedPage } from '@/domain/discovery/types';
 
 const now = new Date('2026-08-10T12:00:00Z');
@@ -91,16 +90,6 @@ describe('adapters supply the date from the list', () => {
     });
     const items = kleinanzeigenAdapter.parse(page(body, 'https://www.kleinanzeigen.de/x/c203l9228'), {});
     expect(items[0].postedAt?.at.getUTCDate()).toBe(5);
-  });
-
-  it('Telegram carries each post\'s own timestamp', () => {
-    const body = `<div class="tgme_widget_message js-widget_message" data-post="wohnungenberlin/99">
-      <a class="tgme_widget_message_date"><time datetime="2026-08-09T10:15:00+00:00"></time></a>
-      <div class="tgme_widget_message_text js-message_text">2-Zimmer-Wohnung in Berlin, 68 m², 900 € warm</div>
-    </div>`;
-    const items = telegramAdapter.parse(page(body, 'https://t.me/s/wohnungenberlin'), {});
-    expect(items).toHaveLength(1);
-    expect(items[0].postedAt?.at.toISOString()).toBe('2026-08-09T10:15:00.000Z');
   });
 
   it('an ad without a stated date simply has none', () => {

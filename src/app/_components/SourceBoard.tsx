@@ -4,14 +4,13 @@ import { useState } from 'react';
 import { importListingAction } from '@/app/actions';
 import { SourceTask, type SourceTaskData } from './SourceTask';
 
-const GROUPS: Array<{ key: string; label: string; cats: string[] }> = [
-  { key: 'market', label: 'Große Portale', cats: ['MARKETPLACE', 'GENERAL_PORTAL'] },
-  { key: 'furnished', label: 'Möbliert & Relocation', cats: ['FURNISHED'] },
-  { key: 'landlord', label: 'Vermieter & Genossenschaften', cats: ['INSTITUTIONAL_LANDLORD', 'COOPERATIVE', 'MUNICIPAL'] },
-  { key: 'local', label: 'Regional & lokal', cats: ['SOCIAL_LOCAL', 'DIRECTORY'] },
-  { key: 'temp', label: 'Übergangswohnen', cats: ['TEMPORARY'] },
-];
-
+/**
+ * Die Aufgabenliste eines Suchlaufs: eine Karte pro Portal.
+ *
+ * Früher standen die Aufgaben in fünf Kategorie-Gruppen — sinnvoll bei fünfzig
+ * Quellen, albern bei dreien. Jetzt ist es einfach eine Liste in der Reihenfolge
+ * des Katalogs.
+ */
 export function SourceBoard({ tasks }: { tasks: SourceTaskData[] }) {
   const [importFor, setImportFor] = useState<{ id: string; name: string } | null>(null);
   const [onlyOpen, setOnlyOpen] = useState(false);
@@ -19,11 +18,6 @@ export function SourceBoard({ tasks }: { tasks: SourceTaskData[] }) {
   const visible = onlyOpen
     ? tasks.filter((t) => t.status === 'PENDING' || t.status === 'IN_PROGRESS')
     : tasks;
-
-  const grouped = GROUPS.map((g) => ({
-    ...g,
-    items: visible.filter((t) => g.cats.includes(t.source.category)),
-  })).filter((g) => g.items.length > 0);
 
   const nextTask = tasks.find((t) => t.status === 'PENDING');
 
@@ -41,7 +35,7 @@ export function SourceBoard({ tasks }: { tasks: SourceTaskData[] }) {
         </div>
         {nextTask ? (
           <a
-            href={nextTask.generatedUrl ?? nextTask.source.websiteUrl}
+            href={nextTask.source.websiteUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="btn primary"
@@ -112,28 +106,22 @@ export function SourceBoard({ tasks }: { tasks: SourceTaskData[] }) {
         </div>
       ) : null}
 
-      {grouped.map((g) => (
-        <section key={g.key} className="stack">
-          <div className="row">
-            <h2>{g.label}</h2>
-            <span className="badge">{g.items.length}</span>
-          </div>
-          <div className="stack">
-            {g.items.map((t) => (
-              <SourceTask
-                key={t.id}
-                task={t}
-                onImport={(id, name) => {
-                  setImportFor({ id, name });
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
+      <section className="stack">
+        <div className="stack">
+          {visible.map((t) => (
+            <SourceTask
+              key={t.id}
+              task={t}
+              onImport={(id, name) => {
+                setImportFor({ id, name });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            />
+          ))}
+        </div>
+      </section>
 
-      {grouped.length === 0 ? (
+      {visible.length === 0 ? (
         <div className="card card-pad">
           <p className="muted">Keine offenen Quellen — alle wurden bereits bearbeitet.</p>
         </div>

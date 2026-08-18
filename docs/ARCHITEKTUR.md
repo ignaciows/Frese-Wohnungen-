@@ -35,6 +35,7 @@ Datenbankaufbau nötig. Deshalb laufen die knapp 500 Tests in unter einer Minute
 | `timeline/` | Der Fall als Linie: Achse, Wochen, Risikostufen. Siehe `ZEITLEISTE.md`. |
 | `timing/` | Alter einer Anzeige, Überbrückungskosten. |
 | `sources/` | Der Quellenkatalog und die kanonischen Filter. |
+| `contact/` | Telefonnummer, E-Mail und Ansprechpartner aus dem Anzeigentext. Siehe `KONTAKT.md`. |
 | `duplicates/`, `rent/`, `priority/`, `whatif/`, `liveness/`, `mail/`, `sharing/` | Je ein abgegrenztes Thema, gleiche Regel: rein und getestet. |
 
 **Die Prüfung, ob das noch stimmt:** kein Treffer bedeutet, die Schicht ist
@@ -99,8 +100,10 @@ Alles ohne eigene Meinung.
    noch in ihrem Abstand, und braucht dieser Fall überhaupt Möbliertes? Der
    Plan wird gemeldet, bevor der erste Abruf läuft — davon lebt der
    Fortschrittsbalken.
-2. **Abrufen** (`crawler.ts`). Vier Quellen gleichzeitig, innerhalb einer
-   Quelle nacheinander und mit Pause. robots.txt wird gelesen und befolgt.
+2. **Abrufen** (`crawler.ts`). Nacheinander pro Server und mit Pause;
+   robots.txt wird gelesen und befolgt. Nur Kleinanzeigen läuft über diesen
+   Weg — ImmoScout24 und Immowelt kommen als Suchagent-Mail herein
+   (`server/mailIngest.ts`), landen aber ab Schritt 3 im selben Ablauf.
 3. **Lesen** (`domain/parser`). Deutschsprachig und deterministisch: kein LLM.
    Jede erkannte Zahl bekommt eine `ListingFact`-Zeile mit dem Textausschnitt,
    aus dem sie stammt — daher lässt sich später zeigen, *warum* dort 780 €
@@ -135,7 +138,8 @@ Unterschied fällt erst Wochen später jemandem auf.
 | --- | --- |
 | wie eine Wohnung bewertet wird | `src/domain/ranking/index.ts` + `tests/ranking.test.ts` |
 | was als unmögliche Anzeige gilt | Einstellungen; die Regel steht in `domain/discovery/plausible.ts` |
-| eine neue Quelle | `domain/sources/catalog.ts`, dann `PORTAL_INTEGRATIONS.md` lesen |
+| eine neue Quelle | `domain/sources/catalog.ts`; die Schritte stehen am Ende von `QUELLEN.md` |
+| wie eine Telefonnummer erkannt wird | `domain/contact/index.ts` + `tests/contact.test.ts`, siehe `KONTAKT.md` |
 | eine Farbe, irgendeine | die Tokens in `globals.css`, siehe `DESIGN.md` |
 | die Zeitleiste | `domain/timeline/index.ts` (Regeln) und `_components/Timeline.tsx` (Zeichnen) |
 | einen Text auf dem Bildschirm | die jeweilige `page.tsx`; Beschriftungen sammeln sich in `lib/labels.ts` |

@@ -44,8 +44,7 @@ async function seedContactAttempt(contactedAt = new Date()) {
       key: 'reminder-source',
       name: 'Testquelle',
       websiteUrl: 'https://example.de',
-      category: 'MARKETPLACE',
-      integrationMode: 'SEARCH_LINK',
+      route: 'DISCOVERY',
     },
   });
   const listing = await prisma.listing.create({

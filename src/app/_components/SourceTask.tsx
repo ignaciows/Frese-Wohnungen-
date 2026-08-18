@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { updateSourceCheckAction } from '@/app/actions';
-import { INTEGRATION_MODE, MAPPING_QUALITY, SOURCE_CHECK_STATUS, relativeDays } from '@/lib/labels';
+import { MAPPING_QUALITY, SOURCE_CHECK_STATUS, SOURCE_ROUTE, relativeDays } from '@/lib/labels';
 
 interface RecipeLine {
   filter: string;
@@ -20,15 +20,14 @@ export interface SourceTaskData {
   lastCheckedAt: string | null;
   checkedByName: string | null;
   note: string | null;
-  generatedUrl: string | null;
-  inclusionReason: string;
   source: {
     id: string;
     name: string;
     websiteUrl: string;
-    integrationMode: string;
-    category: string;
-    manualImportInstructions: string | null;
+    /** DISCOVERY | EMAIL_ALERT — see Source.route. */
+    route: string;
+    /** Portal-specific hints from the catalogue, e.g. how to save the search. */
+    manualRecipe: string | null;
   };
   recipe: { headline: string; lines: RecipeLine[] };
 }
@@ -42,9 +41,8 @@ export function SourceTask({
 }) {
   const [open, setOpen] = useState(false);
   const status = SOURCE_CHECK_STATUS[task.status] ?? SOURCE_CHECK_STATUS.PENDING;
-  const mode = INTEGRATION_MODE[task.source.integrationMode] ?? { label: task.source.integrationMode, hint: '' };
+  const route = SOURCE_ROUTE[task.source.route] ?? { label: task.source.route, hint: '', tone: 'neutral' };
   const done = task.status === 'CHECKED_NO_RESULTS' || task.status === 'CHECKED_RESULTS_IMPORTED';
-  const targetUrl = task.generatedUrl ?? task.source.websiteUrl;
 
   // Filters the portal cannot apply — the colleague must check these by hand.
   const manualLines = task.recipe.lines.filter(
@@ -61,7 +59,7 @@ export function SourceTask({
               <span className={`badge ${status.tone}`}>
                 {status.icon} {status.label}
               </span>
-              <span className="badge">{mode.label}</span>
+              <span className={`badge ${route.tone}`}>{route.label}</span>
               {task.importedCount > 0 ? (
                 <span className="badge brand">{task.importedCount} importiert</span>
               ) : null}
@@ -71,7 +69,7 @@ export function SourceTask({
                 ? `Zuletzt geprüft ${relativeDays(task.lastCheckedAt)}${
                     task.checkedByName ? ` von ${task.checkedByName}` : ''
                   }`
-                : mode.hint}
+                : route.hint}
             </div>
             {manualLines.length > 0 && !done ? (
               <div className="small" style={{ color: 'var(--warning)' }}>
@@ -83,11 +81,11 @@ export function SourceTask({
 
           <div className="row" style={{ flexShrink: 0 }}>
             <a
-              href={targetUrl}
+              href={task.source.websiteUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="btn primary sm"
-              title={task.generatedUrl ? 'Vorbereitete Suche öffnen' : 'Portal-Startseite öffnen'}
+              title="Portal öffnen"
             >
               Öffnen ↗
             </a>
@@ -138,14 +136,11 @@ export function SourceTask({
                   </tbody>
                 </table>
               </div>
-              {task.source.manualImportInstructions ? (
+              {task.source.manualRecipe ? (
                 <p className="small muted" style={{ marginTop: 10 }}>
-                  {task.source.manualImportInstructions}
+                  {task.source.manualRecipe}
                 </p>
               ) : null}
-              <p className="small subtle" style={{ marginTop: 10 }}>
-                In dieser Suche enthalten, weil: {task.inclusionReason}
-              </p>
             </div>
           </div>
         ) : null}

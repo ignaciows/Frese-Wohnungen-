@@ -1,55 +1,59 @@
 import { describe, expect, it } from 'vitest';
-import { SEED_SOURCES } from '@/domain/sources/catalog';
+import { MAIN_SOURCE_KEYS, SEED_SOURCES, seedSource } from '@/domain/sources/catalog';
 
 describe('source catalogue', () => {
+  it('is exactly the three portals and nothing else', () => {
+    expect(SEED_SOURCES.map((s) => s.key).sort()).toEqual([...MAIN_SOURCE_KEYS].sort());
+  });
+
   it('has no duplicate keys', () => {
     const keys = SEED_SOURCES.map((s) => s.key);
-    const dupes = [...new Set(keys.filter((k, i) => keys.indexOf(k) !== i))];
-    expect(dupes).toEqual([]);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it('has no empty slots', () => {
-    expect(SEED_SOURCES.every((s) => s != null)).toBe(true);
-  });
-
-  it('covers a broad set of sources', () => {
-    expect(SEED_SOURCES.length).toBeGreaterThanOrEqual(40);
-  });
-
-  it('never claims automated ingestion in the seed', () => {
-    // Enabling automation is an explicit admin decision after a terms review,
-    // never something the shipped catalogue asserts.
-    const automated = SEED_SOURCES.filter(
-      (s) => s.integrationMode === 'OFFICIAL_API' || s.integrationMode === 'EMAIL_ALERT',
-    );
-    expect(automated).toEqual([]);
-  });
-
-  it('gives every source a usable entry point and coverage', () => {
+  it('gives every source a working entry point', () => {
     for (const s of SEED_SOURCES) {
-      expect(s.websiteUrl, s.key).toMatch(/^https?:\/\//);
-      expect(s.coverage.length, s.key).toBeGreaterThan(0);
-      expect(s.housingTypes.length, s.key).toBeGreaterThan(0);
+      expect(s.websiteUrl, s.key).toMatch(/^https:\/\//);
+      expect(s.notes.length, s.key).toBeGreaterThan(20);
+    }
+  });
+
+  it('only names an adapter for a source we can actually read', () => {
+    // ImmoScout24 and Immowelt block automated reads. Declaring an adapter for
+    // them would produce nothing but blocked runs in the log — the whole reason
+    // they go through the e-mail Suchauftrag instead.
+    for (const s of SEED_SOURCES) {
+      if (s.route === 'EMAIL_ALERT') expect(s.discoveryAdapter, s.key).toBeUndefined();
+      else expect(s.discoveryAdapter, s.key).toBeTruthy();
+    }
+  });
+
+  it('tells a colleague how to set up the two e-mail portals', () => {
+    for (const s of SEED_SOURCES.filter((x) => x.route === 'EMAIL_ALERT')) {
+      expect(s.manualRecipe, s.key).toBeTruthy();
+      expect(s.manualRecipe, s.key).toMatch(/such/i);
     }
   });
 
   it('gives every source enough mapping to generate a search recipe', () => {
-    // manualRecipe is an optional extra hint; the recipe a colleague reads is
-    // generated from the filter mappings, so those are what must exist.
     for (const s of SEED_SOURCES) {
-      expect(s.filterMappings.length, s.key).toBeGreaterThan(0);
-      const filters = s.filterMappings.map((f) => f.canonicalFilter);
+      const filters = s.filters.map((f) => f.filter);
       expect(filters, s.key).toContain('location');
       expect(filters, s.key).toContain('maxWarmmiete');
     }
   });
 
-  it('every declared mapping quality is a known value', () => {
-    const valid = new Set(['EXACT', 'APPROXIMATE', 'MANUAL', 'UNSUPPORTED', 'UNKNOWN']);
+  it('warns that the portals filter Kaltmiete while our budget is Warmmiete', () => {
     for (const s of SEED_SOURCES) {
-      for (const f of s.filterMappings) {
-        expect(valid.has(f.quality), `${s.key}/${f.canonicalFilter}`).toBe(true);
-      }
+      const rent = s.filters.find((f) => f.filter === 'maxWarmmiete');
+      expect(rent?.quality, s.key).toBe('APPROXIMATE');
+      expect(rent?.note, s.key).toMatch(/kaltmiete/i);
     }
+  });
+
+  it('looks a source up by key, and returns null for anything else', () => {
+    expect(seedSource('kleinanzeigen')?.route).toBe('DISCOVERY');
+    expect(seedSource('immowelt')?.route).toBe('EMAIL_ALERT');
+    expect(seedSource('wg-gesucht')).toBeNull();
   });
 });

@@ -456,6 +456,19 @@ export default async function ErgebnissePage({
                       {fresh.state === 'STALE' ? (
                         <span className="badge warning">Älter — evtl. vergeben</span>
                       ) : null}
+                      {/* Die Anzeige nennt selbst eine Telefonnummer. Das ist
+                          der schnellste Weg zu einer Besichtigung, den es gibt
+                          — und deshalb ein Grund, diese Zeile zuerst
+                          anzufassen. Details stehen im Kontakt-Bereich rechts. */}
+                      {l.contactPhone ? (
+                        <span className="badge success" title={`Telefon: ${l.contactPhone}`}>
+                          ☎ Telefon in der Anzeige
+                        </span>
+                      ) : l.contactEmail ? (
+                        <span className="badge" title={`E-Mail: ${l.contactEmail}`}>
+                          ✉ Direkt erreichbar
+                        </span>
+                      ) : null}
                       {/* One statement of age, not three. */}
                       <span className={`chip ${fresh.state === 'NEW' ? 'accent' : ''}`}>
                         {l.postedAt
@@ -625,9 +638,12 @@ interface DetailMatch {
     // no publication date, so the detail pane must carry it too — otherwise it
     // explains a different number from the one the list sorted by.
     firstSeenAt: Date | null;
-    /// Only set when the ad itself publishes an address; decides whether the
-    /// enquiry can be sent from here or has to go through the portal form.
+    /// Only set when the ad itself publishes them. The address decides whether
+    /// the enquiry can be sent from here or has to go through the portal form;
+    /// the number is the fastest route of all and goes to the top of the pane.
     contactEmail: string | null;
+    contactPhone: string | null;
+    contactName: string | null;
     source: { name: string };
   };
 }
@@ -894,6 +910,8 @@ async function DetailPane({
               : null
           }
           contactEmail={l.contactEmail}
+          contactPhone={l.contactPhone}
+          contactName={l.contactName}
           sendingEnabled={sendingEnabled}
         />
       </div>

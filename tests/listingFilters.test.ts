@@ -43,8 +43,7 @@ async function seedListings() {
       key: 'test-source',
       name: 'Testquelle',
       websiteUrl: 'https://example.de',
-      category: 'MARKETPLACE',
-      integrationMode: 'SEARCH_LINK',
+      route: 'DISCOVERY',
     },
   });
 

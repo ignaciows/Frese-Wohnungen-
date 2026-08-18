@@ -89,7 +89,7 @@ describe('block detection', () => {
   });
 
   it('ignores a weak hint buried in a full-size page', () => {
-    // The regression this exists for: WG-Gesucht's cookie-consent script names
+    // The regression this exists for: a portal's cookie-consent script names
     // "recaptcha.net" among the domains it ignores, on a page full of adverts.
     // Treating that as a wall silently removed a working source from every
     // sweep.

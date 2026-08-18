@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { isPlausibleHousing, type PlausibilityLimits } from '@/domain/discovery/plausible';
 import { DEFAULT_QUALITY } from '@/server/settings';
 import {
-  classify,
   score,
   timingSubscore,
   certaintyCap,
@@ -165,19 +164,6 @@ describe('move-in timing', () => {
     const tooLate = score(listing({ availableFrom: d('2027-01-15T00:00:00Z') }), profile(), DEFAULT_WEIGHTS);
     expect(onTime.score).toBeGreaterThan(tooLate.score);
     expect(onTime.reasons.some((r) => r.includes('Frei vor der Ankunft'))).toBe(true);
-  });
-});
-
-describe('short-stay platforms', () => {
-  it('blocks them for somebody moving permanently', () => {
-    const r = classify(listing({ shortStayProvider: true }), profile());
-    expect(r.compatibility).toBe('INCOMPATIBLE');
-    expect(r.blockers.join(' ')).toContain('Wohnen auf Zeit');
-  });
-
-  it('allows them in Notfallmodus, which is what that mode is for', () => {
-    const r = classify(listing({ shortStayProvider: true }), profile({ temporaryMode: true }));
-    expect(r.compatibility).not.toBe('INCOMPATIBLE');
   });
 });
 

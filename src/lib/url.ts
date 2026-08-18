@@ -89,11 +89,6 @@ export function extractSourceListingId(canonicalUrl: string): string | null {
       const last = parts[parts.length - 1];
       if (last && /\d/.test(last)) return `kleinanzeigen:${last}`;
     }
-    // WG-Gesucht: /12345678.html
-    if (host.includes('wg-gesucht.de')) {
-      const m = url.pathname.match(/\/(\d+)\.html/);
-      if (m) return `wggesucht:${m[1]}`;
-    }
     // Generic fallback: last numeric-looking segment.
     const parts = url.pathname.split('/').filter(Boolean);
     for (let i = parts.length - 1; i >= 0; i--) {

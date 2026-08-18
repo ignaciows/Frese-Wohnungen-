@@ -45,13 +45,16 @@ Team Frese Recruiting GmbH`;
 async function seedDemoListings(sourceKeyBy: Map<string, string>, importedById: string, candidateCaseId: string) {
   const listings: Array<Parameters<typeof ingestListing>[0]> = [
     {
-      sourceId: sourceKeyBy.get('wunderflats')!,
-      rawUrl: 'https://wunderflats.com/de/listing/74906-fuerfeld/apt-01?utm_source=email',
+      // Mit Telefonnummer im Text — zeigt das „Kontakt vorhanden"-Feld auf der
+      // Ergebnisliste. Genau so schreiben private Vermieter ihre Anzeigen.
+      sourceId: sourceKeyBy.get('kleinanzeigen')!,
+      rawUrl: 'https://www.kleinanzeigen.de/s-anzeige/moebliertes-apartment-fuerfeld/9900110022',
       title: 'Vollmöbliertes 2-Zimmer-Apartment in Bad Rappenau-Fürfeld',
       descriptionRaw:
         'Charmantes vollmöbliertes Apartment in ruhiger Lage in 74906 Bad Rappenau (Fürfeld). ' +
         '55 m², 2 Zimmer, Warmmiete 780,00 €. Ab sofort bezugsfrei. Anmeldung möglich, ' +
-        'Wohnungsgeberbestätigung wird ausgestellt. Kaution 1.560 €. Provisionsfrei.',
+        'Wohnungsgeberbestätigung wird ausgestellt. Kaution 1.560 €. Provisionsfrei. ' +
+        'Ansprechpartner: Herr Weber, Rückfragen gerne telefonisch unter 07264 / 123456.',
       locationRaw: '74906 Bad Rappenau-Fürfeld',
       locationCity: 'Bad Rappenau',
       locationPostal: '74906',
@@ -95,8 +98,8 @@ async function seedDemoListings(sourceKeyBy: Map<string, string>, importedById: 
       importedById,
     },
     {
-      sourceId: sourceKeyBy.get('leg')!,
-      rawUrl: 'https://www.leg-wohnen.de/mieten/objekt/74076-heilbronn/leg-004',
+      sourceId: sourceKeyBy.get('immowelt')!,
+      rawUrl: 'https://www.immowelt.de/expose/leg-004-heilbronn',
       title: '2-Zimmer-Wohnung Heilbronn — WBS erforderlich',
       descriptionRaw:
         'Sozial geförderte 2-Zimmer-Wohnung in 74076 Heilbronn. 63 m², Warmmiete 620,00 €. ' +
@@ -119,19 +122,19 @@ async function seedDemoListings(sourceKeyBy: Map<string, string>, importedById: 
       importedById,
     },
     {
-      sourceId: sourceKeyBy.get('housinganywhere')!,
-      rawUrl: 'https://housinganywhere.com/en/room/de/heilbronn/apt-fuerfeld-002',
-      title: 'Furnished 1-room apartment near Bad Rappenau',
+      sourceId: sourceKeyBy.get('kleinanzeigen')!,
+      rawUrl: 'https://www.kleinanzeigen.de/s-anzeige/1-zimmer-apartment-moebliert/9900110099',
+      title: 'Möbliertes 1-Zimmer-Apartment bei Bad Rappenau',
       descriptionRaw:
-        'Fully furnished 1-room apartment, 34 m², monthly all-in 690 €. ' +
-        'Available now (ab sofort). Anmeldung möglich.',
+        'Voll möbliertes 1-Zimmer-Apartment, 34 m², Warmmiete 690 € all-in. ' +
+        'Ab sofort frei. Anmeldung möglich. Bitte nur per WhatsApp: 0151 23456789.',
       locationRaw: '74906 Bad Rappenau',
       locationCity: 'Bad Rappenau',
       locationPostal: '74906',
       importedById,
     },
     {
-      // Suspected cross-portal duplicate of the Wunderflats one above.
+      // Suspected cross-portal duplicate of the Kleinanzeigen one above.
       sourceId: sourceKeyBy.get('immoscout24')!,
       rawUrl: 'https://www.immobilienscout24.de/expose/153000001',
       title: 'Möbliertes 2-Zimmer Apartment Bad Rappenau Fürfeld',
@@ -162,8 +165,10 @@ async function main() {
   const admin = await upsertUser(DEMO_ADMIN_EMAIL, 'Demo-Admin', 'ADMIN', adminPassword);
   const colleague = await upsertUser(DEMO_COLLEAGUE_EMAIL, 'Demo-Kollegin', 'COLLEAGUE', adminPassword);
 
-  const { createdSources, updatedSources } = await syncSeedCatalog();
-  console.log(`Quellenkatalog: ${createdSources} neu, ${updatedSources} aktualisiert.`);
+  const catalog = await syncSeedCatalog();
+  console.log(
+    `Quellen: ${catalog.created} neu, ${catalog.updated} aktualisiert, ${catalog.retired} stillgelegt.`,
+  );
 
   const regions = await syncRegionSeeds();
   console.log(`Markt-Startschätzungen: ${regions} Regionen.`);
@@ -219,22 +224,22 @@ async function main() {
   });
 
   const run = await createSearchRun(candidate.id, colleague.id, 'Erster Suchlauf');
-  console.log(`Suchlauf mit ${run.planned.length} Quellen geplant, ${run.excluded.length} ausgeschlossen.`);
+  console.log(`Suchlauf mit ${run.planned.length} Quellen geplant.`);
 
-  // Mark one manual source as "checked — no results" to demonstrate the flow.
+  // Mark one source as "checked — no results" to demonstrate the flow.
   const sourceByKey = new Map<string, string>();
   const sources = await prisma.source.findMany();
   for (const s of sources) sourceByKey.set(s.key, s.id);
 
-  const nebenanCheck = await prisma.sourceCheck.findFirst({
-    where: { searchRunId: run.runId, source: { key: 'nebenan' } },
+  const immoweltCheck = await prisma.sourceCheck.findFirst({
+    where: { searchRunId: run.runId, source: { key: 'immowelt' } },
   });
-  if (nebenanCheck) {
+  if (immoweltCheck) {
     await updateSourceCheckStatus({
-      sourceCheckId: nebenanCheck.id,
+      sourceCheckId: immoweltCheck.id,
       userId: colleague.id,
       status: 'CHECKED_NO_RESULTS',
-      note: 'Aktuell keine passenden Nachbarschafts-Aushänge.',
+      note: 'Suchauftrag angelegt, heute noch keine neuen Treffer per Mail.',
     });
   }
 

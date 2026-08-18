@@ -54,15 +54,12 @@ export default async function QuellenPage({ params }: { params: Promise<{ id: st
     lastCheckedAt: c.lastCheckedAt ? c.lastCheckedAt.toISOString() : null,
     checkedByName: c.checkedBy?.name ?? null,
     note: c.note,
-    generatedUrl: c.generatedUrl,
-    inclusionReason: c.inclusionReason,
     source: {
       id: c.source.id,
       name: c.source.name,
       websiteUrl: c.source.websiteUrl,
-      integrationMode: c.source.integrationMode,
-      category: c.source.category,
-      manualImportInstructions: c.source.manualImportInstructions,
+      route: c.source.route,
+      manualRecipe: c.source.manualRecipe,
     },
     // Snapshot taken when the run was planned — deliberately not re-derived.
     recipe: (c.recipeSnapshot as unknown as SourceTaskData['recipe']) ?? { headline: '', lines: [] },
