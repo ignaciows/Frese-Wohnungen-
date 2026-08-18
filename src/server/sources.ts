@@ -81,8 +81,19 @@ export async function syncSeedCatalog(): Promise<SyncResult> {
 
 /**
  * Switch off everything the catalogue no longer lists, and delete the ones that
- * never produced an advert. This is what shrinks a database that still carries
- * the old fifty-source catalogue down to the three that matter.
+ * left no trace at all. This is what shrinks a database still carrying the old
+ * fifty-source catalogue down to the three that matter.
+ *
+ * "No trace" means no adverts **and** no search-run tasks. Both tables refuse
+ * the delete (`onDelete: Restrict`), and both are right to: an advert can have
+ * a conversation hanging off it, and a SourceCheck is a record of a colleague
+ * having worked that source on a given day. Checking only the adverts is what
+ * made the first production deploy of this throw
+ * `violates RESTRICT setting of foreign key constraint "SourceCheck_sourceId_fkey"`
+ * — which then took the whole seed step down with it.
+ *
+ * Anything with a trace is deactivated instead: invisible everywhere in the UI,
+ * and its history stays readable.
  */
 async function retireSourcesNotInCatalog(): Promise<number> {
   const keep = SEED_SOURCES.map((s) => s.key);
@@ -97,12 +108,12 @@ async function retireSourcesNotInCatalog(): Promise<number> {
     },
   });
 
-  const emptyOnes = await prisma.source.findMany({
-    where: { key: { notIn: keep }, listings: { none: {} } },
+  const withoutTrace = await prisma.source.findMany({
+    where: { key: { notIn: keep }, listings: { none: {} }, sourceChecks: { none: {} } },
     select: { id: true },
   });
-  if (emptyOnes.length > 0) {
-    await prisma.source.deleteMany({ where: { id: { in: emptyOnes.map((s) => s.id) } } });
+  if (withoutTrace.length > 0) {
+    await prisma.source.deleteMany({ where: { id: { in: withoutTrace.map((s) => s.id) } } });
   }
 
   return count;

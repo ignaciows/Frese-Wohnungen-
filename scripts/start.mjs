@@ -22,6 +22,27 @@ function run(cmd, args, { allowFailure = false } = {}) {
   return r.status === 0;
 }
 
+/**
+ * Reads back which migrations Prisma considers failed.
+ *
+ * A failed migration is sticky: `migrate deploy` refuses to apply anything at
+ * all while one is on record (P3009), so a single bad migration freezes the
+ * history for every later one. Falling back to `db push` keeps the *schema*
+ * right and hides exactly that — the schema then tracks, and every data step
+ * in every future migration silently never runs.
+ */
+function failedMigrations() {
+  const r = spawnSync('npx', ['prisma', 'migrate', 'status'], {
+    encoding: 'utf8',
+    env: process.env,
+    shell: false,
+  });
+  const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+  // Prisma lists them one per line, e.g. "The `20260818120000_drei_quellen`
+  // migration started at … failed" and "Following migration have failed:".
+  return [...new Set([...out.matchAll(/`?(\d{14}_[a-z0-9_]+)`? migration/gi)].map((m) => m[1]))];
+}
+
 function migrate() {
   step('Applying database migrations…');
   if (run('npx', ['prisma', 'migrate', 'deploy'], { allowFailure: true })) {
@@ -29,12 +50,28 @@ function migrate() {
     return true;
   }
 
-  // Most common cause: the schema was created out-of-band (e.g. `db push`), so
-  // the migration history and the real schema disagree. Reconcile rather than
-  // refusing to boot.
-  console.warn('[start] migrate deploy failed — reconciling schema with `prisma db push`.');
+  // A migration that died mid-way. Every migration in this repo is written to
+  // be re-runnable (IF EXISTS / IF NOT EXISTS throughout), so the honest
+  // recovery is to mark it rolled back and let it run again — rather than
+  // papering over it with `db push` and leaving the history broken forever.
+  const failed = failedMigrations();
+  if (failed.length > 0) {
+    console.warn(`[start] Failed migration(s) on record: ${failed.join(', ')}`);
+    for (const name of failed) {
+      run('npx', ['prisma', 'migrate', 'resolve', '--rolled-back', name], { allowFailure: true });
+    }
+    if (run('npx', ['prisma', 'migrate', 'deploy'], { allowFailure: true })) {
+      console.log('[start] Migrations applied after resolving the failed one(s).');
+      return true;
+    }
+  }
+
+  // Last resort: the schema was created out-of-band and the history cannot be
+  // reconciled. Keep the app usable, and say so loudly — /api/diagnostics
+  // reports the mismatch so it does not stay invisible.
+  console.warn('[start] migrate deploy still failing — reconciling schema with `prisma db push`.');
   if (run('npx', ['prisma', 'db', 'push', '--skip-generate', '--accept-data-loss'], { allowFailure: true })) {
-    console.log('[start] Schema reconciled via db push.');
+    console.warn('[start] Schema reconciled via db push. Migration history is NOT up to date.');
     return true;
   }
 

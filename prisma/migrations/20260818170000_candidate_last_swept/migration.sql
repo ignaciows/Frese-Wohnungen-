@@ -4,4 +4,4 @@
 -- eine Suche. „Vor einer Stunde gelaufen" sagt deshalb nichts darüber aus, ob
 -- dabei auch nach dieser Kandidatin gesucht wurde — und genau das will wissen,
 -- wer ihren Fall öffnet.
-ALTER TABLE "CandidateCase" ADD COLUMN "lastSweptAt" TIMESTAMP(3);
+ALTER TABLE "CandidateCase" ADD COLUMN IF NOT EXISTS "lastSweptAt" TIMESTAMP(3);
