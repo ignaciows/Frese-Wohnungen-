@@ -1,6 +1,8 @@
 -- Nur noch drei Quellen: Kleinanzeigen, ImmoScout24, Immowelt.
 --
--- Durchgehend IF EXISTS / IF NOT EXISTS: diese Migration ist beim ersten
+-- Durchgehend `ALTER TABLE IF EXISTS` samt `IF EXISTS` / `IF NOT EXISTS` an
+-- jeder Spalte und jedem Constraint — `DROP CONSTRAINT IF EXISTS` alleine
+-- reicht nicht, Postgres verlangt trotzdem, dass die Tabelle existiert. diese Migration ist beim ersten
 -- Produktiv-Deploy an einem Fremdschlüssel gescheitert, danach hat der
 -- Start-Skript das Schema per `db push` nachgezogen. Damit stimmte das Schema,
 -- aber die Migrationshistorie nicht mehr — und eine Migration, die sich nicht
@@ -13,7 +15,7 @@
 -- Terms-Review-Status).
 
 -- 1) Neue Spalte: wie eine Quelle überhaupt zu uns kommt.
-ALTER TABLE "Source" ADD COLUMN IF NOT EXISTS "route" TEXT NOT NULL DEFAULT 'DISCOVERY';
+ALTER TABLE IF EXISTS "Source" ADD COLUMN IF NOT EXISTS "route" TEXT NOT NULL DEFAULT 'DISCOVERY';
 UPDATE "Source" SET "route" = 'EMAIL_ALERT' WHERE "key" IN ('immoscout24', 'immowelt');
 
 -- 2) Alles, was nicht mehr im Katalog steht, wird stillgelegt: keine
@@ -40,11 +42,11 @@ DELETE FROM "Source"
    AND NOT EXISTS (SELECT 1 FROM "SourceCheck" WHERE "SourceCheck"."sourceId" = "Source"."id");
 
 -- 4) Felder und Tabellen, die es ohne die lange Liste nicht mehr braucht.
-ALTER TABLE "Source" DROP CONSTRAINT IF EXISTS "Source_familyId_fkey";
-ALTER TABLE "SourceAlias" DROP CONSTRAINT IF EXISTS "SourceAlias_sourceId_fkey";
-ALTER TABLE "SourceCoverage" DROP CONSTRAINT IF EXISTS "SourceCoverage_sourceId_fkey";
+ALTER TABLE IF EXISTS "Source" DROP CONSTRAINT IF EXISTS "Source_familyId_fkey";
+ALTER TABLE IF EXISTS "SourceAlias" DROP CONSTRAINT IF EXISTS "SourceAlias_sourceId_fkey";
+ALTER TABLE IF EXISTS "SourceCoverage" DROP CONSTRAINT IF EXISTS "SourceCoverage_sourceId_fkey";
 
-ALTER TABLE "Source" DROP COLUMN IF EXISTS "category",
+ALTER TABLE IF EXISTS "Source" DROP COLUMN IF EXISTS "category",
 DROP COLUMN IF EXISTS "connectorStatus",
 DROP COLUMN IF EXISTS "familyId",
 DROP COLUMN IF EXISTS "housingTypes",
@@ -71,4 +73,4 @@ DROP TYPE IF EXISTS "TermsReviewStatus";
 -- 5) Der Suchlauf plant nur noch drei bundesweite Portale. Damit gibt es weder
 --    eine generierte Such-URL (das Template ist weg) noch einen Grund, warum
 --    eine Quelle im Plan ist — es sind immer alle drei.
-ALTER TABLE "SourceCheck" DROP COLUMN IF EXISTS "generatedUrl", DROP COLUMN IF EXISTS "inclusionReason";
+ALTER TABLE IF EXISTS "SourceCheck" DROP COLUMN IF EXISTS "generatedUrl", DROP COLUMN IF EXISTS "inclusionReason";

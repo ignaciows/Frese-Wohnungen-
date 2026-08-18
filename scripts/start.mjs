@@ -30,6 +30,16 @@ function run(cmd, args, { allowFailure = false } = {}) {
  * history for every later one. Falling back to `db push` keeps the *schema*
  * right and hides exactly that — the schema then tracks, and every data step
  * in every future migration silently never runs.
+ *
+ * The names are parsed out of `migrate status`, which prints them bare, one
+ * per line, under a "Following migration have failed:" heading:
+ *
+ *     Following migration have failed:
+ *     20260818120000_drei_quellen
+ *
+ * Only the text after that heading is scanned, so the suggestion block further
+ * down (which repeats the same names inside example commands) cannot add
+ * anything, and a healthy database yields an empty list.
  */
 function failedMigrations() {
   const r = spawnSync('npx', ['prisma', 'migrate', 'status'], {
@@ -38,9 +48,9 @@ function failedMigrations() {
     shell: false,
   });
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
-  // Prisma lists them one per line, e.g. "The `20260818120000_drei_quellen`
-  // migration started at … failed" and "Following migration have failed:".
-  return [...new Set([...out.matchAll(/`?(\d{14}_[a-z0-9_]+)`? migration/gi)].map((m) => m[1]))];
+  const heading = out.search(/following migration.*failed/i);
+  if (heading < 0) return [];
+  return [...new Set([...out.slice(heading).matchAll(/\b(\d{14}_[a-z0-9_]+)\b/g)].map((m) => m[1]))];
 }
 
 function migrate() {
