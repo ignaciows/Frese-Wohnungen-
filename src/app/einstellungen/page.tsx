@@ -39,7 +39,6 @@ import { formatDateTime } from '@/lib/labels';
 import { listAccounts } from '@/server/portalAccounts';
 import { credentialKeyConfigured } from '@/lib/crypto';
 import { AccountsSection, DiscoverySection } from './_sections';
-import { AddSource } from './_AddSource';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,6 +94,8 @@ export default async function SettingsPage({
         id: true,
         key: true,
         name: true,
+        websiteUrl: true,
+        route: true,
         discoveryAdapter: true,
         discoveryEnabled: true,
         discoveryConfig: true,
@@ -167,21 +168,6 @@ export default async function SettingsPage({
           isAdmin={isAdmin}
         />
 
-        {isAdmin ? (
-          <AddSource
-            categories={[
-              { value: 'MARKETPLACE', label: 'Marktplatz' },
-              { value: 'GENERAL_PORTAL', label: 'Allgemeines Portal' },
-              { value: 'FURNISHED', label: 'Möbliert' },
-              { value: 'INSTITUTIONAL_LANDLORD', label: 'Großer Vermieter' },
-              { value: 'COOPERATIVE', label: 'Genossenschaft' },
-              { value: 'MUNICIPAL', label: 'Kommunal' },
-              { value: 'TEMPORARY', label: 'Übergangswohnen' },
-              { value: 'SOCIAL_LOCAL', label: 'Lokal/Sozial' },
-              { value: 'DIRECTORY', label: 'Verzeichnis' },
-            ]}
-          />
-        ) : null}
 
         <AccountsSection
           accounts={accounts}
@@ -281,8 +267,8 @@ export default async function SettingsPage({
               </label>
             </div>
             <p className="field-hint">
-              Portale, die ausschließlich möbliert auf Zeit vermieten (Wunderflats, HousingAnywhere),
-              werden ohnehin nur durchsucht, wenn ein Kandidat im Notfallmodus steht.
+              Erkannt wird an der Wortwahl der Anzeige, nicht am Portal: Wohnen auf Zeit steht auf
+              Kleinanzeigen zwischen den normalen Wohnungen und liest sich fast genauso.
             </p>
           </div>
           {isAdmin ? (

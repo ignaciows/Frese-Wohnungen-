@@ -99,15 +99,20 @@ Diagnose-Skripte (nur Entwicklung, nicht Teil der App):
 | Skript                                        | Zweck                                                        |
 | --------------------------------------------- | ------------------------------------------------------------ |
 | `npx tsx scripts/dev-sweep.mts`               | Einen echten Suchlauf ausführen und Ergebnis je Quelle zeigen. |
-| `npx tsx scripts/dev-parse.mts <adapter> <url>` | Eine URL abrufen und zeigen, was der Adapter daraus liest.   |
+| `npx tsx scripts/dev-parse.mts kleinanzeigen <url>` | Eine URL abrufen und zeigen, was der Adapter daraus liest. |
 
 ## Automatische Suche, Kontakt und Aufgaben
 
-- **Anzeigen finden**: Freigeschaltete Quellen werden regelmäßig nach neuen
-  Anzeigen durchsucht (Kleinanzeigen und WG-Gesucht direkt, weitere Seiten über
-  Feed-, schema.org-, Linklisten- und Sitemap-Verfahren rein per
-  Konfiguration). Details, Grenzen und die robots.txt-Auswertung stehen in
-  `docs/DISCOVERY.md`.
+- **Anzeigen finden**: Es gibt drei Quellen und zwei Wege. **Kleinanzeigen**
+  liest die App selbst, robots.txt-konform. **ImmoScout24** und **Immowelt**
+  sperren automatische Abrufe und schicken ihre Treffer stattdessen per
+  Suchauftrag an ein gemeinsames Postfach, das die App mitliest. Einrichtung in
+  `docs/QUELLEN.md`, Technik in `docs/DISCOVERY.md`.
+- **Kontaktdaten lesen**: Nennt eine Anzeige eine Telefonnummer, eine
+  E-Mail-Adresse oder einen Ansprechpartner, steht das auf der Karte — ein
+  Anruf wird in zehn Minuten beantwortet, ein Portalformular am Donnerstag.
+  Gelesen wird nur, was die Anzeige selbst veröffentlicht; siehe
+  `docs/KONTAKT.md`.
 - **Anzeigen prüfen**: Vor jeder Ergebnisliste liest die App die Anzeigenseiten
   im Text nach — Abschaltungs-Formulierungen („Angebot nicht gefunden",
   „bereits vermietet"), Anzeigendaten und das Einstelldatum („Online seit dem
@@ -142,9 +147,10 @@ Diagnose-Skripte (nur Entwicklung, nicht Teil der App):
 - **Portal-Anmeldung**: Die App loggt sich nirgends automatisch ein. Ein
   hinterlegtes Portal-Konto dokumentiert, mit welchem Zugang gearbeitet wird —
   angemeldet wird sich weiterhin im Portal.
-- **Portal-Konnektoren**: Quellen ohne geprüftes Verfahren bleiben
-  `SEARCH_LINK`, `BROWSER_ONLY` oder `REGIONAL_DIRECTORY`. Freischaltung erfolgt
-  pro Quelle nach Terms-Prüfung — siehe `docs/PORTAL_INTEGRATIONS.md`.
+- **Drei Quellen, mehr nicht**: Der Katalog hatte einmal rund fünfzig Einträge.
+  Geliefert haben drei; der Rest hat pro Suchlauf Anfragen verbraucht. Eine
+  vierte Quelle aufzunehmen ist eine bewusste Entscheidung samt Terms-Prüfung —
+  wie das geht, steht am Ende von `docs/QUELLEN.md`.
 - **Geokodierung**: Ohne konfigurierten Geokoder werden Entfernungen als
   „unbekannt" angezeigt. Manuell eingetragene Koordinaten funktionieren.
 - **KI**: Standardmäßig deaktiviert. Ein Slot (`AIProvider`) ist vorbereitet,
@@ -154,22 +160,22 @@ Diagnose-Skripte (nur Entwicklung, nicht Teil der App):
 
 ## Weitere Dokumente
 
-**Wer neu dazukommt, fängt bei `docs/ARCHITEKTUR.md` an** — Schichten, der Weg
-einer Wohnung vom Portal in die Liste, und wo man anfasst, um etwas Bestimmtes
-zu ändern.
+**Wer neu dazukommt, fängt bei `docs/START_HIER.md` an** — eine halbe Stunde
+Lesen für: was die App tut, wo was liegt, was man zuerst missversteht, und wo
+man anfasst, um etwas Bestimmtes zu ändern.
 
+- `docs/START_HIER.md` — der Einstieg. Erst das, dann der Rest.
 - `docs/ARCHITEKTUR.md` — Aufbau des Codes, Datenfluss, Einstiegspunkte.
 - `docs/SCORING.md` — die Punktzahl, mathematisch begründet.
 - `docs/ZEITLEISTE.md` — die Zeitleiste: Wochen, Gefahrenzone, „frei ab".
 - `docs/DESIGN.md` — Farb-Tokens, Tag- und Nachtansicht.
-- `docs/DREI_QUELLEN.md` — Kleinanzeigen, ImmoScout24, Immowelt: Stand und was fehlt.
-- `docs/DISCOVERY.md` — automatische Suche: Verfahren, robots.txt, Grenzen.
+- `docs/QUELLEN.md` — Kleinanzeigen, ImmoScout24, Immowelt: wie man sie
+  anschließt, was jeweils geht und was nicht.
+- `docs/KONTAKT.md` — Telefonnummer, E-Mail und Ansprechpartner aus dem
+  Anzeigentext.
+- `docs/DISCOVERY.md` — automatische Suche: Adapter, robots.txt, Grenzen.
 - `docs/PRODUCT_BRIEF.md` — Nutzer, Problem, Journey, Akzeptanzkriterien.
 - `docs/ARCHITECTURE_DECISION.md` — verglichene Optionen und Begründung.
-- `docs/PORTAL_INTEGRATIONS.md` — pro Quelle: Modus, offizielle Referenz,
-  geprüft am, was ist umgesetzt.
-- `docs/SOURCE_ORCHESTRATION.md` — kanonische Filter, Mapping-Qualität,
-  Rezepte, Suchlauf-Zustände.
 - `docs/RANKING.md` — harte Filter, Punkte-Formel, Gewichtung.
 - `docs/PRIVACY_AND_SECURITY.md` — Datenkategorien, Zugriff, Secrets,
   KI-Grenze.

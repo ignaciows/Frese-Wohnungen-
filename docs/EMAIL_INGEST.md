@@ -87,18 +87,22 @@ Cron-Service, sonst über jeden externen Cron-Dienst.
   Status: `PROCESSED`, `NO_LINKS`, `UNKNOWN_SOURCE`, `UNKNOWN_CANDIDATE` oder
   `ERROR`. Die letzten Einträge stehen in den Einstellungen.
 - **Ehrlich unvollständig.** Suchagent-Mails enthalten selten den vollen
-  Anzeigentext. Importierte Anzeigen haben deshalb Link und Titel, aber oft
-  keine Beschreibung — Möblierung und Warmmiete bleiben „unbekannt", bis jemand
-  die Anzeige öffnet. Es wird **nichts erfunden**, um die Felder zu füllen.
+  Anzeigentext. Was die Mail über eine Anzeige schreibt — meist Kaltmiete,
+  Fläche, Zimmerzahl und Stadtteil —, wird als Textblock übernommen und durch
+  denselben Parser geschickt wie eine von Hand eingefügte Anzeige. Für
+  ImmoScout24 und Immowelt ist das der einzige Text, den die App je bekommt,
+  weil beide automatische Abrufe sperren. Was die Mail **nicht** sagt, bleibt
+  „unbekannt", bis jemand die Anzeige öffnet: es wird nichts erfunden, um
+  Felder zu füllen.
 - **Ein fehlerhafter Link stoppt nichts.** Schlägt eine einzelne Anzeige fehl,
   laufen die übrigen der Mail trotzdem durch.
 
 ## Unterstützte Portale
 
-Erkannt werden Anzeigen-Links von ImmoScout24, Immowelt, Kleinanzeigen,
-WG-Gesucht, Wunderflats und HousingAnywhere. Weitere Portale sind eine Zeile in
-`LISTING_PATTERNS` (`src/domain/mail/index.ts`) — Voraussetzung ist eine
-stabile, öffentlich erkennbare Expose-URL.
+Erkannt werden Anzeigen-Links von **ImmoScout24**, **Immowelt** (samt Immonet,
+das zur selben Familie gehört) und **Kleinanzeigen**. Ein weiteres Portal ist
+eine Zeile in `LISTING_PATTERNS` (`src/domain/mail/index.ts`) — Voraussetzung
+ist eine stabile, öffentlich erkennbare Exposé-URL.
 
 ## Grenzen
 
@@ -123,7 +127,7 @@ mit `404`:
 
 - **ImmoScout24** liefert „Angebot nicht gefunden" als ganz normale Seite.
 - **Kleinanzeigen** leitet auf die Suche um — Endstatus `200`.
-- **WG-Gesucht** rendert einen Hinweis in eine sonst intakte Seite.
+- **Immowelt** antwortet auf jedes Exposé mit 403 samt Captcha-Seite.
 
 Wer auf einen Status-Code wartet, meldet eine Anzeige also genau so lange als
 in Ordnung, bis eine Kollegin sie öffnet und dort liest, dass sie weg ist. Die

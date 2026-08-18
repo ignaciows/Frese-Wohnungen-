@@ -1,4 +1,4 @@
-import { ADAPTERS, adapterChoices, missingConfig } from '@/domain/discovery/registry';
+import { ADAPTERS, missingConfig } from '@/domain/discovery/registry';
 import {
   saveSourceDiscoveryFormAction,
   saveOutboundSettingsAction,
@@ -8,7 +8,6 @@ import {
   verifyMailboxFormAction,
   verifyPortalAccountFormAction,
   runDiscoverySweepFormAction,
-  focusMainSourcesAction,
 } from '@/app/actions';
 import { Callout } from '@/app/_components/Shell';
 import { InstantNumber, InstantSwitch } from './_instant';
@@ -20,6 +19,9 @@ export interface SourceRow {
   id: string;
   key: string;
   name: string;
+  websiteUrl: string;
+  /** DISCOVERY | EMAIL_ALERT — see Source.route in the schema. */
+  route: string;
   discoveryAdapter: string | null;
   discoveryEnabled: boolean;
   discoveryConfig: unknown;
@@ -52,14 +54,12 @@ export function DiscoverySection({
   }>;
   isAdmin: boolean;
 }) {
-  const choices = adapterChoices();
-  // Split by "can this be searched at all", not by "has somebody touched it":
-  // a source with no adapter cannot be switched on however it is presented,
-  // and mixing the two made a list of fifty in which the four that mattered
-  // were indistinguishable.
-  const searchable = sources.filter((s) => s.discoveryAdapter);
-  const unsearchable = sources.filter((s) => !s.discoveryAdapter);
-  const enabledCount = sources.filter((s) => s.discoveryEnabled).length;
+  // Two routes, two very different rows. A portal we read ourselves gets a
+  // switch; a portal that mails us gets a checklist, because there is nothing
+  // here to switch — the work happens once, inside the portal.
+  const searchable = sources.filter((s) => s.route === 'DISCOVERY' && s.discoveryAdapter);
+  const byMail = sources.filter((s) => s.route === 'EMAIL_ALERT');
+  const enabledCount = searchable.filter((s) => s.discoveryEnabled).length;
 
   return (
     <>
@@ -153,11 +153,6 @@ export function DiscoverySection({
                 : `${enabledCount} von ${searchable.length} aktiv. Änderungen werden sofort gespeichert.`}
             </span>
             <div className="grow" />
-            <form action={focusMainSourcesAction}>
-              <button className="btn sm" type="submit" title="Kleinanzeigen, ImmoScout24, Immowelt">
-                Nur die drei Hauptquellen
-              </button>
-            </form>
             <form action={runDiscoverySweepFormAction}>
               <button className="btn sm primary" type="submit">
                 Jetzt suchen
@@ -169,27 +164,24 @@ export function DiscoverySection({
               <Callout tone="warning">Mindestens eine Quelle einschalten.</Callout>
             ) : null}
 
-            {/* Sources that can actually be searched, first and on their own.
-                Everything the adapter needs is hidden until asked for: the
-                choice a colleague makes here is "search this or not", and the
+            {/* Everything the adapter needs is hidden until asked for: the
+                choice a colleague makes here is "search this or not", and a
                 JSON box next to it made that look like a developer's job. */}
             <div className="source-list">
               {searchable.map((source) => (
-                <SourceRowItem key={source.id} source={source} choices={choices} />
+                <SourceRowItem key={source.id} source={source} />
               ))}
             </div>
 
-            {unsearchable.length > 0 ? (
-              <details className="disclosure">
-                <summary>
-                  {unsearchable.length} Quellen ohne automatische Suche — nur als Link nutzbar
-                </summary>
-                <div className="source-list" style={{ marginTop: 10 }}>
-                  {unsearchable.map((source) => (
-                    <SourceRowItem key={source.id} source={source} choices={choices} />
-                  ))}
-                </div>
-              </details>
+            {byMail.length > 0 ? (
+              <div className="stack" style={{ marginTop: 6 }}>
+                <h3 className="small" style={{ marginBottom: 0 }}>
+                  Portale, die uns die Treffer schicken
+                </h3>
+                {byMail.map((source) => (
+                  <MailAlertSource key={source.id} source={source} />
+                ))}
+              </div>
             ) : null}
           </div>
         </div>
@@ -236,52 +228,24 @@ export function DiscoverySection({
 }
 
 /**
- * One source, as one line.
+ * A source the app searches itself, as one line.
  *
- * The switch is the whole interaction and it writes immediately. Everything an
- * adapter needs — the method, its JSON, the polling interval — sits behind
- * "Einstellungen", because deciding whether to search a portal and configuring
+ * The switch is the whole interaction and it writes immediately. The polling
+ * interval and the adapter's own configuration sit behind "Technische
+ * Einstellungen", because deciding whether to search a portal and configuring
  * how to search it are different jobs, and putting a JSON box beside the
  * switch made the first one look like the second.
  */
-function SourceRowItem({
-  source,
-  choices,
-}: {
-  source: SourceRow;
-  choices: Array<{ key: string; label: string; description: string }>;
-}) {
+function SourceRowItem({ source }: { source: SourceRow }) {
   const config = (source.discoveryConfig as Record<string, unknown>) ?? {};
   const gaps = missingConfig(source.discoveryAdapter, config);
   const hints = source.discoveryAdapter ? adapterHints(source.discoveryAdapter) : [];
-  const blocked = !source.discoveryAdapter;
   const state = sourceState(source, gaps);
-
-  // A source the code cannot read has nothing to configure, and rendering the
-  // full form for each of the eighty-odd of them put a method dropdown, a JSON
-  // box and a list of hints into the page eighty times over — most of the
-  // markup on the page, for rows nobody can switch on. Name and lamp is the
-  // whole truth about them.
-  if (blocked) {
-    return (
-      <div className="source-item">
-        <div className="switch-row is-disabled">
-          <span className="switch-track" aria-hidden>
-            <span className="switch-thumb" />
-          </span>
-          <span className="switch-text">
-            <span className="switch-label">{source.name}</span>
-          </span>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="source-item">
       <InstantSwitch
         checked={source.discoveryEnabled}
-        disabled={blocked}
         label={source.name}
         // No hint on the row. The adapter's description is the same sentence
         // on every source that uses it — printed fifty times it was most of
@@ -316,22 +280,6 @@ function SourceRowItem({
           ) : null}
 
           <div className="grid-2">
-            <div className="field">
-              <label htmlFor={`adapter-${source.id}`}>Verfahren</label>
-              <select
-                id={`adapter-${source.id}`}
-                name="discoveryAdapter"
-                className="input"
-                defaultValue={source.discoveryAdapter ?? ''}
-              >
-                <option value="">— keine automatische Suche —</option>
-                {choices.map((c) => (
-                  <option key={c.key} value={c.key}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
             <div className="field">
               <label htmlFor={`poll-${source.id}`}>Prüfabstand (Minuten)</label>
               <input
@@ -374,6 +322,63 @@ function SourceRowItem({
             </button>
           </div>
         </form>
+      </details>
+    </div>
+  );
+}
+
+/**
+ * A portal that will not let us read it, and what to do about that.
+ *
+ * ImmoScout24 answers 401 to an automated request; Immowelt answers 403 on
+ * every exposé page behind its list. Both sell API access to contract partners
+ * only. There is no switch that changes any of this — which is exactly why
+ * this row has none, and shows the four steps instead.
+ *
+ * The route is not a workaround. Both portals offer a saved search that mails
+ * new hits to whatever address you name; pointing that at the shared mailbox
+ * is the portals' own intended way of being followed, and the mail carries
+ * more than a sweep could read anyway — description, price and "frei ab".
+ */
+function MailAlertSource({ source }: { source: SourceRow }) {
+  return (
+    <div className="source-item">
+      <div className="row-between" style={{ alignItems: 'flex-start' }}>
+        <div className="stack-sm grow">
+          <strong>{source.name}</strong>
+          <span className="lamp lamp-off">
+            <span className="lamp-dot" aria-hidden />
+            Kein automatischer Abruf möglich — läuft über den Suchauftrag
+          </span>
+        </div>
+        <a href={source.websiteUrl} target="_blank" rel="noopener noreferrer" className="btn sm">
+          Portal öffnen ↗
+        </a>
+      </div>
+
+      <details className="disclosure sm" style={{ marginTop: 8 }}>
+        <summary>So richtest du den Suchauftrag ein — einmal pro Stadt</summary>
+        <ol className="small" style={{ margin: '10px 0 0', paddingLeft: 18 }}>
+          <li>
+            Unten unter <strong>„Konten &amp; Postfach“</strong> das gemeinsame Postfach eintragen und mit
+            „Verbindung testen“ prüfen.
+          </li>
+          <li>Im Portal mit dem eigenen Konto anmelden und eine Suche anlegen: Ort, Umkreis, Kaltmiete-Obergrenze, Mindestzimmer.</li>
+          <li>
+            Diese Suche als <strong>Suchauftrag speichern</strong>, Benachrichtigung täglich, Empfänger ist
+            das Postfach aus Schritt 1. Für einen bestimmten Kandidaten die Plus-Adresse nehmen:{' '}
+            <span className="mono">wohnungen+CAND-2026-014@…</span>
+          </li>
+          <li>
+            Fertig. Das Postfach wird mit jedem Suchlauf mitgelesen — Stand und Ergebnis stehen unten unter
+            „Suchagent-Postfach“.
+          </li>
+        </ol>
+        <p className="small muted" style={{ marginTop: 8 }}>
+          Obergrenze 10–20 % über dem Budget setzen: die Portale filtern die Kaltmiete, unser Limit ist die
+          Warmmiete. Und nicht aus einem anderen Postfach weiterleiten — dabei geht der ursprüngliche
+          Absender verloren und damit die Zuordnung zum Portal.
+        </p>
       </details>
     </div>
   );

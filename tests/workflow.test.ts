@@ -3,7 +3,7 @@
  *
  * Covers the acceptance scenario:
  *  - candidate + profile + message,
- *  - search run plans every relevant source (incl. manual-only),
+ *  - search run plans a task for each of the three sources,
  *  - manual "checked - no results" recorded with user + time,
  *  - listing ingest runs parser + ranking,
  *  - open != contacted,
@@ -69,24 +69,25 @@ async function seedBaseline() {
 }
 
 describe('search run planning', () => {
-  it('plans every relevant source including manual-only ones', async () => {
+  it('plans one task per source — the three, and only the three', async () => {
     const { colleague, candidate } = await seedBaseline();
     const { createSearchRun } = await import('@/server/searchRuns');
     const run = await createSearchRun(candidate.id, colleague.id);
-    expect(run.planned.length).toBeGreaterThan(5);
-    const modes = new Set(run.planned.map((p) => p.integrationMode));
-    // At least one manual-only or browser-only source in the plan.
-    expect(
-      [...modes].some((m) => m === 'BROWSER_ONLY' || m === 'MANUAL_IMPORT' || m === 'REGIONAL_DIRECTORY'),
-    ).toBe(true);
+    expect(run.planned.map((p) => p.sourceKey).sort()).toEqual([
+      'immoscout24',
+      'immowelt',
+      'kleinanzeigen',
+    ]);
+    expect(run.skipped).toEqual([]);
   });
 
-  it('temporary-only sources are excluded when temporaryMode is off', async () => {
+  it('gives each task a recipe the colleague can actually follow', async () => {
     const { colleague, candidate } = await seedBaseline();
     const { createSearchRun } = await import('@/server/searchRuns');
     const run = await createSearchRun(candidate.id, colleague.id);
-    expect(run.planned.every((p) => p.sourceKey !== 'monteurzimmer')).toBe(true);
-    expect(run.excluded.some((e) => e.sourceKey === 'monteurzimmer')).toBe(true);
+    for (const task of run.planned) {
+      expect(task.recipeSnapshot.lines.length, task.sourceKey).toBeGreaterThan(0);
+    }
   });
 
   it('records CHECKED_NO_RESULTS with user and time', async () => {

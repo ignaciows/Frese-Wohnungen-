@@ -36,7 +36,7 @@ export async function createSearchRun(candidateCaseId: string, userId: string, l
 
   const sources = await prisma.source.findMany({
     where: { active: true },
-    include: { coverage: true, filterMappings: true },
+    include: { filterMappings: true },
     orderBy: { priority: 'asc' },
   });
 
@@ -45,12 +45,6 @@ export async function createSearchRun(candidateCaseId: string, userId: string, l
     key: s.key,
     name: s.name,
     active: s.active,
-    integrationMode: s.integrationMode,
-    searchUrlTemplate: s.searchUrlTemplate,
-    searchUrlValidated: s.searchUrlValidated,
-    temporaryOnly: s.temporaryOnly,
-    housingTypes: s.housingTypes,
-    coverage: s.coverage.map((c) => ({ kind: c.kind, value: c.value })),
     filterMappings: s.filterMappings.map((m) => ({
       canonicalFilter: m.canonicalFilter,
       quality: m.quality,
@@ -59,18 +53,7 @@ export async function createSearchRun(candidateCaseId: string, userId: string, l
     })),
   }));
 
-  const report = planSearchRun(
-    plannerSources,
-    values,
-    {
-      city: p.workplaceCity,
-      postalCode: p.workplacePostalCode,
-      // TODO(v1.1): derive state from PLZ. For now leave null; NATIONWIDE and
-      // city/postal coverage still work.
-      state: null,
-    },
-    { temporaryMode: p.temporaryMode },
-  );
+  const report = planSearchRun(plannerSources, values);
 
   const run = await prisma.$transaction(async (tx) => {
     const created = await tx.searchRun.create({
@@ -103,8 +86,6 @@ export async function createSearchRun(candidateCaseId: string, userId: string, l
           status: 'PENDING',
           mappingSnapshot: task.mappingSnapshot as unknown as object,
           recipeSnapshot: task.recipeSnapshot as unknown as object,
-          generatedUrl: task.generatedUrl,
-          inclusionReason: task.inclusionReason,
         },
       });
     }
@@ -115,13 +96,13 @@ export async function createSearchRun(candidateCaseId: string, userId: string, l
         entityType: 'SearchRun',
         entityId: created.id,
         action: 'searchRun.create',
-        meta: { plannedCount: report.planned.length, excludedCount: report.excluded.length },
+        meta: { plannedCount: report.planned.length, skippedCount: report.skipped.length },
       },
     });
     return created;
   });
 
-  return { runId: run.id, planned: report.planned, excluded: report.excluded };
+  return { runId: run.id, planned: report.planned, skipped: report.skipped };
 }
 
 export async function updateSourceCheckStatus(input: {

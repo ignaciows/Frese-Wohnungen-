@@ -39,14 +39,21 @@ export const SOURCE_CHECK_STATUS: Record<string, { label: string; tone: Tone; ic
   SKIPPED: { label: 'Übersprungen', tone: 'neutral', icon: '–' },
 };
 
-export const INTEGRATION_MODE: Record<string, { label: string; hint: string }> = {
-  OFFICIAL_API: { label: 'Offizielle API', hint: 'Autorisierte Schnittstelle' },
-  EMAIL_ALERT: { label: 'E-Mail-Alert', hint: 'Freigegebener Alert-Posteingang' },
-  SEARCH_LINK: { label: 'Such-Link', hint: 'Portal-Suche öffnen, manuell prüfen' },
-  MANUAL_IMPORT: { label: 'Manueller Import', hint: 'Anzeige von Hand einfügen' },
-  BROWSER_ONLY: { label: 'Nur im Browser', hint: 'Im eigenen Browser durchsehen' },
-  REGIONAL_DIRECTORY: { label: 'Regionales Verzeichnis', hint: 'Einstieg zu lokalen Anbietern' },
-  CUSTOM_SOURCE: { label: 'Eigene Quelle', hint: 'Vom Admin angelegt' },
+/**
+ * Wie eine Quelle zu uns kommt — siehe `Source.route` im Schema. Zwei Wege,
+ * weil es genau zwei gibt.
+ */
+export const SOURCE_ROUTE: Record<string, { label: string; hint: string; tone: Tone }> = {
+  DISCOVERY: {
+    label: 'Automatischer Suchlauf',
+    hint: 'Die App liest die Ergebnisliste des Portals selbst.',
+    tone: 'success',
+  },
+  EMAIL_ALERT: {
+    label: 'Suchauftrag per E-Mail',
+    hint: 'Das Portal schickt neue Treffer an das gemeinsame Postfach.',
+    tone: 'info',
+  },
 };
 
 export const MAPPING_QUALITY: Record<string, { label: string; tone: Tone; hint: string }> = {

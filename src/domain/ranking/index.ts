@@ -62,17 +62,6 @@ export interface RankingListing {
   /** When the advert says the flat can be moved into. */
   availableFrom?: Date | null;
   /**
-   * True for the platforms that only let flats by the week or month —
-   * Wunderflats, HousingAnywhere, Boardinghouses and the like.
-   *
-   * Their adverts look excellent on paper (furnished, central, complete data)
-   * and are useless for somebody moving to Germany permanently: no move-in
-   * date, a nightly-derived price, and a contract that ends. Judged by source
-   * category rather than by wording, because the wording is deliberately
-   * indistinguishable from a normal flat.
-   */
-  shortStayProvider?: boolean;
-  /**
    * Why this advert cannot be rented at all, if it cannot.
    *
    * The same rules that stop rubbish entering the pool — a rent of 18 €, a
@@ -216,16 +205,10 @@ export function classify(listing: RankingListing, profile: RankingProfile): {
     blockers.push(listing.disqualified);
   }
 
-  // 0b. Short-stay platforms.
-  //
-  // Ahead of everything else, because these adverts pass every other test:
-  // furnished, central, complete figures, and impossible — they are let by the
-  // week, name no move-in date, and end. For anybody arriving to stay, the
-  // whole platform is noise; in Notfallmodus, where a roof for six weeks is
-  // exactly the point, they are welcome.
-  if (listing.shortStayProvider && !profile.temporaryMode) {
-    blockers.push('Anbieter für Wohnen auf Zeit — kein dauerhafter Mietvertrag');
-  }
+  // Wohnen-auf-Zeit adverts used to be caught by which portal they came from.
+  // With only the three portals left, they arrive mixed in with everything
+  // else on Kleinanzeigen — so they are caught by their wording instead, in
+  // domain/discovery/plausible.ts, and land in `propertyType: TEMPORARY` below.
 
   // 1. Property type -- excluded types are hard failures.
   if (listing.propertyType === 'TEMPORARY' && !profile.temporaryMode) {

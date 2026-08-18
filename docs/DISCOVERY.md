@@ -17,95 +17,57 @@ Dinge: neue Anzeigen, bestätigte Anzeigen, verschwundene Anzeigen.
 ## Was tatsächlich funktioniert — und was nicht
 
 Am 2026-08-10 wurden 46 deutsche Wohnungsquellen live geprüft. Das Ergebnis ist
-ernüchternd und gehört hierher, weil es die Grenze der Methode zeigt:
+der Grund, warum es heute genau **eine** Quelle mit automatischem Suchlauf gibt:
 
 | Ergebnis | Anzahl | Bedeutung |
 | --- | --- | --- |
-| automatisch lesbar | 8 | Feed, schema.org oder Linkliste greifen. |
+| automatisch lesbar | 8 | Ergebnisliste per Abruf lesbar. |
 | kein Muster erkennbar | 28 | Die Seite baut ihre Ergebnisliste erst im Browser zusammen (JavaScript). Per Abruf ist dort nichts zu sehen. |
 | blockiert | 7 | Das Portal weist automatische Abrufe ab (HTTP 401/403). |
 | robots.txt untersagt | 1 | Pfad ist gesperrt. |
 
 **Die 28 „kein Muster" sind der eigentliche Engpass, nicht die Sperren.** Große
 Anbieter liefern heute eine leere Seite plus JavaScript; ohne einen echten
-Browser sieht ein Abruf dort gar nichts. Genau dafür gibt es den
-E-Mail-Suchauftrag: praktisch jedes dieser Portale verschickt neue Treffer per
-Mail, wenn man dort eine gespeicherte Suche anlegt — und die App liest dieses
-Postfach bereits aus. Für gesperrte und JavaScript-Portale ist das der Weg,
-der funktioniert.
+Browser sieht ein Abruf dort gar nichts. Und von den acht lesbaren waren sieben
+kommunale Anbieter mit einer Handvoll Wohnungen im Monat — Aufwand ohne Ertrag.
 
-Konkret einsatzbereit:
+Genau dafür gibt es den E-Mail-Suchauftrag: praktisch jedes gesperrte oder
+JavaScript-Portal verschickt neue Treffer selbst per Mail, wenn man dort eine
+Suche speichert. Die App liest dieses Postfach aus. Das ist der Weg, der
+funktioniert.
 
-| Quelle | Verfahren | Anmerkung |
+Übrig bleibt:
+
+| Quelle | Weg | Anmerkung |
 | --- | --- | --- |
 | Kleinanzeigen | eigener Adapter | Ergebnisliste direkt lesbar. Einschränkungen unten. |
-| WG-Gesucht | eigener Adapter | Such-URL aus dem Browser einmalig einfügen. |
-| Telegram (öffentliche Kanäle) | eigener Adapter | Ohne Konto lesbar, siehe unten. |
-| Immowelt | Linkliste | `/expose/`-Links; Details kommen von der Anzeigenseite. |
-| immobilo, Mr. Lodge | Linkliste | dito. |
-| degewo, Gewobag (Berlin) | Linkliste | Kommunale Gesellschaften. |
-| GdW | Feed | Verbandsseite — Rechercheeinstieg zu Genossenschaften, keine Anzeigenquelle. |
-| ImmoScout24 | — | HTTP 401. E-Mail-Suchauftrag. |
-| Immonet, immobilien.de, wohnungsboerse, markt.de, SAGA, ABG | — | HTTP 403. E-Mail-Suchauftrag. |
+| ImmoScout24 | E-Mail-Suchauftrag | HTTP 401 auf jeder Listenseite. |
+| Immowelt | E-Mail-Suchauftrag | Liste lesbar, aber jedes Exposé dahinter 403. |
+
+Einrichtung der beiden E-Mail-Portale: `docs/QUELLEN.md`. Wie die Mails gelesen
+werden: `docs/EMAIL_INGEST.md`.
 
 Ein Portal, das automatische Abrufe sperrt, wird nicht umgangen — es wird als
 `BLOCKED` protokolliert und in der App auch so angezeigt, damit eine leere
 Liste nie mit „kein Angebot" verwechselt wird.
 
-## Telegram
-
-Ein spürbarer Teil des Marktes — möblierte Wohnungen, Zwischenmieten,
-Nachmieter — läuft nur über Telegram und ist binnen Stunden weg.
-
-Gelesen wird die **öffentliche Web-Ansicht** eines Kanals (`t.me/s/NAME`), die
-Telegram für jeden veröffentlicht. **Kein Konto, keine Anmeldung, kein
-API-Schlüssel, kein Beitritt, keine gesendete Nachricht.** In den Einstellungen
-werden nur die Kanalnamen eingetragen.
-
-Grenzen, damit die Erwartung stimmt:
-
-- **Nur öffentliche Kanäle.** Private Gruppen und Einladungslinks sind so nicht
-  lesbar. Dafür bräuchte es ein echtes Telegram-Konto samt MTProto-Zugangsdaten
-  — eine eigene Entscheidung mit eigenen Risiken, bewusst nicht gebaut.
-- **Freitext.** Ein Kanalbeitrag hat kein Preisfeld. Alles kommt aus dem
-  deutschen Parser; ein nachlässig geschriebener Beitrag ergibt eine dünne
-  Anzeige.
-- **Gesuche werden aussortiert.** Die Hälfte solcher Beiträge sind Leute, die
-  selbst suchen. Die kommen nicht in den Bestand.
-
-Kanäle findet man in Telegram über „Wohnung <Stadt>", „WG <Stadt>",
-„Zwischenmiete <Stadt>"; ob ein Kanal öffentlich ist, zeigt ein Blick auf
-`t.me/s/NAME` im Browser.
-
-## Eine beliebige Seite hinzufügen
-
-Unter „Einstellungen → Quelle hinzufügen" genügt die Adresse der
-Ergebnisliste. Die App ruft die Seite ab, prüft robots.txt, sucht nach Feed,
-schema.org-Daten, Sitemap und wiederkehrenden Link-Mustern und schlägt eine
-fertige Konfiguration vor — samt Angabe, worauf sie beruht.
-
-Findet sie nichts, sagt sie das ebenfalls, statt eine Quelle anzulegen, die
-für immer stillschweigend nichts liefert.
-
 ## Wie oft geprüft wird
 
-Pro Quelle einstellbar, weil sich Quellen sehr unterschiedlich schnell
-bewegen: ein Marktplatz, auf dem eine gute Wohnung binnen einer Stunde weg ist,
-verdient alle 10–15 Minuten eine Anfrage; ein kommunaler Vermieter, der
-zweimal im Monat etwas einstellt, nicht — und ihn trotzdem im Minutentakt zu
-fragen, verbraucht genau das Anfrage-Budget, das der schnelle braucht.
+Auf Kleinanzeigen ist eine gute Wohnung binnen einer Stunde weg, deshalb
+verdient die Quelle alle 10–15 Minuten eine Anfrage. Der Abstand ist pro Quelle
+einstellbar (Einstellungen → Quellen → Technische Einstellungen); der globale
+Mindestabstand bremst nur bis zur schnellsten eingestellten Quelle, sonst wäre
+die Einstellung Dekoration.
 
-Der globale Mindestabstand bremst nur bis zur schnellsten eingestellten
-Quelle, sonst wäre die Einstellung Dekoration. Für echten Minutentakt ruft ein
-Cron `POST /api/discovery/run` alle paar Minuten auf; jede Quelle kommt dann
-gemäß ihrem eigenen Abstand dran.
+Für echten Minutentakt ruft ein Cron `POST /api/discovery/run` alle paar Minuten
+auf; jede Quelle kommt dann gemäß ihrem eigenen Abstand dran.
 
 ## Was aussortiert wird
 
-Die generischen Verfahren erkaufen Breite mit Unschärfe. Auf einen
-Vermieter-Auftritt angesetzt liefert eine Linkliste auch die Navigation mit —
-ein Lauf gegen Gewobag brachte „Lagerraum", „Gewerberäume", „E-Stellplatz" und
-„Immobilien Archiv" neben den echten Wohnungen zurück.
+Eine Ergebnisliste enthält nicht nur Wohnungen. Kleinanzeigen mischt Garagen,
+Stellplätze, Gewerbe und Monteurzimmer darunter, und frühere Läufe gegen
+Vermieter-Auftritte haben sogar deren Navigation eingesammelt — „Lagerraum",
+„Gewerberäume", „Immobilien Archiv" neben den echten Wohnungen.
 
 Deshalb muss ein Treffer eine niedrige Hürde nehmen, bevor er in den Bestand
 kommt: nichts, was erkennbar **kein** Wohnraum ist, und mindestens ein
@@ -136,10 +98,11 @@ Daraus folgt, wie der Adapter arbeitet:
 2. **Mehrere Orte statt Umkreis.** Weil die Umkreissuche gesperrt ist, trägt
    man in den Einstellungen mehrere `locationIds` ein — Heilbronn plus die
    Nachbarorte. Das ist der erlaubte Ersatz für einen Radius.
-3. **Die Ortsnummer ist Konfiguration.** Da die Ortssuche gesperrt ist, wird sie
-   nicht geraten: eine falsche Nummer liefert stillschweigend die Wohnungen
-   einer anderen Stadt. Stattdessen fügt man einmal eine Such-URL aus dem
-   Browser ein, und die Nummer wird daraus gelesen (`…/c203l9228` → `9228`).
+3. **Die Ortsnummer wird nicht geraten.** Eine falsche Nummer liefert
+   stillschweigend die Wohnungen einer anderen Stadt. Der Adapter liest sie
+   stattdessen aus der Regionsnavigation des Portals — derselben Liste, die ein
+   Mensch dort anklicken würde (`…/c203l9228` → `9228`). Wer sie lieber fest
+   vorgibt, trägt sie unter „Technische Einstellungen" als `locationIds` ein.
 
 Nebenbei: dieselbe erlaubte URL liefert bei einem JSON-freundlichen
 `Accept`-Header eine strukturierte Antwort statt HTML. Die wird bevorzugt — sie
@@ -148,23 +111,25 @@ Warmmiete ist. Der HTML-Parser bleibt als Rückfallebene bestehen.
 
 ## Verfahren (Adapter)
 
+Genau eines, in `src/domain/discovery/registry.ts`:
+
 | Schlüssel | Braucht | Wofür |
 | --- | --- | --- |
-| `kleinanzeigen` | `locationIds` | Kleinanzeigen, siehe oben. |
-| `wggesucht` | `searchUrl` | WG-Gesucht. Keine öffentliche Ortssuche, daher Such-URL einfügen. |
-| `feed` | `feedUrl` | RSS/Atom. Viele kommunale Wohnungsunternehmen und Genossenschaften — die verlässlichste Quelle überhaupt. |
-| `jsonld` | `searchUrlTemplate` | Seiten mit schema.org-Daten (die meisten modernen Makler-CMS). |
-| `linklist` | `searchUrlTemplate`, `linkPattern` | Seiten ohne alles: Links einsammeln, Details von der Anzeigenseite holen. |
-| `sitemap` | `sitemapUrl` | Anbieter ohne Suchfunktion. |
+| `kleinanzeigen` | nichts | Ortsnummern liest der Adapter selbst aus der Regionsnavigation des Portals. |
 
-Die vier generischen Verfahren brauchen keinen Code pro Seite. Eine neue Quelle
-ist ein Eintrag in den Einstellungen, kein Deployment — deshalb kann die
-Abdeckung wachsen, ohne dass jemand etwas programmiert.
+Es gab einmal vier generische Verfahren (RSS-Feed, schema.org, Linkliste,
+Sitemap), Adapter für WG-Gesucht und Telegram, und eine Oberfläche, die eine
+beliebige Website ausprobiert und ein passendes Verfahren vorschlägt. Gut
+gedacht — in der Praxis hat es Anzeigen geliefert, die nie jemand angeschrieben
+hat, und dabei das Anfrage-Budget der einen Quelle verbraucht, die etwas
+bringt. Alles entfernt; es steht in der Git-Historie, falls die Rechnung eines
+Tages anders aussieht.
 
-Platzhalter in `searchUrlTemplate`: `{city}` `{citySlug}` `{plz}` `{radius}`
-`{maxRent}` `{minRooms}` `{minSqm}` `{page}`. Fehlt ein Wert, wird die URL
-**nicht** aufgerufen — eine Suche mit einem literalen `{city}` würde entweder
-404 liefern oder, schlimmer, bundesweite Ergebnisse.
+Was davon bleibt und sich lohnt: **das Lesen der Detailseite**
+(`src/domain/discovery/detail.ts`). Es ist nicht seitenspezifisch — es liest die
+schema.org-Auszeichnung, die die meisten Immobilien-CMS für Google einbauen,
+sonst die Open-Graph-Tags, sonst den Seitentext. Daher kommen Nebenkosten,
+„frei ab" und die Telefonnummer (siehe `docs/KONTAKT.md`).
 
 ## Wie höflich die App ist
 
@@ -205,6 +170,12 @@ Wer bereits angeschrieben wurde, bleibt in jedem Fall sichtbar: das Gespräch
 
 - **Beim Öffnen der Ergebnisseite** — gedrosselt über `sweepIntervalMinutes`
   (Standard 90), damit häufiges Aufrufen nichts auslöst.
+- **Einmal täglich je Kandidat**, und zwar auch dann, wenn die Drossel gerade
+  „nein" sagen würde. Der Suchlauf ist gemeinsam — fünf Pflegekräfte in
+  derselben Stadt ergeben eine Suche —, also sagt „vor einer halben Stunde
+  gelaufen" nichts darüber aus, ob dabei nach *dieser* Kandidatin gesucht
+  wurde. `CandidateCase.lastSweptAt` beantwortet genau das: die erste Öffnung
+  des Falls an einem Tag sucht, die vierte tut nichts.
 - **Per Cron** auf `POST /api/discovery/run` mit `x-ingest-token`. Das hält den
   Bestand nachts und am Wochenende frisch, also genau dann, wenn gute Wohnungen
   auftauchen und wieder weg sind.
@@ -223,22 +194,17 @@ die Schlussbilanz. `LiveSearch` liest den Strom und füllt die Seite Wohnung fü
 Wohnung. Ohne `?force=1` prüft die Route erst die Drosselung und antwortet mit
 einer einzigen `skipped`-Zeile, statt einen Strom zu öffnen, der sofort endet.
 
-Zwei Dinge machen den Lauf zusätzlich kürzer:
-
-- **Vier Quellen gleichzeitig.** Die Höflichkeitsregeln gelten pro Server und
-  stecken im Crawler, deshalb kostet das keine Quelle etwas.
-- **Detailseiten ebenso**, mit derselben Grenze.
-
-Der Anfrage-Etat gilt weiterhin für den ganzen Lauf gemeinsam; deshalb vier und
-nicht zwölf — sonst gäben die schnellen Quellen alles aus, bevor die langsamen
-an der Reihe sind.
+Die Detailseiten werden dabei zu viert gleichzeitig gelesen. Die
+Höflichkeitsregeln gelten pro Server und stecken im Crawler, deshalb kostet das
+niemanden etwas — der Anfrage-Etat gilt weiterhin für den ganzen Lauf
+gemeinsam.
 
 ## Wenn nichts gefunden wird
 
 Die Antwort steht in den Einstellungen unter „Letzte Suchläufe" — pro Quelle
 mit Status und Begründung. Die drei häufigsten Fälle:
 
-- `SKIPPED`: Konfiguration unvollständig (z. B. keine `locationIds`).
+- `SKIPPED`: Quelle ausgeschaltet oder Konfiguration unvollständig.
 - `BLOCKED`: Das Portal sperrt automatische Abrufe. Erwartet bei ImmoScout24
   und Immowelt; dort hilft der E-Mail-Suchauftrag.
 - `ERROR` mit Hinweis auf die Seitenstruktur: Die Quelle hat ihr Markup

@@ -75,6 +75,43 @@ describe('listing extraction', () => {
     expect(r.sourceKey).toBe('immowelt');
   });
 
+  it('keeps the mail\'s own text about each advert', () => {
+    // The reason this matters: ImmoScout24 and Immowelt refuse to be read
+    // automatically, so this teaser is the only text the app will ever have
+    // about the flat — and it is where the Kaltmiete, the size and the room
+    // count live.
+    const html = `
+      <table>
+        <tr><td>
+          <a href="https://www.immobilienscout24.de/expose/111">3-Zimmer-Wohnung mit Balkon</a>
+          <p>74072 Heilbronn &middot; 78 m&sup2; &middot; 3 Zimmer</p>
+          <p>Kaltmiete 845,00 &euro; zzgl. 180,00 &euro; Nebenkosten</p>
+        </td></tr>
+        <tr><td>
+          <a href="https://www.immobilienscout24.de/expose/222">2-Zimmer-Wohnung Innenstadt</a>
+          <p>74072 Heilbronn &middot; 55 m&sup2; &middot; 2 Zimmer</p>
+          <p>Kaltmiete 620,00 &euro;</p>
+        </td></tr>
+      </table>
+      <p>Abmelden vom Suchauftrag</p>`;
+    const r = extractListings(html);
+    expect(r.listings).toHaveLength(2);
+    expect(r.listings[0].teaser).toContain('845,00 €');
+    expect(r.listings[0].teaser).toContain('78 m');
+    // Each advert gets its own block, not the whole mail.
+    expect(r.listings[0].teaser).not.toContain('620,00');
+    expect(r.listings[1].teaser).toContain('620,00 €');
+  });
+
+  it('does not put the tracking URL itself into the teaser', () => {
+    // Its digits look like figures to the listing parser.
+    const html =
+      '<a href="https://www.immowelt.de/expose/abc-123456">Wohnung</a><p>Kaltmiete 700,00 &euro;</p>';
+    const teaser = extractListings(html).listings[0].teaser;
+    expect(teaser).not.toContain('http');
+    expect(teaser).toContain('700,00');
+  });
+
   it('ignores generic call-to-action link text as a title', () => {
     const html = '<a href="https://www.immobilienscout24.de/expose/555">Jetzt ansehen</a>';
     expect(extractListings(html).listings[0].title).toBeNull();

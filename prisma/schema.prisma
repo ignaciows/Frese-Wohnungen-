@@ -80,6 +80,15 @@ model CandidateCase {
   /// Set once a flat is secured; retires the case from the priority queue.
   housingSecuredAt DateTime?
 
+  /// Last time a discovery sweep actually ran a search for *this* candidate.
+  ///
+  /// Separate from the global sweep timestamp on purpose. The sweep is shared
+  /// — five nurses at the same clinic produce one search — so "a sweep ran an
+  /// hour ago" says nothing about whether it covered this candidate. Somebody
+  /// opening a case wants today's flats for *this* person, and this is the
+  /// only column that can answer that.
+  lastSweptAt DateTime?
+
   /// --- shared-flat (WG) matching ---
   /// Only candidates who explicitly agreed are ever suggested as flatmates.
   /// Nothing is proposed to a candidate automatically; a colleague asks first.
@@ -177,108 +186,49 @@ model SearchProfile {
 
 // ------------------------------------------------------- source registry
 
-enum IntegrationMode {
-  OFFICIAL_API
-  EMAIL_ALERT
-  SEARCH_LINK
-  MANUAL_IMPORT
-  BROWSER_ONLY
-  REGIONAL_DIRECTORY
-  CUSTOM_SOURCE
-}
-
-enum ConnectorStatus {
-  NONE
-  PLANNED
-  BLOCKED_BY_PERMISSION
-  AVAILABLE
-  UNHEALTHY
-}
-
-enum TermsReviewStatus {
-  NOT_REVIEWED
-  REVIEW_PENDING
-  MANUAL_ONLY
-  APPROVED_FOR_AUTOMATION
-}
-
-enum SourceCategory {
-  MARKETPLACE
-  GENERAL_PORTAL
-  FURNISHED
-  INSTITUTIONAL_LANDLORD
-  COOPERATIVE
-  MUNICIPAL
-  TEMPORARY
-  SOCIAL_LOCAL
-  DIRECTORY
-}
-
-model SourceFamily {
-  id      String   @id @default(cuid())
-  key     String   @unique
-  name    String
-  notes   String?
-  sources Source[]
-}
+// How a source's adverts reach us. Only two ways exist, and which one applies
+// is a property of the portal, not a setting:
+//
+//   DISCOVERY   — the app reads the portal's own result list (Kleinanzeigen).
+//   EMAIL_ALERT — the portal mails new hits to the shared mailbox because a
+//                 colleague saved a search there (ImmoScout24, Immowelt).
+//
+// Stored as a plain string rather than an enum so adding a third route never
+// needs a migration. See docs/QUELLEN.md.
 
 model Source {
-  id         String         @id @default(cuid())
-  key        String         @unique
+  id         String  @id @default(cuid())
+  key        String  @unique
   name       String
   websiteUrl String
-  familyId   String?
-  category   SourceCategory
-  priority   Int            @default(100)
-  active     Boolean        @default(true)
+  /// Lower sorts first on the sources screen.
+  priority   Int     @default(100)
+  active     Boolean @default(true)
 
-  integrationMode   IntegrationMode
-  requiresAuth      Boolean           @default(false)
-  connectorStatus   ConnectorStatus   @default(NONE)
-  termsReviewStatus TermsReviewStatus @default(NOT_REVIEWED)
-  termsReviewUrl    String?
-  termsReviewedAt   DateTime?
+  /// DISCOVERY | EMAIL_ALERT — see the comment above.
+  route String @default("DISCOVERY")
 
-  /// Only used when searchUrlValidated is true. Otherwise we open websiteUrl and
-  /// show the manual recipe instead of pretending the filters were applied.
-  searchUrlTemplate  String?
-  searchUrlValidated Boolean @default(false)
+  /// Extra hints for the colleague who clicks through the portal by hand.
+  manualRecipe String?
+  notes        String?
 
-  manualRecipe             String? // extra source-specific hints appended to the generated recipe
-  manualImportInstructions String?
-  notes                    String?
-
-  /// --- automatic discovery ---
+  /// --- automatic discovery (route = DISCOVERY only) ---
   /// Which adapter fetches this source's own result list. Null = no automatic
-  /// discovery; the source keeps its manual task and search link.
-  /// See domain/discovery/adapters for the registry.
-  discoveryAdapter String?
-  /// Off by default. An admin turns discovery on per source after checking that
-  /// source's terms — the same gate the rest of the catalogue already uses.
-  discoveryEnabled Boolean @default(false)
-  /// Adapter-specific configuration: feed URL, search-path template, link
-  /// pattern. Data-driven so a new site can be added without a deploy.
-  discoveryConfig  Json?
+  /// discovery. See domain/discovery/registry.ts.
+  discoveryAdapter    String?
+  /// Off by default. An admin turns discovery on per source.
+  discoveryEnabled    Boolean   @default(false)
+  /// Adapter-specific configuration (e.g. Kleinanzeigen's resolved town ids).
+  discoveryConfig     Json?
   /// Set when a sweep was blocked or errored, so the UI can be honest about
   /// which sources are actually producing results.
-  discoveryStatus  String? // OK | BLOCKED | ERROR | NEVER_RUN
-  discoveryNote    String?
-  lastDiscoveredAt DateTime?
-  /// How often this source is worth asking, in minutes. A fast marketplace
-  /// where flats are gone within the hour earns a short interval; a municipal
-  /// landlord that posts twice a month does not, and polling it every ten
-  /// minutes would spend the request budget on nothing. Null = use the global
+  discoveryStatus     String? // OK | BLOCKED | ERROR | NEVER_RUN
+  discoveryNote       String?
+  lastDiscoveredAt    DateTime?
+  /// How often this source is worth asking, in minutes. Null = use the global
   /// sweep interval.
   pollIntervalMinutes Int?
 
-  /// Housing types this source is relevant for; see domain/sources/housingTypes.ts
-  housingTypes  String[] @default([])
-  /// Only offered when the candidate's temporary/emergency mode is enabled.
-  temporaryOnly Boolean  @default(false)
-
-  family         SourceFamily?         @relation(fields: [familyId], references: [id])
-  aliases        SourceAlias[]
-  coverage       SourceCoverage[]
   filterMappings SourceFilterMapping[]
   sourceChecks   SourceCheck[]
   listings       Listing[]
@@ -296,22 +246,22 @@ model Source {
 /// up today" always has an answer — including the honest one, that the portal
 /// blocked us.
 model DiscoveryRun {
-  id       String  @id @default(cuid())
-  sourceId String
-  adapter  String
+  id              String  @id @default(cuid())
+  sourceId        String
+  adapter         String
   /// Which candidate's criteria produced the query, when the sweep was scoped
   /// to one. Null for source-wide sweeps (feeds, sitemaps).
   candidateCaseId String?
   /// The resolved query (city, radius, price cap…) and the URL actually called.
-  query    Json
+  query           Json
 
   /// OK | BLOCKED | ERROR | SKIPPED | ROBOTS_DENIED
-  status   String
-  found    Int     @default(0)
-  created  Int     @default(0)
-  updated  Int     @default(0)
-  retired  Int     @default(0)
-  message  String?
+  status  String
+  found   Int     @default(0)
+  created Int     @default(0)
+  updated Int     @default(0)
+  retired Int     @default(0)
+  message String?
 
   startedAt  DateTime  @default(now())
   finishedAt DateTime?
@@ -321,35 +271,6 @@ model DiscoveryRun {
 
   @@index([sourceId, startedAt])
   @@index([startedAt])
-}
-
-model SourceAlias {
-  id       String  @id @default(cuid())
-  sourceId String
-  name     String
-  note     String?
-  source   Source  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-
-  @@unique([sourceId, name])
-}
-
-enum CoverageKind {
-  NATIONWIDE
-  STATE
-  CITY
-  POSTAL_PREFIX
-}
-
-model SourceCoverage {
-  id       String       @id @default(cuid())
-  sourceId String
-  kind     CoverageKind
-  /// Empty string for NATIONWIDE; otherwise state name, city name or PLZ prefix.
-  value    String       @default("")
-  source   Source       @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-
-  @@unique([sourceId, kind, value])
-  @@index([kind, value])
 }
 
 enum MappingQuality {
@@ -427,12 +348,9 @@ model SourceCheck {
   note              String?
 
   /// Snapshot of the filter mapping + generated recipe used for this run.
+  /// Frozen at plan time so an old run still reads the way it did on the day.
   mappingSnapshot Json
   recipeSnapshot  Json
-  /// Generated search URL, only present when the template was validated.
-  generatedUrl    String?
-  /// Why this source is in the plan (or, for excluded ones, why it was left out).
-  inclusionReason String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -532,9 +450,9 @@ model Listing {
   /// --- how to reach the landlord without opening the portal ---
   /// Only ever filled from what the ad itself publishes. Empty is normal and
   /// simply means this ad has to be answered through the portal form.
-  contactEmail String?
-  contactName  String?
-  contactPhone String?
+  contactEmail   String?
+  contactName    String?
+  contactPhone   String?
   /// Portal-side contact/enquiry form, when the ad exposes one.
   contactFormUrl String?
 
@@ -547,28 +465,28 @@ model Listing {
 
   /// --- automatic discovery bookkeeping ---
   /// DISCOVERY | EMAIL | MANUAL — how this ad entered the system.
-  origin       String    @default("MANUAL")
-  firstSeenAt  DateTime  @default(now())
+  origin          String    @default("MANUAL")
+  firstSeenAt     DateTime  @default(now())
   /// Last time a discovery sweep found this ad in the source's *own* result
   /// list. Deliberately separate from lastSeenAt: disappearing from the result
   /// list is the earliest, cheapest signal that an ad is gone.
-  lastListedAt DateTime?
+  lastListedAt    DateTime?
   /// Consecutive sweeps of this source that did not contain the ad. Only ever
   /// incremented by a sweep that itself succeeded, so a blocked portal cannot
   /// quietly retire its whole inventory.
-  missedSweeps Int       @default(0)
+  missedSweeps    Int       @default(0)
   /// Set when the automatic link check retired the ad, so the UI can say
   /// whether a human or the system marked it gone.
-  expiredBySystem  Boolean   @default(false)
+  expiredBySystem Boolean   @default(false)
 
   /// --- automatic liveness check ---
-  lastCheckedAt   DateTime?
+  lastCheckedAt    DateTime?
   /// ALIVE | GONE | BLOCKED | UNKNOWN
-  lastCheckStatus String?
-  lastCheckReason String?
+  lastCheckStatus  String?
+  lastCheckReason  String?
   /// Consecutive confident "gone" verdicts. Reset by anything inconclusive, so
   /// a blocked portal can never expire a listing on its own.
-  goneStreak      Int       @default(0)
+  goneStreak       Int       @default(0)
   /// 0..100 — how likely the ad is to still be online, as read from the page
   /// text. Null means never checked. The middle band is deliberately kept
   /// visible ("zu prüfen") rather than hidden, because the reading is a
@@ -734,15 +652,15 @@ model ContactAttempt {
 
   /// --- sending from inside the tool ---
   /// Where the message actually went, when we sent it ourselves.
-  sentToAddress String?
+  sentToAddress     String?
   /// PENDING | SENT | FAILED | MANUAL — MANUAL means a colleague sent it in the
   /// portal and only recorded it here.
-  deliveryStatus String  @default("MANUAL")
-  deliveryError  String?
+  deliveryStatus    String  @default("MANUAL")
+  deliveryError     String?
   /// Unique token embedded in the reply-to address (plus addressing), so an
   /// answer landing in the shared mailbox can be matched back to this attempt
   /// without guessing from the subject line.
-  threadToken    String? @unique
+  threadToken       String? @unique
   /// Message-ID of the mail we sent, used to match replies by In-Reply-To.
   outboundMessageId String?
 
@@ -781,12 +699,12 @@ model ContactMessage {
   createdAt        DateTime         @default(now())
 
   /// --- automatic mailbox collection ---
-  subject      String?
-  fromAddress  String?
+  subject     String?
+  fromAddress String?
   /// RFC Message-ID. Unique so re-reading the mailbox never duplicates a reply.
-  externalId   String? @unique
+  externalId  String?   @unique
   /// Unread replies are what the notification badge counts.
-  readAt       DateTime?
+  readAt      DateTime?
 
   contactAttempt ContactAttempt @relation(fields: [contactAttemptId], references: [id], onDelete: Cascade)
   recordedBy     User?          @relation(fields: [recordedById], references: [id])
@@ -1018,13 +936,13 @@ model PortalAccount {
   siteKey  String
   label    String
 
-  loginName String?
+  loginName          String?
   /// AES-256-GCM ciphertext of the password / app password / API token.
-  secretEnc String?
+  secretEnc          String?
   /// Second secret for the rare case that IMAP and SMTP differ.
   secondarySecretEnc String?
   /// Non-secret extras: host, port, profile URL, alert address, free notes.
-  meta Json?
+  meta               Json?
 
   /// Address landlord replies come back to for this portal.
   replyToAddress String?
@@ -1063,16 +981,16 @@ enum TaskState {
 /// The daily to-do list. Created automatically when a message goes out, so
 /// "check whether they replied" never depends on somebody remembering.
 model FollowUpTask {
-  id               String @id @default(cuid())
+  id               String  @id @default(cuid())
   candidateCaseId  String
   listingId        String?
   contactAttemptId String?
 
-  kind   TaskKind
-  title  String
-  note   String?
-  dueAt  DateTime
-  state  TaskState @default(OPEN)
+  kind  TaskKind
+  title String
+  note  String?
+  dueAt DateTime
+  state TaskState @default(OPEN)
 
   completedAt   DateTime?
   completedById String?

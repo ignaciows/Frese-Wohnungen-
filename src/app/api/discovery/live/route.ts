@@ -37,6 +37,9 @@ export async function POST(req: NextRequest) {
   }
 
   const force = req.nextUrl.searchParams.get('force') === '1';
+  // Whose screen this is. Decides whether today's search for *this* candidate
+  // has already happened — see sweepSkipReason.
+  const candidateCaseId = req.nextUrl.searchParams.get('candidate') ?? undefined;
   const [lastRun, enabledSources] = await Promise.all([
     prisma.discoveryRun.findFirst({ orderBy: { startedAt: 'desc' }, select: { startedAt: true } }),
     prisma.source.count({ where: { discoveryEnabled: true } }),
@@ -46,7 +49,7 @@ export async function POST(req: NextRequest) {
   // Opening a stream only to close it again is a progress bar that flickers for
   // nothing, so the throttle is asked before a single byte is written.
   if (!force) {
-    const skip = await sweepSkipReason();
+    const skip = await sweepSkipReason(candidateCaseId);
     if (skip) {
       return ndjson([{ type: 'skipped', reason: skip, lastRunAt, enabledSources }]);
     }

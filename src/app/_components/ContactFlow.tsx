@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { claimListingAction, confirmContactAction, sendAnfrageAction } from '@/app/actions';
+import { telHref } from '@/domain/contact';
 
 /**
  * Contacting a landlord, by whichever route the ad actually allows.
@@ -14,6 +15,11 @@ import { claimListingAction, confirmContactAction, sendAnfrageAction } from '@/a
  * keep enquiries inside their own form — the older flow stands: copy the text,
  * open the ad, come back and confirm. Opening an ad never counts as
  * contacting it; only an explicit confirmation does.
+ *
+ * And when the ad prints a phone number, that goes at the very top, above
+ * everything else. A form message is answered on Thursday; a call is answered
+ * now, and for the flats worth having that is the whole difference. The number
+ * is only ever one the ad itself published — see domain/contact.
  */
 export function ContactFlow({
   candidateCaseId,
@@ -23,6 +29,8 @@ export function ContactFlow({
   status,
   alreadyContactedWarning,
   contactEmail,
+  contactPhone,
+  contactName,
   sendingEnabled,
 }: {
   candidateCaseId: string;
@@ -33,6 +41,10 @@ export function ContactFlow({
   alreadyContactedWarning?: string | null;
   /** Address published by the ad itself, when there is one. */
   contactEmail?: string | null;
+  /** Phone number the ad published, normalised. */
+  contactPhone?: string | null;
+  /** Who to ask for, when the ad names somebody. */
+  contactName?: string | null;
   /** Whether an admin has configured and switched on sending. */
   sendingEnabled?: boolean;
 }) {
@@ -107,6 +119,26 @@ export function ContactFlow({
             !
           </span>
           <div>{alreadyContactedWarning}</div>
+        </div>
+      ) : null}
+
+      {contactPhone ? (
+        <div className="callout success">
+          <span className="callout-icon" aria-hidden>
+            ☎
+          </span>
+          <div className="stack-sm grow">
+            <strong>
+              Diese Anzeige nennt eine Telefonnummer{contactName ? ` — ${contactName}` : ''}.
+            </strong>
+            <a href={telHref(contactPhone)} className="btn primary block">
+              {contactPhone} anrufen ☎
+            </a>
+            <span className="small muted">
+              Schneller als jedes Formular. Danach unten „Kontakt bestätigen“ — dann laufen Verlauf und
+              Wiedervorlage genauso wie bei einer gesendeten Anfrage.
+            </span>
+          </div>
         </div>
       ) : null}
 

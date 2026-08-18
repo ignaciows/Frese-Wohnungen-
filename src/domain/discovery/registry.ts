@@ -1,21 +1,21 @@
 /**
- * The adapter registry. A source's `discoveryAdapter` column holds one of
- * these keys; an unknown key simply means the source has no automatic
- * discovery, which is a normal state, not an error.
+ * The adapter registry.
+ *
+ * There is exactly one adapter, because there is exactly one portal that lets
+ * us read its result list. ImmoScout24 answers 401 to an automated request and
+ * Immowelt answers 403 on every exposé behind its list — so they do not get an
+ * adapter, they get a Suchauftrag that mails us the hits (docs/QUELLEN.md).
+ *
+ * This stays a registry rather than a direct import: a source's
+ * `discoveryAdapter` column holds a key, and an unknown key has to mean "no
+ * automatic discovery" instead of a crash — that is the normal state for the
+ * two e-mail sources.
  */
 
 import type { DiscoveryAdapter } from './types';
 import { kleinanzeigenAdapter } from './adapters/kleinanzeigen';
-import { wgGesuchtAdapter } from './adapters/wggesucht';
-import { telegramAdapter } from './adapters/telegram';
-import { GENERIC_ADAPTERS } from './adapters/generic';
 
-export const ADAPTERS: DiscoveryAdapter[] = [
-  kleinanzeigenAdapter,
-  wgGesuchtAdapter,
-  telegramAdapter,
-  ...GENERIC_ADAPTERS,
-];
+export const ADAPTERS: DiscoveryAdapter[] = [kleinanzeigenAdapter];
 
 const BY_KEY = new Map(ADAPTERS.map((a) => [a.key, a]));
 
@@ -24,14 +24,10 @@ export function getAdapter(key: string | null | undefined): DiscoveryAdapter | n
   return BY_KEY.get(key) ?? null;
 }
 
-export function adapterChoices(): Array<{ key: string; label: string; description: string }> {
-  return ADAPTERS.map((a) => ({ key: a.key, label: a.label, description: a.description }));
-}
-
 /**
  * Which required config keys are still empty. The settings screen uses this to
  * say "this source will not produce anything until you fill in X" rather than
- * letting an admin enable a sweep that can only ever return nothing.
+ * letting an admin start a sweep that can only ever return nothing.
  */
 export function missingConfig(
   adapterKey: string | null | undefined,
@@ -49,5 +45,5 @@ export function missingConfig(
     .map((k) => k.key);
 }
 
-export { kleinanzeigenAdapter, wgGesuchtAdapter, telegramAdapter };
+export { kleinanzeigenAdapter };
 export * from './types';

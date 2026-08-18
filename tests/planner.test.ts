@@ -16,112 +16,54 @@ const values: CanonicalFilterValues = {
   pets: null,
 };
 
-const nationwideMarketplace: PlannerSource = {
+const immoscout: PlannerSource = {
   id: 's1',
-  key: 'immoscout',
+  key: 'immoscout24',
   name: 'ImmoScout24',
   active: true,
-  integrationMode: 'SEARCH_LINK',
-  searchUrlTemplate: null,
-  searchUrlValidated: false,
-  temporaryOnly: false,
-  housingTypes: ['APARTMENT'],
-  coverage: [{ kind: 'NATIONWIDE', value: '' }],
   filterMappings: [
     { canonicalFilter: 'location', quality: 'EXACT', portalLabel: 'Ort', note: null },
-    { canonicalFilter: 'maxWarmmiete', quality: 'APPROXIMATE', portalLabel: 'Kaltmiete bis', note: 'Portal filtert Kaltmiete' },
+    {
+      canonicalFilter: 'maxWarmmiete',
+      quality: 'APPROXIMATE',
+      portalLabel: 'Kaltmiete bis',
+      note: 'Portal filtert Kaltmiete',
+    },
     { canonicalFilter: 'furnished', quality: 'MANUAL', portalLabel: null, note: 'nur im Text' },
     { canonicalFilter: 'wbs', quality: 'UNSUPPORTED', portalLabel: null, note: null },
   ],
 };
 
-const manualLocal: PlannerSource = {
-  ...nationwideMarketplace,
-  id: 's2',
-  key: 'manual-local',
-  name: 'Lokaler Aushang',
-  integrationMode: 'BROWSER_ONLY',
-  coverage: [{ kind: 'POSTAL_PREFIX', value: '74906' }],
-  filterMappings: [
-    { canonicalFilter: 'location', quality: 'MANUAL', portalLabel: null, note: null },
-    { canonicalFilter: 'maxWarmmiete', quality: 'MANUAL', portalLabel: null, note: null },
-  ],
-};
+const kleinanzeigen: PlannerSource = { ...immoscout, id: 's2', key: 'kleinanzeigen', name: 'Kleinanzeigen' };
 
-const wrongRegion: PlannerSource = {
-  ...nationwideMarketplace,
-  id: 's3',
-  key: 'muenchen-only',
-  name: 'Nur München',
-  coverage: [{ kind: 'CITY', value: 'München' }],
-};
-
-const temporaryOnly: PlannerSource = {
-  ...nationwideMarketplace,
-  id: 's4',
-  key: 'monteurzimmer',
-  name: 'Monteurzimmer',
-  temporaryOnly: true,
-};
+const switchedOff: PlannerSource = { ...immoscout, id: 's3', key: 'immowelt', name: 'Immowelt', active: false };
 
 describe('planner', () => {
-  it('plans every relevant source, including manual-only ones', () => {
-    const rep = planSearchRun(
-      [nationwideMarketplace, manualLocal, wrongRegion, temporaryOnly],
-      values,
-      { city: 'Bad Rappenau', postalCode: '74906', state: null },
-      { temporaryMode: false },
-    );
-    const plannedKeys = rep.planned.map((p) => p.sourceKey).sort();
-    expect(plannedKeys).toEqual(['immoscout', 'manual-local']);
-    expect(rep.excluded.some((e) => e.sourceKey === 'muenchen-only')).toBe(true);
-    expect(rep.excluded.some((e) => e.sourceKey === 'monteurzimmer' && /Notfall/.test(e.reason))).toBe(true);
+  it('plans a task for every active source', () => {
+    const rep = planSearchRun([immoscout, kleinanzeigen], values);
+    expect(rep.planned.map((p) => p.sourceKey).sort()).toEqual(['immoscout24', 'kleinanzeigen']);
+    expect(rep.skipped).toEqual([]);
   });
 
-  it('includes temporary source only when temporaryMode is on', () => {
-    const rep = planSearchRun(
-      [temporaryOnly],
-      values,
-      { city: 'Bad Rappenau', postalCode: '74906', state: null },
-      { temporaryMode: true },
-    );
+  it('skips a source switched off in the registry, and says so', () => {
+    const rep = planSearchRun([immoscout, switchedOff], values);
     expect(rep.planned).toHaveLength(1);
-  });
-
-  it('records inclusion reason on planned tasks', () => {
-    const rep = planSearchRun(
-      [nationwideMarketplace, manualLocal],
-      values,
-      { city: 'Bad Rappenau', postalCode: '74906', state: null },
-      { temporaryMode: false },
-    );
-    const marketplace = rep.planned.find((p) => p.sourceKey === 'immoscout')!;
-    const local = rep.planned.find((p) => p.sourceKey === 'manual-local')!;
-    expect(marketplace.inclusionReason).toMatch(/bundesweit/i);
-    expect(local.inclusionReason).toMatch(/74906/);
+    expect(rep.skipped[0]).toMatchObject({ sourceKey: 'immowelt' });
+    expect(rep.skipped[0].reason).toMatch(/deaktiviert/i);
   });
 
   it('surfaces UNSUPPORTED filters in the recipe rather than dropping them', () => {
-    const rep = planSearchRun(
-      [nationwideMarketplace],
-      values,
-      { city: 'Bad Rappenau', postalCode: '74906', state: null },
-      { temporaryMode: false },
-    );
+    const rep = planSearchRun([immoscout], values);
     const recipe = rep.planned[0].recipeSnapshot;
-    const wbsLine = recipe.lines.find((l) => l.filter === 'wbs');
-    expect(wbsLine?.quality).toBe('UNSUPPORTED');
-    // Even an UNSUPPORTED filter appears in the plan.
+    expect(recipe.lines.find((l) => l.filter === 'wbs')?.quality).toBe('UNSUPPORTED');
     expect(recipe.lines.length).toBeGreaterThan(0);
   });
 
-  it('does not generate a search URL when the template is not validated', () => {
-    const rep = planSearchRun(
-      [nationwideMarketplace],
-      values,
-      { city: 'Bad Rappenau', postalCode: '74906', state: null },
-      { temporaryMode: false },
-    );
-    expect(rep.planned[0].generatedUrl).toBeNull();
+  it('freezes the mapping into the task, so an old run keeps reading as it did', () => {
+    const rep = planSearchRun([immoscout], values);
+    expect(rep.planned[0].mappingSnapshot.maxWarmmiete).toMatchObject({
+      quality: 'APPROXIMATE',
+      portalLabel: 'Kaltmiete bis',
+    });
   });
 });

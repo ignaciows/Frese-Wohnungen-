@@ -17,11 +17,9 @@ import {
   resolveLocationIds,
   droppedCategory,
 } from '@/domain/discovery/adapters/kleinanzeigen';
-import { wgGesuchtAdapter, looksLikeWgGesuchtSearchUrl } from '@/domain/discovery/adapters/wggesucht';
-import { telegramAdapter, normaliseChannelName } from '@/domain/discovery/adapters/telegram';
-import { feedAdapter, jsonLdAdapter, linkListAdapter, sitemapAdapter, parseDetailPage } from '@/domain/discovery/adapters/generic';
-import { getAdapter, missingConfig } from '@/domain/discovery/registry';
-import { DEFAULT_QUERY, fillTemplate, type FetchedPage } from '@/domain/discovery/types';
+import { parseDetailPage } from '@/domain/discovery/detail';
+import { ADAPTERS, getAdapter, missingConfig } from '@/domain/discovery/registry';
+import { DEFAULT_QUERY, type FetchedPage } from '@/domain/discovery/types';
 import { parseGermanNumber, parsePriceCents, textOf, splitByMarker } from '@/domain/discovery/html';
 
 const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', name), 'utf8');
@@ -59,19 +57,6 @@ describe('html helpers', () => {
   it('splits a document into one chunk per entry', () => {
     const chunks = splitByMarker('<i>a</i><x/>one<x/>two', /<x\/>/);
     expect(chunks).toEqual(['<x/>one', '<x/>two']);
-  });
-});
-
-describe('fillTemplate', () => {
-  it('substitutes and encodes the values it has', () => {
-    expect(fillTemplate('https://x.de/s?ort={city}&max={maxRent}&p={page}', query, 2)).toBe(
-      'https://x.de/s?ort=Heilbronn&max=900&p=2',
-    );
-  });
-
-  it('returns null rather than a URL with an unfilled placeholder', () => {
-    // A literal "{plz}" would either 404 or, worse, search all of Germany.
-    expect(fillTemplate('https://x.de/s?plz={plz}', { ...query, postalCode: null }, 1)).toBeNull();
   });
 });
 
@@ -258,146 +243,34 @@ describe('kleinanzeigen adapter', () => {
   });
 });
 
-/* ---------------------------------------------------------- wg-gesucht --- */
 
-describe('wg-gesucht adapter', () => {
-  const wgPage = (body: string) =>
-    page(body, 'https://www.wg-gesucht.de/wohnungen-in-Hamburg-Hamburg.55.2.1.0.html');
-
-  it('reads cards into ads with price and size', () => {
-    const items = wgGesuchtAdapter.parse(wgPage(fixture('wggesucht-search.html')), {});
-    expect(items.length).toBeGreaterThanOrEqual(2);
-    const withPrice = items.find((i) => (i.structured?.warmMieteCents ?? 0) > 0);
-    expect(withPrice).toBeDefined();
-    expect(withPrice!.url).toMatch(/wg-gesucht\.de\/.*\.\d+\.html$/);
-    expect(withPrice!.structured?.livingSpaceSqm).toBeGreaterThan(0);
-    expect(withPrice!.locationCity).toBeTruthy();
-  });
-
-  it('collapses the doubled city name WG-Gesucht prints', () => {
-    const items = wgGesuchtAdapter.parse(wgPage(fixture('wggesucht-search.html')), {});
-    // The markup says "Hamburg Hamburg" when town and district match.
-    expect(items[0].locationCity).not.toMatch(/(\b\w+\b) \1/);
-  });
-
-  it('paginates a pasted search URL', () => {
-    const urls = wgGesuchtAdapter.buildUrls(
-      { ...query, maxPages: 3 },
-      { searchUrl: 'https://www.wg-gesucht.de/wohnungen-in-Heilbronn-Heilbronn.171.2.1.0.html' },
-    );
-    expect(urls).toEqual([
-      'https://www.wg-gesucht.de/wohnungen-in-Heilbronn-Heilbronn.171.2.1.0.html',
-      'https://www.wg-gesucht.de/wohnungen-in-Heilbronn-Heilbronn.171.2.1.1.html',
-      'https://www.wg-gesucht.de/wohnungen-in-Heilbronn-Heilbronn.171.2.1.2.html',
-    ]);
-  });
-
-  it('stays silent without a configured city, rather than guessing an id', () => {
-    expect(wgGesuchtAdapter.buildUrls(query, {})).toEqual([]);
-  });
-
-  it('validates a pasted URL', () => {
-    expect(looksLikeWgGesuchtSearchUrl('https://www.wg-gesucht.de/wohnungen-in-Heilbronn.171.2.1.0.html')).toBe(true);
-    expect(looksLikeWgGesuchtSearchUrl('https://www.wg-gesucht.de/')).toBe(false);
-    expect(looksLikeWgGesuchtSearchUrl('nonsense')).toBe(false);
-  });
-});
-
-/* ------------------------------------------------------------- generic --- */
-
-describe('feed adapter', () => {
-  const rss = `<?xml version="1.0"?><rss><channel>
-    <item><title>2-Zimmer-Wohnung, 620 € warm</title>
-      <link>https://gwg-example.de/wohnung/17</link>
-      <description><![CDATA[Frei ab 01.10.2026, 58 m², WBS erforderlich.]]></description></item>
-    <item><title>Ohne Link</title><description>x</description></item>
-  </channel></rss>`;
-
-  it('reads RSS items', () => {
-    const items = feedAdapter.parse(page(rss, 'https://gwg-example.de/feed.xml'), {});
-    expect(items).toHaveLength(1);
-    expect(items[0].url).toBe('https://gwg-example.de/wohnung/17');
-    expect(items[0].description).toContain('58 m²');
-  });
-
-  it('reads Atom entries with href links', () => {
-    const atom = `<feed><entry><title>Wohnung A</title><link rel="alternate" href="/w/1"/><summary>Text</summary></entry></feed>`;
-    const items = feedAdapter.parse(page(atom, 'https://x.de/atom.xml'), {});
-    expect(items[0].url).toBe('https://x.de/w/1');
-  });
-
-  it('collects every configured feed URL', () => {
-    expect(feedAdapter.buildUrls(query, { feedUrl: 'https://a.de/f', feedUrls: 'https://b.de/f\nhttps://a.de/f' })).toEqual([
-      'https://a.de/f',
-      'https://b.de/f',
-    ]);
-  });
-});
-
-describe('json-ld adapter', () => {
-  const html = `<html><head>
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"ItemList","itemListElement":[
-      {"@type":"Apartment","name":"3-Zimmer am Park","url":"/expose/9","description":"Hell",
-       "address":{"@type":"PostalAddress","streetAddress":"Parkweg 3","postalCode":"74072","addressLocality":"Heilbronn"},
-       "numberOfRooms":3,"floorSize":{"@type":"QuantitativeValue","value":78},
-       "offers":{"@type":"Offer","price":"845.00","priceCurrency":"EUR"}}]}</script>
-    <script type="application/ld+json">{ this is broken json </script>
-  </head><body></body></html>`;
-
-  it('extracts listings and survives a broken sibling block', () => {
-    const items = jsonLdAdapter.parse(page(html, 'https://makler.de/suche'), {});
-    expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({
-      url: 'https://makler.de/expose/9',
-      title: '3-Zimmer am Park',
-      locationPostal: '74072',
-      locationCity: 'Heilbronn',
-    });
-    expect(items[0].structured).toMatchObject({ kaltMieteCents: 84500, rooms: 3, livingSpaceSqm: 78 });
-  });
-
-  it('needs a template before it will fetch anything', () => {
-    expect(jsonLdAdapter.buildUrls(query, {})).toEqual([]);
-    expect(jsonLdAdapter.buildUrls({ ...query, maxPages: 2 }, { searchUrlTemplate: 'https://m.de/s?o={city}&p={page}' })).toEqual([
-      'https://m.de/s?o=Heilbronn&p=1',
-      'https://m.de/s?o=Heilbronn&p=2',
-    ]);
-  });
-});
-
-describe('link list adapter', () => {
-  const html = `<a href="/immobilie/101-schoene-wohnung">Schöne Wohnung</a>
-                <a href="/impressum">Impressum</a>
-                <a href="/immobilie/102"><img src="x.jpg"></a>`;
-
-  it('keeps only links matching the configured pattern', () => {
-    const items = linkListAdapter.parse(page(html, 'https://stadtbau.de/liste'), {
-      linkPattern: '/immobilie/\\d+',
-    });
-    expect(items.map((i) => i.url)).toEqual([
-      'https://stadtbau.de/immobilie/101-schoene-wohnung',
-      'https://stadtbau.de/immobilie/102',
-    ]);
-    expect(items[0].title).toBe('Schöne Wohnung');
-    // An image-only link still gets followed; the detail read supplies a title.
-    expect(items[1].title).toContain('Detailprüfung');
-  });
-
-  it('treats a malformed pattern as configuration error, not a crash', () => {
-    expect(linkListAdapter.parse(page(html), { linkPattern: '([' })).toEqual([]);
-  });
-});
-
-describe('sitemap adapter', () => {
-  it('filters sitemap URLs by pattern', () => {
-    const xml = `<urlset><url><loc>https://x.de/expose/1</loc></url>
-      <url><loc>https://x.de/ueber-uns</loc></url></urlset>`;
-    const items = sitemapAdapter.parse(page(xml, 'https://x.de/sitemap.xml'), { linkPattern: '/expose/' });
-    expect(items.map((i) => i.url)).toEqual(['https://x.de/expose/1']);
-  });
-});
 
 describe('detail page enrichment', () => {
+  it('reads schema.org markup, which is what most property CMSs emit', () => {
+    const html = `<html><head>
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Apartment",
+       "name":"3-Zimmer am Park","url":"/expose/9","description":"Helle Wohnung am Park mit Balkon.",
+       "address":{"@type":"PostalAddress","streetAddress":"Parkweg 3","postalCode":"74072","addressLocality":"Heilbronn"},
+       "numberOfRooms":3,"floorSize":{"@type":"QuantitativeValue","value":78},
+       "offers":{"@type":"Offer","price":"845.00","priceCurrency":"EUR"}}</script>
+      <script type="application/ld+json">{ this is broken json </script>
+      </head><body></body></html>`;
+    const detail = parseDetailPage(page(html, 'https://makler.de/expose/9'));
+    expect(detail?.title).toBe('3-Zimmer am Park');
+    expect(detail?.locationPostal).toBe('74072');
+    expect(detail?.locationCity).toBe('Heilbronn');
+    expect(detail?.structured).toMatchObject({ kaltMieteCents: 84500, rooms: 3, livingSpaceSqm: 78 });
+  });
+
+  it('reads the phone number out of the ad, which is the fastest way in', () => {
+    const html = `<html><head>
+      <meta property="og:title" content="Nachmieter gesucht">
+      </head><body><main><p>Schöne 2-Zimmer-Wohnung, 58 m². Bei Interesse bitte
+      anrufen: Tel. 07131 / 445566. Ansprechpartner: Frau Yilmaz.</p></main></body></html>`;
+    const detail = parseDetailPage(page(html, 'https://x.de/expose/2'));
+    expect(detail?.contactPhone).toBe('+49 7131 445566');
+  });
+
   it('prefers structured data and finds a contact address', () => {
     const html = `<html><head>
       <meta property="og:title" content="Helle 2-Zimmer-Wohnung">
@@ -430,85 +303,12 @@ describe('registry', () => {
     // what kept the source switched off and producing nothing.
     expect(missingConfig('kleinanzeigen', {})).toEqual([]);
     expect(missingConfig('kleinanzeigen', { locationIds: ['9228'] })).toEqual([]);
-    expect(missingConfig('linklist', { searchUrlTemplate: 'https://x.de' })).toEqual(['linkPattern']);
+    // ImmoScout24 and Immowelt have no adapter at all — that is a normal state,
+    // not a gap somebody has to fill in.
     expect(missingConfig(null, {})).toEqual([]);
   });
-});
 
-/* ------------------------------------------------------------ telegram --- */
-
-describe('telegram adapter', () => {
-  const tgPage = (body: string) => page(body, 'https://t.me/s/wohnungenberlin');
-  const fixtureBody = () => fixture('telegram-channel.html');
-
-  it('reads real channel posts into listings', () => {
-    const items = telegramAdapter.parse(tgPage(fixtureBody()), {});
-    expect(items.length).toBeGreaterThanOrEqual(2);
-    expect(items[0].url).toMatch(/^https:\/\/t\.me\/wohnungenberlin\/\d+$/);
-    // The title is the first line that actually says something.
-    expect(items[0].title.length).toBeGreaterThan(10);
-    expect(items[0].description).toContain('m²');
-    expect(items[0].contactName).toBe('Telegram-Kanal @wohnungenberlin');
-  });
-
-  it('leaves every measurement to the German parser', () => {
-    // A channel post has no price or size field; guessing here would mean two
-    // competing extractors, and the tested one is the parser.
-    const items = telegramAdapter.parse(tgPage(fixtureBody()), {});
-    expect(items[0].structured).toEqual({});
-  });
-
-  it('skips people looking for a flat', () => {
-    const seeking = messageHtml('Suche dringend 2-Zimmer-Wohnung in Berlin, bis 900€ warm. Danke!');
-    expect(telegramAdapter.parse(tgPage(seeking), {})).toHaveLength(0);
-    // …unless that is explicitly wanted.
-    expect(telegramAdapter.parse(tgPage(seeking), { includeSeeking: true })).toHaveLength(1);
-  });
-
-  it('keeps an offer that merely mentions seeking a successor', () => {
-    const offer = messageHtml('2-Zimmer-Wohnung in Heilbronn, 68 m², 780 € warm. Wir suchen einen Nachmieter ab 1.10.');
-    expect(telegramAdapter.parse(tgPage(offer), {})).toHaveLength(1);
-  });
-
-  it('ignores chatter that is not about a flat at all', () => {
-    expect(telegramAdapter.parse(tgPage(messageHtml('Guten Morgen zusammen, schönes Wochenende!')), {})).toHaveLength(0);
-  });
-
-  it('can require a city so a nationwide channel does not flood the pool', () => {
-    const body = messageHtml('3-Zimmer-Wohnung in Hamburg, 85 m², 1200 € warm');
-    expect(telegramAdapter.parse(tgPage(body), { requireCity: 'Heilbronn' })).toHaveLength(0);
-    expect(telegramAdapter.parse(tgPage(body), { requireCity: 'Hamburg' })).toHaveLength(1);
-  });
-
-  it('picks a usable title past an emoji banner', () => {
-    const body = messageHtml('🔥🔥🔥\n#angebot\n2-Zimmer-Wohnung in Heilbronn, 68 m², 780 € warm');
-    const items = telegramAdapter.parse(tgPage(body), {});
-    expect(items[0].title).toMatch(/^2-Zimmer-Wohnung/);
-  });
-
-  it('accepts channel names in every shape a colleague might paste', () => {
-    for (const raw of ['wohnungenberlin', '@wohnungenberlin', 'https://t.me/wohnungenberlin', 'https://t.me/s/wohnungenberlin']) {
-      expect(normaliseChannelName(raw)).toBe('wohnungenberlin');
-    }
-    expect(normaliseChannelName('no spaces allowed')).toBeNull();
-    expect(normaliseChannelName('ab')).toBeNull();
-  });
-
-  it('builds one public web-view URL per channel and ignores nonsense', () => {
-    expect(
-      telegramAdapter.buildUrls(query, { channels: '@wohnungenberlin\nmuenchen_wohnungen\nnot valid!' }),
-    ).toEqual(['https://t.me/s/wohnungenberlin', 'https://t.me/s/muenchen_wohnungen']);
-  });
-
-  it('needs channels configured before it does anything', () => {
-    expect(telegramAdapter.buildUrls(query, {})).toEqual([]);
+  it('holds exactly one adapter, because exactly one portal can be read', () => {
+    expect(ADAPTERS.map((a) => a.key)).toEqual(['kleinanzeigen']);
   });
 });
-
-/** Minimal stand-in for one message in Telegram's public channel view. */
-function messageHtml(text: string): string {
-  const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br/>');
-  return `<div class="tgme_widget_message js-widget_message" data-post="wohnungenberlin/99">
-    <div class="tgme_widget_message_text js-message_text">${escaped}</div>
-  </div>`;
-}

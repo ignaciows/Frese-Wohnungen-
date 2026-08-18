@@ -21,6 +21,17 @@ export interface ExtractedListing {
   url: string;
   /** Best-effort title: link text, or the surrounding heading. */
   title: string | null;
+  /**
+   * The mail's own text about this advert — the block between its link and the
+   * next one, tags stripped.
+   *
+   * This matters more than it looks. ImmoScout24 and Immowelt refuse to be read
+   * automatically, so for those two the alert mail is the *only* text we will
+   * ever have about the flat. It carries the Kaltmiete, the size, the room
+   * count and the district, which is most of what the ranking needs. Handing it
+   * to the ordinary listing parser turns a bare link into a usable row.
+   */
+  teaser: string;
 }
 
 export interface ParsedAlert {
@@ -31,16 +42,16 @@ export interface ParsedAlert {
 }
 
 /**
- * Recognised listing URL shapes, in priority order. Only portals whose public
- * expose URLs are stable enough to identify a listing are listed here.
+ * The URL shapes that identify one advert on each of the three portals.
+ *
+ * Immonet links are matched onto the Immowelt key on purpose: the two merged,
+ * and their mails still carry either host.
  */
 const LISTING_PATTERNS: Array<{ sourceKey: string; re: RegExp }> = [
   { sourceKey: 'immoscout24', re: /https?:\/\/[^\s"'<>]*immobilienscout24\.de\/expose\/\d+[^\s"'<>]*/gi },
   { sourceKey: 'immowelt', re: /https?:\/\/[^\s"'<>]*immowelt\.de\/expose\/[a-z0-9-]+[^\s"'<>]*/gi },
+  { sourceKey: 'immowelt', re: /https?:\/\/[^\s"'<>]*immonet\.de\/[^\s"'<>]*\d{6,}[^\s"'<>]*/gi },
   { sourceKey: 'kleinanzeigen', re: /https?:\/\/[^\s"'<>]*kleinanzeigen\.de\/s-anzeige\/[^\s"'<>]+/gi },
-  { sourceKey: 'wg-gesucht', re: /https?:\/\/[^\s"'<>]*wg-gesucht\.de\/[^\s"'<>]*\.\d+\.html[^\s"'<>]*/gi },
-  { sourceKey: 'wunderflats', re: /https?:\/\/[^\s"'<>]*wunderflats\.com\/[^\s"'<>]*listing[^\s"'<>]*/gi },
-  { sourceKey: 'housinganywhere', re: /https?:\/\/[^\s"'<>]*housinganywhere\.com\/[^\s"'<>]*room[^\s"'<>]*/gi },
 ];
 
 /**
@@ -77,23 +88,66 @@ function stripTracking(url: string): string {
  * caller should pass HTML when available because it carries the link text.
  */
 export function extractListings(body: string): { sourceKey: string | null; listings: ExtractedListing[] } {
-  const seen = new Set<string>();
-  const listings: ExtractedListing[] = [];
   let sourceKey: string | null = null;
 
+  // Collect every link with where it sat in the mail, so the text belonging to
+  // each advert can be cut out afterwards.
+  const hits: Array<{ url: string; raw: string; at: number }> = [];
+  const seen = new Set<string>();
+
   for (const { sourceKey: key, re } of LISTING_PATTERNS) {
-    const matches = body.match(re);
-    if (!matches || matches.length === 0) continue;
-    sourceKey ??= key;
-    for (const raw of matches) {
-      const url = stripTracking(raw.replace(/&amp;/g, '&').replace(/[.,)\]]+$/, ''));
+    for (const match of body.matchAll(re)) {
+      sourceKey ??= key;
+      const url = stripTracking(match[0].replace(/&amp;/g, '&').replace(/[.,)\]]+$/, ''));
+      // The same advert is usually linked twice — once from its photo, once
+      // from its headline. The first position is the start of its block.
       if (seen.has(url)) continue;
       seen.add(url);
-      listings.push({ url, title: titleForLink(body, raw) });
+      hits.push({ url, raw: match[0], at: match.index });
     }
   }
 
+  hits.sort((a, b) => a.at - b.at);
+
+  const listings = hits.map((hit, i) => ({
+    url: hit.url,
+    title: titleForLink(body, hit.raw),
+    teaser: teaserBetween(body, hit.at, hits[i + 1]?.at ?? body.length),
+  }));
+
   return { sourceKey, listings };
+}
+
+/** How much text after a link can plausibly still be about that advert. */
+const MAX_TEASER_CHARS = 1200;
+
+/**
+ * The mail's text about one advert: everything from its link up to the next
+ * advert's link, with the markup taken out.
+ *
+ * Bounded, because the last advert in a mail is followed by the whole footer —
+ * imprint, unsubscribe links, legal boilerplate — and none of that is about a
+ * flat.
+ */
+function teaserBetween(body: string, from: number, to: number): string {
+  const block = body.slice(from, Math.min(to, from + MAX_TEASER_CHARS * 4));
+  return block
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(?:p|div|tr|li|h\d)>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&euro;/g, '€')
+    .replace(/&[a-z]+;/gi, ' ')
+    // Drop the URL itself: it is not prose, and its digits look like figures
+    // to the parser.
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+    .slice(0, MAX_TEASER_CHARS);
 }
 
 /**

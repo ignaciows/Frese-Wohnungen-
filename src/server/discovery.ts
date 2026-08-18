@@ -23,7 +23,7 @@ import { prisma } from '@/lib/prisma';
 import { Crawler } from './crawler';
 import { getAdapter } from '@/domain/discovery/registry';
 import { missingConfig } from '@/domain/discovery/registry';
-import { parseDetailPage } from '@/domain/discovery/adapters/generic';
+import { parseDetailPage } from '@/domain/discovery/detail';
 import { isPlausibleHousing } from '@/domain/discovery/plausible';
 import { LOCATION_CACHE_KEY } from '@/domain/discovery/adapters/kleinanzeigenLocations';
 import { checkBatchLocation } from '@/domain/discovery/locationSanity';
@@ -111,18 +111,6 @@ export type SweepEvent =
  * spend everything before the slower ones are reached.
  */
 const PARALLEL_SOURCES = 4;
-
-/**
- * Source categories that only ever hold temporary accommodation.
- *
- * Wunderflats, HousingAnywhere and the Monteurzimmer sites publish adverts that
- * are indistinguishable from ordinary flats until you read the contract: let by
- * the week, no move-in date, priced from a nightly rate. For somebody moving to
- * Germany to work, the entire category is noise — so it is not even searched
- * unless a candidate is in Notfallmodus, where six weeks under a roof is
- * exactly what is wanted.
- */
-const SHORT_STAY_CATEGORIES = new Set(['FURNISHED', 'TEMPORARY']);
 
 const EMPTY: DiscoverySweepSummary = {
   ran: false,
@@ -318,15 +306,8 @@ export async function runDiscoverySweep(
   // screen showed them as pending for the rest of the run and the progress bar
   // could never reach the end. An explicit run (`force`, or a hand-picked
   // source list) skips only the first rule.
-  // Nobody in the pool needs a flat for six weeks? Then the platforms that
-  // only let by the week have nothing to contribute, and every advert they
-  // return is one a colleague has to rule out by hand. Asked again the moment
-  // a candidate is switched into Notfallmodus.
-  const needsShortStay = queries.some((q) => q.query.includeTemporary);
-
   const eligible = sources.filter((source) => {
     if (!getAdapter(source.discoveryAdapter)) return false;
-    if (!needsShortStay && SHORT_STAY_CATEGORIES.has(source.category)) return false;
     if (options.force || options.sourceIds) return true;
     if (source.pollIntervalMinutes == null || !source.lastDiscoveredAt) return true;
     return now - source.lastDiscoveredAt.getTime() >= source.pollIntervalMinutes * 60_000;
@@ -592,6 +573,21 @@ export async function runDiscoverySweep(
   summary.requests = crawler.stats.requests;
   summary.durationMs = Date.now() - startedAt;
 
+  // Stamp the candidates this run actually searched for.
+  //
+  // Only when at least one source came back cleanly: a sweep in which every
+  // portal was blocked has looked for nobody, and recording it as coverage
+  // would keep the next person from getting a real search until tomorrow.
+  if (summary.sourcesSucceeded > 0) {
+    const covered = [...new Set(queries.flatMap((q) => q.candidateCaseIds))];
+    if (covered.length > 0) {
+      await prisma.candidateCase.updateMany({
+        where: { id: { in: covered } },
+        data: { lastSweptAt: new Date() },
+      });
+    }
+  }
+
   if (summary.sourcesBlocked > 0) {
     summary.notes.push(
       `${summary.sourcesBlocked} Quelle(n) blockieren automatische Abrufe — dort bleibt der manuelle Weg bzw. der E-Mail-Suchauftrag.`,
@@ -728,6 +724,13 @@ async function upsertDiscovered(
       imageUrl: item.imageUrl ?? null,
       importedById,
       structured: item.structured,
+      // Whatever the result list already told us about reaching the landlord.
+      // ingestListing reads the ad text for the rest and never drops a detail
+      // it had before.
+      contactEmail: item.contactEmail,
+      contactName: item.contactName,
+      contactPhone: item.contactPhone,
+      contactFormUrl: item.contactFormUrl,
     });
 
     await prisma.listing.update({
@@ -738,13 +741,10 @@ async function upsertDiscovered(
         lastListedAt: now,
         lastSeenAt: now,
         missedSweeps: 0,
-        // Several sources print the date in the result list itself. Taking it
+        // Kleinanzeigen prints the date in the result list itself. Taking it
         // here gives every ad a posting date immediately, rather than only the
         // bounded number that get a detail read each sweep.
         ...(item.postedAt ? { postedAt: item.postedAt.at, postedAtLabel: item.postedAt.label } : {}),
-        ...(item.contactEmail ? { contactEmail: item.contactEmail } : {}),
-        ...(item.contactName ? { contactName: item.contactName } : {}),
-        ...(item.contactFormUrl ? { contactFormUrl: item.contactFormUrl } : {}),
       },
     });
     return { outcome: 'created', listingId };
@@ -981,6 +981,11 @@ async function enrichNewListings(
           locationPostal: detail.locationPostal ?? listing.locationPostal,
           imageUrl: detail.imageUrl ?? listing.imageUrl,
           importedById,
+          // The detail page is where a private landlord prints their phone
+          // number, and that number is the fastest route to a viewing there is.
+          contactEmail: detail.contactEmail,
+          contactName: detail.contactName,
+          contactPhone: detail.contactPhone,
           structured: {
             kaltMieteCents: detail.structured?.kaltMieteCents ?? listing.kaltMieteCents,
             warmMieteCents: detail.structured?.warmMieteCents ?? listing.warmMieteCents,
@@ -1039,8 +1044,12 @@ async function enrichNewListings(
         lastCheckStatus: 'ALIVE',
         lastCheckReason: 'Detailseite gelesen',
         lastSeenAt: new Date(),
+        // Only ever fills a blank: an ad whose description was too short to
+        // re-ingest above still gets its contact details from here, and one we
+        // already had a number for keeps it.
         ...(detail.contactEmail ? { contactEmail: detail.contactEmail } : {}),
         ...(detail.contactName ? { contactName: detail.contactName } : {}),
+        ...(detail.contactPhone ? { contactPhone: detail.contactPhone } : {}),
       },
     });
     enriched++;
@@ -1140,11 +1149,22 @@ export async function maybeRunDiscoverySweep(
  * to open a stream *before* opening it — a stream that immediately says "just
  * searched" is a flicker of a progress bar for no reason.
  */
-export async function sweepSkipReason(): Promise<string | null> {
+export async function sweepSkipReason(candidateCaseId?: string): Promise<string | null> {
   const settings = await getDiscoverySettings();
   if (!settings.enabled) {
     return 'Automatische Suche ist ausgeschaltet.';
   }
+
+  // Opening a case that has not been searched for today always searches, even
+  // if the global throttle would say no.
+  //
+  // The throttle asks "did *a* sweep run recently", and the sweep is shared —
+  // so a run half an hour ago for a candidate in Hamburg would silence the
+  // search for one in Köln whose list is a week old. Somebody who opens a case
+  // wants today's flats for that person; anything else is a list they have to
+  // distrust. The fourth visit on the same day changes nothing and searches
+  // nothing, which is the other half of the same rule.
+  if (candidateCaseId && (await needsDailySweep(candidateCaseId))) return null;
 
   // Throttle against the *fastest* source, not a single global interval.
   // Otherwise a Telegram channel set to ten minutes would still only be read
@@ -1167,4 +1187,22 @@ export async function sweepSkipReason(): Promise<string | null> {
   }
 
   return null;
+}
+
+/** Has today's search for this candidate not happened yet? */
+async function needsDailySweep(candidateCaseId: string): Promise<boolean> {
+  const candidate = await prisma.candidateCase.findUnique({
+    where: { id: candidateCaseId },
+    select: { lastSweptAt: true, status: true, housingSecuredAt: true },
+  });
+  // A closed case or one that already has a flat is nobody's daily work.
+  if (!candidate || candidate.status !== 'ACTIVE' || candidate.housingSecuredAt) return false;
+  if (!candidate.lastSweptAt) return true;
+
+  // Calendar day, not 24 hours: "has it been searched today" is the question
+  // somebody actually asks, and a 24-hour window makes the answer depend on
+  // what time they happened to look yesterday.
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  return candidate.lastSweptAt < startOfToday;
 }

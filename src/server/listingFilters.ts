@@ -57,3 +57,103 @@ export function limboListingFilter(policy: LivenessPolicy = DEFAULT_LIVENESS): P
     onlineConfidence: { gt: policy.goneAtOrBelow, lt: policy.aliveAtOrAbove },
   };
 }
+
+/* ------------------------------------------------- the tabs on results --- */
+
+/**
+ * The nine tabs of the results screen, in the order they appear.
+ *
+ * Here rather than in the page, because the count on each tab and the rows
+ * under it must come from the same definition — see `matchWhere`.
+ */
+export const RESULT_TABS = [
+  { key: 'zu-kontaktieren', label: 'Zu kontaktieren', always: true },
+  { key: 'kontaktiert', label: 'Kontaktiert', always: true },
+  { key: 'in-arbeit', label: 'In Arbeit', always: false },
+  { key: 'wiedervorlage', label: 'Wiedervorlage', always: false },
+  { key: 'favoriten', label: 'Favoriten', always: false },
+  { key: 'zu-pruefen', label: 'Zu prüfen', always: false },
+  { key: 'abgelehnt', label: 'Abgelehnt', always: false },
+  { key: 'abgelaufen', label: 'Abgelaufen', always: false },
+  { key: 'alle', label: 'Alle', always: true },
+] as const;
+
+export type ResultTab = (typeof RESULT_TABS)[number]['key'];
+
+type MatchStatusValue = 'NEW' | 'FAVORITE' | 'IN_PROGRESS' | 'CONTACTED' | 'REJECTED' | 'EXPIRED';
+
+/**
+ * The working list holds nothing that cannot be written to.
+ *
+ * On a real candidate, 234 of 311 live matches were INCOMPATIBLE — three
+ * quarters of the screen was flats in the wrong city, over budget, or the
+ * wrong kind of property, each already marked "Nicht passend". Nobody writes
+ * to those, and having to look past them to find the twenty-one that work is
+ * the exact job this tool exists to remove. They stay reachable under "Alle".
+ */
+function statusFilter(tab: string): {
+  status?: MatchStatusValue | { in: MatchStatusValue[] };
+  compatibility?: { not: 'INCOMPATIBLE' };
+} {
+  switch (tab) {
+    case 'zu-kontaktieren':
+      return { status: { in: ['NEW', 'FAVORITE'] }, compatibility: { not: 'INCOMPATIBLE' } };
+    case 'favoriten':
+      return { status: 'FAVORITE' };
+    case 'in-arbeit':
+      return { status: 'IN_PROGRESS' };
+    case 'kontaktiert':
+      return { status: 'CONTACTED' };
+    case 'abgelehnt':
+      return { status: { in: ['REJECTED', 'EXPIRED'] } };
+    default:
+      return {};
+  }
+}
+
+/**
+ * The one filter behind both the rows of a tab and the number on it.
+ *
+ * This exists because the two used to be written separately, and they
+ * disagreed — badly. "Zu kontaktieren" counted every match with status NEW or
+ * FAVORITE and nothing else, while the list underneath *also* dropped the
+ * INCOMPATIBLE ones and everything the link checker had confirmed gone. On a
+ * real candidate the tab read **365** and the list showed **13** rows.
+ *
+ * A count that promises 365 and delivers 13 is worse than no count: it tells
+ * somebody there is a pile of work they then cannot find, on the one list this
+ * whole tool exists to make trustworthy. So there is now exactly one place
+ * that decides what belongs in a tab, and both the rows and the number come
+ * from it. `tests/resultTabs.test.ts` holds them to that.
+ */
+export function matchWhere(args: {
+  candidateCaseId: string;
+  tab: string;
+  liveness?: LivenessPolicy;
+  /** Ads retired before this stay out of "Abgelaufen"; the graveyard is short. */
+  expiredCutoff: Date;
+}): Prisma.CandidateListingMatchWhereInput {
+  const { candidateCaseId, tab, liveness = DEFAULT_LIVENESS, expiredCutoff } = args;
+  return {
+    candidateCaseId,
+    ...statusFilter(tab),
+    ...(tab === 'wiedervorlage' ? { followUpAt: { not: null } } : {}),
+    // Dead ads only show in their own tab, so the working list stays
+    // trustworthy. A single confident GONE already hides the listing —
+    // waiting for the second strike would keep sending people to a 404.
+    //
+    // The exception is anything we have already written to: a conversation
+    // outlives the ad behind it, and hiding it would lose the reply we are
+    // still waiting for. Those tabs therefore show live and dead alike.
+    ...(tab === 'kontaktiert' || tab === 'in-arbeit'
+      ? {}
+      : {
+          listing:
+            tab === 'abgelaufen'
+              ? { ...DEAD_LISTING, expiredAt: { gte: expiredCutoff } }
+              : tab === 'zu-pruefen'
+                ? limboListingFilter(liveness)
+                : liveListingFilter(liveness),
+        }),
+  };
+}

@@ -534,9 +534,12 @@ async function applyAlert(
         sourceId: source.id,
         rawUrl: l.url,
         title: l.title || raw.subject || 'Anzeige aus Suchagent',
-        // Alert mails rarely carry the full description; the colleague opens
-        // the listing to complete it. We never invent text here.
-        descriptionRaw: '',
+        // The mail's own text about this advert — usually Kaltmiete, size,
+        // rooms and district. For ImmoScout24 and Immowelt this is the only
+        // text we will ever have (both refuse automated reads), so it goes
+        // through the normal parser exactly like a pasted advert would.
+        // Nothing is invented: an empty block stays empty.
+        descriptionRaw: l.teaser,
         importedById: userId,
       });
 
