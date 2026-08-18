@@ -98,8 +98,16 @@ export async function syncSeedCatalog(): Promise<SyncResult> {
 async function retireSourcesNotInCatalog(): Promise<number> {
   const keep = SEED_SOURCES.map((s) => s.key);
 
+  // Deliberately not `active: true` as the condition. A source that was
+  // already switched off before this ever ran would keep `discoveryEnabled`
+  // set forever — harmless for the sweep, which filters on `active`, but it
+  // makes /api/diagnostics report more working sources than exist, and a
+  // number on the "is it working" screen that is wrong is worse than none.
   const { count } = await prisma.source.updateMany({
-    where: { key: { notIn: keep }, active: true },
+    where: {
+      key: { notIn: keep },
+      OR: [{ active: true }, { discoveryEnabled: true }],
+    },
     data: {
       active: false,
       discoveryEnabled: false,

@@ -157,7 +157,10 @@ export async function GET() {
     // pool from a broken sweep is to read the server log.
     try {
       const [enabledSources, liveListings, lastRun] = await Promise.all([
-        prisma.source.count({ where: { discoveryEnabled: true } }),
+        // Both flags: a source that is switched off in the registry cannot be
+        // swept however enabled its adapter is, and counting it here would
+        // promise searching that never happens.
+        prisma.source.count({ where: { active: true, discoveryEnabled: true } }),
         prisma.listing.count({ where: LIVE_LISTING }),
         prisma.discoveryRun.findFirst({
           where: { finishedAt: { not: null } },

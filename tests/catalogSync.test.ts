@@ -114,6 +114,19 @@ describe('syncSeedCatalog', () => {
     expect(active).toHaveLength(3);
   });
 
+  it('räumt auch bei einer längst deaktivierten Quelle den Suchlauf-Schalter ab', async () => {
+    // Sonst zählt /api/diagnostics sie weiter als „aktive Quelle" mit, obwohl
+    // der Suchlauf sie (er filtert auf `active`) nie anfasst.
+    const { legacy } = await seedLegacySource({ withListing: true });
+    await prisma.source.update({
+      where: { id: legacy.id },
+      data: { active: false, discoveryEnabled: true },
+    });
+    await syncSeedCatalog();
+    const after = await prisma.source.findUniqueOrThrow({ where: { id: legacy.id } });
+    expect(after.discoveryEnabled).toBe(false);
+  });
+
   it('setzt den Weg je Quelle: Kleinanzeigen läuft, die anderen zwei kommen per Mail', async () => {
     await syncSeedCatalog();
     const byKey = new Map(
