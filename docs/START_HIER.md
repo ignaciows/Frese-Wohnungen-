@@ -83,6 +83,27 @@ Steht in `README.md` (Node 22, Postgres 16, `npm install`, `db:migrate`,
 `db:seed`, `dev`). Der Seed legt einen Demo-Kandidaten mit ein paar Wohnungen
 an — das ist der schnellste Weg, die App gefüllt zu sehen.
 
+## Datenbank-Migrationen
+
+Zwei Regeln, beide teuer gelernt:
+
+**1. Jede Migration muss sich wiederholen lassen.** Also `IF EXISTS` /
+`IF NOT EXISTS` überall. Scheitert eine Migration mittendrin, markiert Prisma
+sie als „failed" — und danach verweigert `migrate deploy` *jede* weitere
+Migration (Fehler P3009). Aus diesem Zustand kommt man nur heraus, indem man
+die Migration noch einmal laufen lässt. Geht das nicht, bleibt nur `db push`,
+und dann stimmt zwar das Schema, aber jeder Datenschritt jeder künftigen
+Migration läuft still nie.
+
+`scripts/start.mjs` erkennt so einen Zustand beim Booten und räumt ihn auf —
+verlassen sollte man sich darauf trotzdem nicht.
+
+**2. Vor jedem `DELETE` prüfen, wer noch darauf zeigt.** `Listing` und
+`SourceCheck` zeigen beide mit `ON DELETE RESTRICT` auf `Source`. Eine
+Löschregel, die nur eine der beiden kennt, läuft in der leeren
+Entwicklungsdatenbank durch und stirbt in der echten. Genau so ist der erste
+Produktiv-Deploy der Drei-Quellen-Umstellung gescheitert.
+
 ## Bevor du etwas pushst
 
 ```bash
