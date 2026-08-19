@@ -40,23 +40,46 @@ Anbindungen. `"ok": false` nennt immer auch, was genau fehlt.
 | Variable | Was ohne sie fehlt |
 | --- | --- |
 | `CREDENTIAL_KEY` | Portal- und Postfach-Passwörter lassen sich nicht speichern. Die App legt sie **nie** im Klartext ab — ohne den Schlüssel verweigert sie das Speichern. |
-| `INGEST_TOKEN` | Der Zeitplan kann keinen Suchlauf starten. Nachts und am Wochenende wird dann nicht gesucht — genau dann, wenn gute Wohnungen auftauchen und wieder weg sind. |
+| `INGEST_TOKEN` | Die Endpunkte `/api/discovery/run` und `/api/ingest/email` antworten mit 503. Der eingebaute Takt (siehe unten) läuft davon unabhängig weiter. |
+| `AUTO_SWEEP` | Nur `off` hat eine Wirkung: dann sucht die App nicht mehr von selbst. |
 | `APP_URL` | Nötig für Google-Login (die `redirect_uri` muss exakt stimmen). |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_ALLOWED_DOMAIN` | Kein „Mit Google anmelden". Passwort-Anmeldung läuft weiter. Siehe `ANMELDUNG.md`. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_ALLOWED_DOMAIN` | Kein „Mit Google anmelden" **und** kein „Postfach mit Google verbinden". Passwort-Anmeldung und IMAP laufen weiter. Siehe `ANMELDUNG.md`. |
 
 ⚠️ **`CREDENTIAL_KEY` niemals ändern**, solange Zugangsdaten gespeichert sind —
 sie sind damit verschlüsselt und wären danach unlesbar. Die App sagt das dann
 auch, aber neu eintragen muss man sie trotzdem.
 
-## Der nächtliche Suchlauf
+## Wann von selbst gesucht wird
 
-`POST /api/discovery/run` mit dem Header `x-ingest-token: <INGEST_TOKEN>`.
-Alle paar Minuten aufrufen; welche Quelle wirklich drankommt, entscheidet dann
-ihr eigener Prüfabstand. Einrichten lässt sich das als Railway-Cron oder mit
-jedem externen Dienst.
+Drei Wege, und sie stören sich nicht:
 
-Unabhängig davon sucht die App beim Öffnen eines Kandidaten, wenn für **diesen**
-Kandidaten heute noch nicht gesucht wurde (siehe `DISCOVERY.md`).
+1. **Der eingebaute Takt.** Der Serverprozess klopft alle 20 Minuten an
+   (`src/instrumentation.ts`) und liest dabei auch die Postfächer. Das ist der
+   Weg, der ohne Einrichtung funktioniert und über Nacht und am Wochenende
+   läuft — genau dann, wenn gute Wohnungen auftauchen und wieder weg sind.
+   Abschalten: `AUTO_SWEEP=off`.
+2. **Beim Öffnen eines Kandidaten**, wenn für **diesen** Fall heute noch nicht
+   gesucht wurde (siehe `DISCOVERY.md`). Der vierte Besuch am selben Tag sucht
+   nichts mehr.
+3. **Von außen**: `POST /api/discovery/run` mit dem Header
+   `x-ingest-token: <INGEST_TOKEN>`, für alle, die lieber einen echten Cron
+   betreiben.
+
+Angeklopft heißt nicht gesucht: ob wirklich abgerufen wird, entscheidet in
+allen drei Fällen dieselbe Stelle — die Einstellungen und der Prüfabstand
+jeder einzelnen Quelle. Zweimal Klopfen kostet deshalb nichts.
+
+### Was danach gemeldet wird
+
+Nach jedem Suchlauf entsteht **eine Meldung je Fall**, für den etwas
+Anschreibbares dazugekommen ist — nicht eine je Anzeige. Ein Suchlauf findet
+regelmäßig dreistellige Zahlen; eine Meldung pro Anzeige wäre ein Posteingang,
+den niemand durchsieht, und damit so gut wie keine Meldung.
+
+Wohnungen mit Telefonnummer stehen im Titel und die Meldung ganz oben. Fälle
+ohne neuen Treffer werden nicht gemeldet: „nichts gefunden" ist keine
+Nachricht, dafür gibt es die Stillstands-Warnung auf „Aufgaben & Posteingang",
+und die meldet sich nach Tagen statt nach jedem Durchlauf.
 
 ## Migrationen
 
@@ -90,6 +113,8 @@ npx prisma migrate deploy     # anwenden
 | Suchagent-Mails kommen nicht an | Einstellungen → „Suchagent-Postfach": Zeitpunkt der letzten Abholung. Danach `EMAIL_INGEST.md`. |
 | „Zugangsdaten können nicht gespeichert werden" | `CREDENTIAL_KEY` fehlt. |
 | Anmeldung mit Google schlägt fehl | Stimmt die `redirect_uri` in der Google Cloud Console exakt mit `APP_URL` + `/google/callback` überein? |
+| Postfach steht auf „muss neu verbunden werden" | Google hat den Zugriff zurückgezogen. Der Knopf auf der Karte macht es in zwei Klicks wieder gut; siehe `ANMELDUNG.md`. |
+| Nichts läuft von selbst | Railway-Logs nach `[takt]` durchsuchen. Steht dort „AUTO_SWEEP=off", ist der Takt abgeschaltet. |
 | Deploy „hat nichts getan" | Railway-Logs des App-Service, Zeilen mit `[start]`. |
 
 ## Datenbank sichern

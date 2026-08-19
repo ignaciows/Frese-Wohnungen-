@@ -51,6 +51,8 @@ export interface DiscoverySweepSummary {
   enriched: number;
   requests: number;
   durationMs: number;
+  /** Wie viele Fälle über neue passende Wohnungen benachrichtigt wurden. */
+  notified: number;
   notes: string[];
 }
 
@@ -124,6 +126,7 @@ const EMPTY: DiscoverySweepSummary = {
   enriched: 0,
   requests: 0,
   durationMs: 0,
+  notified: 0,
   notes: [],
 };
 
@@ -597,6 +600,20 @@ export async function runDiscoverySweep(
   // Sources run side by side now, so the same budget or blocking note can be
   // produced by several of them within the same second.
   summary.notes = [...new Set(summary.notes)];
+
+  // Wer hat etwas bekommen? Eine Meldung je Fall, und nur über das, was
+  // jemand auch anfassen kann — siehe `domain/findings`. Ohne das ist ein
+  // nächtlicher Suchlauf ein Vorgang, von dem am Morgen niemand weiß.
+  //
+  // Bewusst nach `emit({type:'done'})`-Vorbereitung, aber vor dem Zurückgeben:
+  // ein Fehler beim Melden darf einen erfolgreichen Suchlauf nicht als
+  // gescheitert dastehen lassen.
+  try {
+    const { notifyNewFindings } = await import('./findings');
+    summary.notified = await notifyNewFindings(new Date(startedAt));
+  } catch (err) {
+    console.warn(`[discovery] Meldungen konnten nicht geschrieben werden: ${(err as Error).message}`);
+  }
 
   emit({ type: 'done', summary });
   return summary;
