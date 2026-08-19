@@ -37,6 +37,62 @@ const TICK_MINUTES = 20;
 /** Beim Start einmal warten, bis die Datenbank sicher erreichbar ist. */
 const FIRST_TICK_SECONDS = 90;
 
+/**
+ * Ein Durchgang: suchen, Kontaktdaten nachziehen, Postfach lesen.
+ *
+ * Exportiert, damit prüfbar ist, was hier am meisten wehtut — dass ein
+ * Schritt, der nichts zu tun hat, die folgenden nicht mitnimmt.
+ */
+export async function runTick(): Promise<void> {
+  try {
+    const { maybeRunDiscoverySweep } = await import('@/server/discovery');
+    const summary = await maybeRunDiscoverySweep();
+    // Ein übersprungener Suchlauf ist kein Fehler — meistens „zuletzt vor
+    // Kurzem gesucht" oder „keine Quelle eingeschaltet". Absichtlich leise,
+    // sonst steht im Protokoll alle zwanzig Minuten dasselbe.
+    //
+    // Und ausdrücklich **kein** `return`: hier stand einmal eins, und weil in
+    // der Produktion keine Quelle eingeschaltet war, wurde jeder Takt beim
+    // ersten Schritt abgebrochen. Postfach und Nachlauf liefen dadurch nie —
+    // nachgesehen im Protokoll, wo nach dem Start acht Minuten lang gar nichts
+    // mehr kam. Jeder Schritt hier steht für sich.
+    if (!summary.skippedReason) {
+      console.log(
+        `[takt] Suchlauf: ${summary.created} neu, ${summary.updated} bestätigt, ` +
+          `${summary.retired} entfernt, ${summary.notified} Meldung(en).`,
+      );
+    }
+  } catch (err) {
+    console.warn(`[takt] Suchlauf fehlgeschlagen: ${(err as Error).message}`);
+  }
+
+  // Bestand nachziehen: Anzeigen, die vor der Telefonnummer-Erkennung
+  // importiert wurden, kommen hier einmal dran. Kostet keinen Portalaufruf —
+  // der Text liegt schon in der Datenbank — und ist von selbst zu Ende, sobald
+  // jede Anzeige einmal durchsucht wurde.
+  try {
+    const { backfillContacts } = await import('@/server/contactBackfill');
+    const r = await backfillContacts();
+    if (r.scanned > 0) {
+      console.log(
+        `[takt] Kontaktdaten nachgelesen: ${r.scanned} Anzeigen, ${r.phonesFound} Nummer(n) gefunden, ${r.remaining} offen.`,
+      );
+    }
+  } catch (err) {
+    console.warn(`[takt] Kontaktdaten nachlesen fehlgeschlagen: ${(err as Error).message}`);
+  }
+
+  try {
+    const { ingestAllMailboxes } = await import('@/server/mailIngest');
+    const result = await ingestAllMailboxes();
+    if (result.processed > 0) {
+      console.log(`[takt] Postfach: ${result.processed} Mail(s) verarbeitet.`);
+    }
+  } catch (err) {
+    console.warn(`[takt] Postfach lesen fehlgeschlagen: ${(err as Error).message}`);
+  }
+}
+
 export async function register(): Promise<void> {
   // Nur im Node-Prozess. Next lädt diese Datei auch für die Edge-Runtime, und
   // dort gibt es weder Prisma noch einen langlebigen Prozess.
@@ -46,57 +102,11 @@ export async function register(): Promise<void> {
     return;
   }
 
-  const tick = async () => {
-    // Import erst hier: beim Modulladen ist die Datenbankverbindung noch nicht
-    // eingerichtet, und ein Fehlschlag würde den Serverstart mitnehmen.
-    try {
-      const { maybeRunDiscoverySweep } = await import('@/server/discovery');
-      const summary = await maybeRunDiscoverySweep();
-      if (summary.skippedReason) {
-        // Kein Fehler — meistens „zuletzt vor Kurzem gesucht". Absichtlich
-        // leise, sonst steht im Protokoll alle zwanzig Minuten dasselbe.
-        return;
-      }
-      console.log(
-        `[takt] Suchlauf: ${summary.created} neu, ${summary.updated} bestätigt, ` +
-          `${summary.retired} entfernt, ${summary.notified} Meldung(en).`,
-      );
-    } catch (err) {
-      console.warn(`[takt] Suchlauf fehlgeschlagen: ${(err as Error).message}`);
-    }
-
-    // Bestand nachziehen: Anzeigen, die vor der Telefonnummer-Erkennung
-    // importiert wurden, kommen hier einmal dran. Kostet keinen Portalaufruf —
-    // der Text liegt schon in der Datenbank — und ist von selbst zu Ende,
-    // sobald jede Anzeige einmal durchsucht wurde.
-    try {
-      const { backfillContacts } = await import('@/server/contactBackfill');
-      const r = await backfillContacts();
-      if (r.scanned > 0) {
-        console.log(
-          `[takt] Kontaktdaten nachgelesen: ${r.scanned} Anzeigen, ${r.phonesFound} Nummer(n) gefunden, ${r.remaining} offen.`,
-        );
-      }
-    } catch (err) {
-      console.warn(`[takt] Kontaktdaten nachlesen fehlgeschlagen: ${(err as Error).message}`);
-    }
-
-    try {
-      const { ingestAllMailboxes } = await import('@/server/mailIngest');
-      const result = await ingestAllMailboxes();
-      if (result.processed > 0) {
-        console.log(`[takt] Postfach: ${result.processed} Mail(s) verarbeitet.`);
-      }
-    } catch (err) {
-      console.warn(`[takt] Postfach lesen fehlgeschlagen: ${(err as Error).message}`);
-    }
-  };
-
   setTimeout(() => {
-    void tick();
+    void runTick();
     // `unref` gibt es hier bewusst nicht: dieser Wecker *ist* der Grund, warum
     // der Prozess auch ohne Besucher etwas tut.
-    setInterval(() => void tick(), TICK_MINUTES * 60_000);
+    setInterval(() => void runTick(), TICK_MINUTES * 60_000);
   }, FIRST_TICK_SECONDS * 1000);
 
   console.log(`[takt] Automatischer Suchlauf alle ${TICK_MINUTES} Minuten.`);
