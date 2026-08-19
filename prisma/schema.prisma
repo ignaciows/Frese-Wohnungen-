@@ -465,6 +465,9 @@ model Listing {
   contactEmail   String?
   contactName    String?
   contactPhone   String?
+  /// Wann zuletzt im Anzeigentext nach Telefonnummer, E-Mail und Ansprech-
+  /// partner gesucht wurde. Null = noch nie; siehe `server/contactBackfill`.
+  contactScannedAt DateTime?
   /// Portal-side contact/enquiry form, when the ad exposes one.
   contactFormUrl String?
 

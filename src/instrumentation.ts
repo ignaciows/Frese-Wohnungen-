@@ -65,6 +65,22 @@ export async function register(): Promise<void> {
       console.warn(`[takt] Suchlauf fehlgeschlagen: ${(err as Error).message}`);
     }
 
+    // Bestand nachziehen: Anzeigen, die vor der Telefonnummer-Erkennung
+    // importiert wurden, kommen hier einmal dran. Kostet keinen Portalaufruf —
+    // der Text liegt schon in der Datenbank — und ist von selbst zu Ende,
+    // sobald jede Anzeige einmal durchsucht wurde.
+    try {
+      const { backfillContacts } = await import('@/server/contactBackfill');
+      const r = await backfillContacts();
+      if (r.scanned > 0) {
+        console.log(
+          `[takt] Kontaktdaten nachgelesen: ${r.scanned} Anzeigen, ${r.phonesFound} Nummer(n) gefunden, ${r.remaining} offen.`,
+        );
+      }
+    } catch (err) {
+      console.warn(`[takt] Kontaktdaten nachlesen fehlgeschlagen: ${(err as Error).message}`);
+    }
+
     try {
       const { ingestAllMailboxes } = await import('@/server/mailIngest');
       const result = await ingestAllMailboxes();
