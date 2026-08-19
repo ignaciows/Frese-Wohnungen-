@@ -40,8 +40,34 @@ import { formatDateTime } from '@/lib/labels';
 import { listAccounts } from '@/server/portalAccounts';
 import { credentialKeyConfigured } from '@/lib/crypto';
 import { AccountsSection, DiscoveryRunsSection, DiscoverySection, FeaturesSection } from './_sections';
+import { googleMailboxEnabled } from '@/lib/googleMailbox';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Feste Rückmeldungen, angesprochen über ein Kürzel.
+ *
+ * Was hier kein Kürzel ist, kommt unverändert durch — die Prüfung eines
+ * Postfachs meldet „Empfangen (IMAP imap.gmail.com): timeout", und so ein Satz
+ * lässt sich nicht vorher aufschreiben. Für die Anmeldeseite war freier Text
+ * aus der Adresse ein echtes Problem (dort wird gleich ein Passwort
+ * eingetippt); hier steht er hinter einer Anmeldung und vor einem Publikum,
+ * das den Bildschirm kennt. Wer das enger ziehen will, braucht einen
+ * Flash-Speicher in der Sitzung — die Rückmeldung darf dann gar nicht mehr in
+ * der Adresse stehen.
+ */
+const EINSTELLUNGEN_MELDUNGEN: Record<string, string> = {
+  konto: 'Zugang gespeichert.',
+  quelle: 'Quelle gespeichert.',
+  'google-postfach': 'Postfach verbunden — Senden und Empfangen geprüft.',
+  'google-postfach-pruefung':
+    'Postfach verbunden, aber die erste Anmeldung hat nicht geklappt. Einmal auf „Prüfen“ — bleibt es dabei, muss in Google IMAP freigeschaltet werden.',
+  'google-postfach-abgebrochen': 'Die Verbindung mit Google wurde abgebrochen.',
+  'google-postfach-abgelaufen': 'Der Verbindungsversuch ist abgelaufen. Bitte noch einmal starten.',
+  'google-postfach-fehlgeschlagen':
+    'Google hat den Zugriff nicht erteilt. Bitte noch einmal versuchen — hilft das nicht, im Google-Konto unter „Drittanbieter-Zugriff“ den Zugriff dieser App entfernen.',
+  'google-postfach-speichern': 'Das Postfach ließ sich nicht speichern. Steht CREDENTIAL_KEY auf dem Server?',
+};
 
 export default async function SettingsPage({
   searchParams,
@@ -142,8 +168,14 @@ export default async function SettingsPage({
           <a href="#suchagent">Suchagent-Postfach</a>
         </nav>
 
-        {feedback.fehler ? <Callout tone="danger">{feedback.fehler}</Callout> : null}
-        {feedback.gespeichert ? <Callout tone="success">{feedback.gespeichert}</Callout> : null}
+        {feedback.fehler ? (
+          <Callout tone="danger">{EINSTELLUNGEN_MELDUNGEN[feedback.fehler] ?? feedback.fehler}</Callout>
+        ) : null}
+        {feedback.gespeichert ? (
+          <Callout tone="success">
+            {EINSTELLUNGEN_MELDUNGEN[feedback.gespeichert] ?? feedback.gespeichert}
+          </Callout>
+        ) : null}
 
         {!isAdmin ? (
           <Callout tone="warning">
@@ -177,6 +209,7 @@ export default async function SettingsPage({
           credentialKeyOk={credentialKeyOk}
           sources={discoverySources.map((s) => ({ id: s.id, key: s.key, name: s.name }))}
           preselectPortalKey={feedback.portal ?? null}
+          googleMailbox={googleMailboxEnabled()}
         />
 
         {/* ---------------------------------------------- mail ingest --- */}

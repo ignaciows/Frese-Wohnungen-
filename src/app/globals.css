@@ -4007,3 +4007,75 @@ label {
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 30%, transparent);
   }
 }
+
+/* ------------------------------------------------------- Postfächer ------ */
+/*
+ * Ein Postfach als Karte statt als Listenzeile.
+ *
+ * Der Grund ist das Lämpchen: bei einem geteilten Postfach ist die Frage nie
+ * „welche gibt es", sondern „welches läuft und welches muss jemand wieder
+ * anfassen". Das gehört groß und nebeneinander, nicht klein untereinander.
+ */
+.mailbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+.mailbox-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+/* Ein Postfach, das jemand wieder anfassen muss, sieht auch so aus — sonst
+   fällt es zwischen drei funktionierenden nicht auf. */
+.mailbox-card.blocked {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 20%, transparent);
+}
+.mailbox-card.running {
+  border-color: color-mix(in srgb, var(--success) 40%, var(--border));
+}
+
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Der Google-Knopf trägt das G und bleibt sonst ein normaler Knopf — ein
+   nachgebauter Google-Button, der nicht ganz stimmt, sieht falscher aus als
+   einer, der gar nicht erst so tut. */
+.google-connect {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  align-self: flex-start;
+}
+.google-connect svg {
+  background: #fff;
+  border-radius: 3px;
+  padding: 1px;
+}
+.mailbox-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.btn.quiet {
+  border-color: transparent;
+  color: var(--muted);
+}
+.btn.quiet:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}

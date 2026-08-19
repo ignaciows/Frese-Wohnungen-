@@ -22,7 +22,7 @@ import {
   type RawEmail,
 } from '@/domain/mail';
 import { ingestListing } from '@/server/listingIngest';
-import { loadMailbox } from '@/server/portalAccounts';
+import { imapAuth, loadMailbox } from '@/server/portalAccounts';
 import { tokenFromAddress } from '@/server/outbound';
 import { closeReplyCheck, notify } from '@/server/followUps';
 
@@ -30,8 +30,8 @@ export interface MailConfig {
   host: string;
   port: number;
   secure: boolean;
-  user: string;
-  password: string;
+  /** Fertig für imapflow — Passwort oder Zugriffstoken, siehe `imapAuth`. */
+  auth: { user: string; pass: string } | { user: string; accessToken: string };
   mailbox: string;
 }
 
@@ -44,8 +44,7 @@ export function readMailConfigFromEnv(): MailConfig | null {
     host,
     port: Number(process.env.MAIL_IMAP_PORT ?? 993),
     secure: (process.env.MAIL_IMAP_SECURE ?? 'true') !== 'false',
-    user,
-    password,
+    auth: { user, pass: password },
     mailbox: process.env.MAIL_IMAP_MAILBOX ?? 'INBOX',
   };
 }
@@ -59,13 +58,12 @@ export function readMailConfigFromEnv(): MailConfig | null {
 export async function readMailConfig(accountId?: string): Promise<MailConfig | null> {
   const stored = await loadMailbox(accountId);
   if (stored.ok) {
-    const meta = stored.credentials;
+    const c = stored.credentials;
     return {
-      host: meta.imapHost,
-      port: meta.imapPort,
-      secure: meta.imapSecure,
-      user: meta.user,
-      password: meta.imapPassword,
+      host: c.imapHost,
+      port: c.imapPort,
+      secure: c.imapSecure,
+      auth: imapAuth(c),
       mailbox: 'INBOX',
     };
   }
@@ -121,7 +119,7 @@ export async function ingestMailbox(
     host: cfg.host,
     port: cfg.port,
     secure: cfg.secure,
-    auth: { user: cfg.user, pass: cfg.password },
+    auth: cfg.auth,
     logger: false,
   });
 

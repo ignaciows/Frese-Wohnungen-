@@ -9,7 +9,7 @@ import {
   verifyPortalAccountFormAction,
   runDiscoverySweepFormAction,
 } from '@/app/actions';
-import { Callout } from '@/app/_components/Shell';
+import { Callout, Empty } from '@/app/_components/Shell';
 import { FeatureSwitch, InstantNumber, InstantSwitch } from './_instant';
 import {
   FEATURES,
@@ -512,18 +512,109 @@ function accountReadiness(a: PortalAccountView): 'running' | 'setup' | 'blocked'
  * light can honestly claim both.
  */
 function mailboxLabel(a: PortalAccountView): string {
-  if (!a.hasSecret) return 'Passwort fehlt';
-  if (a.status === 'FAILED') return a.statusNote ? `Fehler — ${a.statusNote}` : 'Anmeldung fehlgeschlagen';
+  const viaGoogle = a.meta.authMethod === 'GOOGLE_OAUTH';
+  if (!a.hasSecret) return viaGoogle ? 'Nicht verbunden' : 'Passwort fehlt';
+  if (a.status === 'FAILED') {
+    // Bei Google ist „fehlgeschlagen" fast immer ein zurückgezogener Zugriff,
+    // und dann ist die einzige sinnvolle Handlung der Knopf daneben.
+    return viaGoogle ? 'Muss neu verbunden werden' : 'Anmeldung fehlgeschlagen';
+  }
   if (a.status === 'OK') {
     return a.lastVerifiedAt
-      ? `Senden & Empfangen geprüft (${formatDateTime(a.lastVerifiedAt)})`
-      : 'Senden & Empfangen geprüft';
+      ? `Aktiv — geprüft ${formatDateTime(a.lastVerifiedAt)}`
+      : 'Aktiv';
   }
   return 'Noch nicht geprüft';
 }
 
+/**
+ * Ein Postfach als Karte statt als Listenzeile.
+ *
+ * Der Grund für die Karte ist das Lämpchen: bei einem geteilten Postfach ist
+ * die Frage nie „welche gibt es", sondern „welches läuft und welches muss
+ * jemand wieder anfassen". Das gehört groß und nebeneinander, nicht klein
+ * untereinander.
+ */
+function MailboxCard({
+  account,
+  isAdmin,
+  googleReady,
+}: {
+  account: PortalAccountView;
+  isAdmin: boolean;
+  googleReady: boolean;
+}) {
+  const viaGoogle = account.meta.authMethod === 'GOOGLE_OAUTH';
+  const readiness = accountReadiness(account);
+  const broken = readiness === 'blocked';
+
+  return (
+    <div className={`mailbox-card ${readiness}`}>
+      <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+        {viaGoogle ? <GoogleMark /> : <span aria-hidden>✉</span>}
+        <strong className="grow ellipsis">{account.loginName ?? account.label}</strong>
+      </div>
+      <span className={`lamp lamp-${readiness}`}>
+        <span className="lamp-dot" aria-hidden />
+        {mailboxLabel(account)}
+      </span>
+      <span className="small muted ellipsis">
+        {viaGoogle
+          ? authMethodLabel('GOOGLE_OAUTH')
+          : `${String(account.meta.imapHost ?? account.meta.smtpHost ?? '—')}${
+              account.meta.authMethod ? ` · ${authMethodLabel(String(account.meta.authMethod))}` : ''
+            }`}
+      </span>
+      {broken && account.statusNote ? (
+        <span className="small" style={{ color: 'var(--danger)' }}>
+          {account.statusNote}
+        </span>
+      ) : null}
+      {isAdmin ? (
+        <div className="mailbox-actions">
+          <div className="row" style={{ gap: 6 }}>
+            {viaGoogle && googleReady ? (
+              <a href="/google/postfach/start" className={`btn sm ${broken ? 'primary' : 'ghost'}`}>
+                {broken ? 'Neu verbinden' : 'Erneut verbinden'}
+              </a>
+            ) : null}
+            <form action={verifyMailboxFormAction}>
+              <input type="hidden" name="id" value={account.id} />
+              <button className="btn sm" type="submit">
+                Prüfen
+              </button>
+            </form>
+          </div>
+          {/* Bewusst abgesetzt und unauffällig: „Entfernen" gehört nicht neben
+              den Knopf, den man eigentlich drücken wollte. */}
+          <form action={deleteAccountAction}>
+            <input type="hidden" name="id" value={account.id} />
+            <button className="btn sm ghost quiet" type="submit">
+              Entfernen
+            </button>
+          </form>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Das Google-G. Inline, weil eine externe Datei dafür ein eigener Fehlerfall wäre. */
+function GoogleMark() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden focusable="false">
+      <path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.8-2 5.1-4.4 6.7v5.6h7.1c4.2-3.8 6.6-9.5 6.6-16.3z" />
+      <path fill="#34A853" d="M24 46c6 0 11-2 14.6-5.4l-7.1-5.6c-2 1.3-4.5 2.1-7.5 2.1-5.8 0-10.7-3.9-12.4-9.1H4.2v5.8C7.8 41.1 15.3 46 24 46z" />
+      <path fill="#FBBC05" d="M11.6 28c-.5-1.3-.7-2.7-.7-4s.3-2.7.7-4v-5.8H4.2C2.8 17.1 2 20.4 2 24s.8 6.9 2.2 9.8l7.4-5.8z" />
+      <path fill="#EA4335" d="M24 11.5c3.3 0 6.2 1.1 8.5 3.3l6.3-6.3C35 4.9 30 2.9 24 2.9 15.3 2.9 7.8 7.8 4.2 14.9l7.4 5.8c1.7-5.2 6.6-9.2 12.4-9.2z" />
+    </svg>
+  );
+}
+
 function authMethodLabel(method: string): string {
   switch (method) {
+    case 'GOOGLE_OAUTH':
+      return 'mit Google verbunden';
     case 'APP_PASSWORD':
       return 'App-Passwort';
     case 'IMAP_ONLY':
@@ -673,6 +764,7 @@ export function AccountsSection({
   credentialKeyOk,
   sources,
   preselectPortalKey,
+  googleMailbox,
 }: {
   accounts: PortalAccountView[];
   outbound: OutboundSettings;
@@ -680,10 +772,21 @@ export function AccountsSection({
   isAdmin: boolean;
   credentialKeyOk: boolean;
   sources: Array<{ id: string; key: string; name: string }>;
+  /** Ist „mit Google verbinden" auf diesem Server überhaupt eingerichtet? */
+  googleMailbox: boolean;
   /** Portal the form should open on, from `?portal=` — see the rows above it. */
   preselectPortalKey?: string | null;
 }) {
-  const mailboxes = accounts.filter((a) => a.kind === 'MAILBOX');
+  // Was jemand anfassen muss, steht vorn. Ohne diese Reihenfolge steht ein
+  // abgelaufenes Postfach zwischen drei funktionierenden und fällt nicht auf.
+  const attention = { blocked: 0, setup: 1, off: 2, running: 3 } as const;
+  const mailboxes = accounts
+    .filter((a) => a.kind === 'MAILBOX')
+    .sort(
+      (a, b) =>
+        attention[accountReadiness(a)] - attention[accountReadiness(b)] ||
+        (a.loginName ?? a.label).localeCompare(b.loginName ?? b.label, 'de'),
+    );
   const portals = accounts.filter((a) => a.kind === 'PORTAL');
 
   return (
@@ -798,7 +901,19 @@ export function AccountsSection({
             </ul>
           )}
 
-          {isAdmin ? <PortalAccountForm sources={sources} preselectKey={preselectPortalKey} /> : null}
+          {isAdmin ? (
+            // Zugeklappt, außer jemand kam gerade über „Zugang hinterlegen"
+            // neben einem Portal — dann ist genau das die Absicht.
+            <details className="card" open={!!preselectPortalKey}>
+              <summary style={{ padding: '10px 14px', cursor: 'pointer' }}>
+                <strong className="small">Portal-Zugang hinterlegen</strong>
+                <span className="small muted"> — Benutzername und Passwort</span>
+              </summary>
+              <div className="card-body">
+                <PortalAccountForm sources={sources} preselectKey={preselectPortalKey} />
+              </div>
+            </details>
+          ) : null}
 
           <h3 className="small" style={{ marginTop: 14 }}>
             Postfächer
@@ -809,44 +924,55 @@ export function AccountsSection({
           </p>
 
           {mailboxes.length === 0 ? (
-            <span className="small muted">Noch kein Postfach hinterlegt.</span>
+            <Empty icon="✉" title="Noch kein Postfach verbunden">
+              Ohne Postfach kommen weder Suchagent-Mails noch Antworten in der App an. Ein Google-Konto
+              ist in zwei Klicks verbunden.
+            </Empty>
           ) : (
-            <ul className="list">
+            <div className="mailbox-grid">
               {mailboxes.map((m) => (
-                <li key={m.id} className="list-row row-between">
-                  <div className="stack" style={{ gap: 3 }}>
-                    <strong>{m.label}</strong>
-                    <span className="small muted">
-                      {m.loginName ?? 'kein Benutzername'} · {String(m.meta.imapHost ?? m.meta.smtpHost ?? '—')}
-                      {m.meta.authMethod ? ` · ${authMethodLabel(String(m.meta.authMethod))}` : ''}
-                    </span>
-                    <span className={`lamp lamp-${accountReadiness(m)}`}>
-                      <span className="lamp-dot" aria-hidden />
-                      {mailboxLabel(m)}
-                    </span>
-                  </div>
-                  {isAdmin ? (
-                    <div className="row" style={{ gap: 6 }}>
-                      <form action={verifyMailboxFormAction}>
-                        <input type="hidden" name="id" value={m.id} />
-                        <button className="btn sm" type="submit">
-                          Prüfen
-                        </button>
-                      </form>
-                      <form action={deleteAccountAction}>
-                        <input type="hidden" name="id" value={m.id} />
-                        <button className="btn sm ghost" type="submit">
-                          Entfernen
-                        </button>
-                      </form>
-                    </div>
-                  ) : null}
-                </li>
+                <MailboxCard key={m.id} account={m} isAdmin={isAdmin} googleReady={googleMailbox} />
               ))}
-            </ul>
+            </div>
           )}
 
-          {isAdmin ? <MailboxForm /> : null}
+          {isAdmin ? (
+            <div className="stack-sm" style={{ marginTop: 6 }}>
+              {googleMailbox ? (
+                <>
+                  {/* Der Weg, den fast jeder nimmt, sieht auch so aus. Vorher
+                      stand hier als erstes ein Formular mit IMAP-Server, Port
+                      und App-Passwort — fünf Felder, von denen vier immer
+                      gleich sind, und ein Passwort durch die Zwischenablage. */}
+                  <a href="/google/postfach/start" className="btn primary google-connect">
+                    <GoogleMark />
+                    Postfach mit Google verbinden
+                  </a>
+                  <p className="small muted" style={{ margin: 0 }}>
+                    Kein App-Passwort, keine Servernamen. Die Zustimmung gilt für Lesen und Senden und
+                    lässt sich im Google-Konto jederzeit wieder entziehen.
+                  </p>
+                </>
+              ) : (
+                <Callout tone="info">
+                  Für „mit Google verbinden“ fehlen auf diesem Server <code>GOOGLE_CLIENT_ID</code> und{' '}
+                  <code>GOOGLE_CLIENT_SECRET</code>. Bis dahin geht es über IMAP und App-Passwort.
+                </Callout>
+              )}
+
+              {/* Zugeklappt: der Weg für alles außer Google. Er funktioniert
+                  unverändert weiter, steht aber niemandem mehr im Weg. */}
+              <details className="card" style={{ marginTop: 4 }}>
+                <summary style={{ padding: '10px 14px', cursor: 'pointer' }}>
+                  <strong className="small">Anderes Postfach (IMAP/SMTP)</strong>
+                  <span className="small muted"> — Outlook, Strato, eigener Server</span>
+                </summary>
+                <div className="card-body">
+                  <MailboxForm />
+                </div>
+              </details>
+            </div>
+          ) : null}
         </div>
       </div>
 

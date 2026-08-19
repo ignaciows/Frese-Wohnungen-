@@ -179,6 +179,18 @@ export async function deleteAccount(id: string, userId: string): Promise<void> {
 
 /* ------------------------------------------------------------- mailbox --- */
 
+/**
+ * Wie sich die App an diesem Postfach anmeldet.
+ *
+ * Zwei Wege, und bewusst kein gemeinsames `password`-Feld mit einem Flag
+ * daneben: bei OAuth gibt es kein Passwort, nur ein Token mit einer Stunde
+ * Haltbarkeit, und ein Feld, das mal das eine und mal das andere enthält, wird
+ * irgendwann an der falschen Stelle geloggt.
+ */
+export type MailboxAuth =
+  | { type: 'PASSWORD'; smtpPassword: string; imapPassword: string }
+  | { type: 'OAUTH2'; accessToken: string };
+
 export interface MailboxCredentials {
   accountId: string;
   label: string;
@@ -189,9 +201,7 @@ export interface MailboxCredentials {
   imapPort: number;
   imapSecure: boolean;
   user: string;
-  password: string;
-  /** Separate IMAP password, when the provider needs one. */
-  imapPassword: string;
+  auth: MailboxAuth;
 }
 
 /**
@@ -220,7 +230,7 @@ export async function loadMailbox(
     };
   }
   if (!account.secretEnc) {
-    return { ok: false, reason: `Für „${account.label}" ist kein Passwort hinterlegt.` };
+    return { ok: false, reason: `Für „${account.label}" ist kein Zugang hinterlegt.` };
   }
 
   const meta = (account.meta as Record<string, unknown>) ?? {};
@@ -234,34 +244,64 @@ export async function loadMailbox(
     return { ok: false, reason: `Für „${account.label}" fehlt der Benutzername.` };
   }
 
-  let password: string;
+  const smtpPort = num(meta.smtpPort) ?? 587;
+  const imapPort = num(meta.imapPort) ?? 993;
+  const hosts = {
+    accountId: account.id,
+    label: account.label,
+    smtpHost,
+    smtpPort,
+    // Port 465 is implicit TLS; 587 and 25 upgrade with STARTTLS.
+    smtpSecure: meta.smtpSecure === true || smtpPort === 465,
+    imapHost,
+    imapPort,
+    imapSecure: meta.imapSecure !== false,
+    user: account.loginName,
+  };
+
+  // Mit Google verbunden: gespeichert ist der Refresh-Token, gebraucht wird
+  // ein Zugriffstoken. Das wird bei jedem Zugriff frisch geholt — sie halten
+  // eine Stunde, und ein abgelaufenes aufzubewahren hätte keinen Wert.
+  if (meta.authMethod === 'GOOGLE_OAUTH') {
+    const { mailboxOAuthConfig, freshAccessToken } = await import('@/lib/googleMailbox');
+    const config = mailboxOAuthConfig();
+    if (!config) {
+      return { ok: false, reason: 'Google-Zugang ist auf diesem Server nicht eingerichtet.' };
+    }
+    let refreshToken: string;
+    try {
+      refreshToken = decryptSecret(account.secretEnc);
+    } catch (err) {
+      return { ok: false, reason: (err as Error).message };
+    }
+    const token = await freshAccessToken({ config, refreshToken });
+    if (!token.ok) {
+      // Ein widerrufener Zugriff ist keine Störung, die sich auswächst — das
+      // Postfach wird sofort als „neu verbinden" markiert, damit es auf dem
+      // Einstellungs-Bildschirm steht und nicht erst auffällt, wenn eine
+      // Woche lang keine Antwort mehr ankam.
+      if (token.needsReconnect) {
+        await markAccountStatus(account.id, 'FAILED', token.reason).catch(() => {});
+      }
+      return { ok: false, reason: `„${account.label}": ${token.reason}` };
+    }
+    return { ok: true, credentials: { ...hosts, auth: { type: 'OAUTH2', accessToken: token.accessToken } } };
+  }
+
+  let smtpPassword: string;
   let imapPassword: string;
   try {
-    password = decryptSecret(account.secretEnc);
-    imapPassword = account.secondarySecretEnc ? decryptSecret(account.secondarySecretEnc) : password;
+    smtpPassword = decryptSecret(account.secretEnc);
+    imapPassword = account.secondarySecretEnc
+      ? decryptSecret(account.secondarySecretEnc)
+      : smtpPassword;
   } catch (err) {
     return { ok: false, reason: (err as Error).message };
   }
 
-  const smtpPort = num(meta.smtpPort) ?? 587;
-  const imapPort = num(meta.imapPort) ?? 993;
-
   return {
     ok: true,
-    credentials: {
-      accountId: account.id,
-      label: account.label,
-      smtpHost,
-      smtpPort,
-      // Port 465 is implicit TLS; 587 and 25 upgrade with STARTTLS.
-      smtpSecure: meta.smtpSecure === true || smtpPort === 465,
-      imapHost,
-      imapPort,
-      imapSecure: meta.imapSecure !== false,
-      user: account.loginName,
-      password,
-      imapPassword,
-    },
+    credentials: { ...hosts, auth: { type: 'PASSWORD', smtpPassword, imapPassword } },
   };
 }
 
@@ -365,4 +405,25 @@ async function reachable(
   // Any answer at all means the address is real. A login page that returns 401,
   // or redirects to one, is the normal healthy case — not a fault.
   return { ok: true, message: `Login-Seite erreichbar (HTTP ${res.status}).` };
+}
+
+/**
+ * Die Anmeldedaten in der Form, die nodemailer bzw. imapflow erwarten.
+ *
+ * Zwei winzige Funktionen statt derselben Fallunterscheidung an vier Stellen —
+ * und vor allem: die Bibliotheken schreiben ihre Anmeldeobjekte
+ * unterschiedlich (`pass` gegen `accessToken`, `type: 'OAuth2'` nur bei einer
+ * von beiden), was man genau einmal nachschlagen und nicht viermal erraten
+ * sollte.
+ */
+export function smtpAuth(c: MailboxCredentials) {
+  return c.auth.type === 'OAUTH2'
+    ? ({ type: 'OAuth2', user: c.user, accessToken: c.auth.accessToken } as const)
+    : ({ user: c.user, pass: c.auth.smtpPassword } as const);
+}
+
+export function imapAuth(c: MailboxCredentials) {
+  return c.auth.type === 'OAUTH2'
+    ? { user: c.user, accessToken: c.auth.accessToken }
+    : { user: c.user, pass: c.auth.imapPassword };
 }

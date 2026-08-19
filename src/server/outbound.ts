@@ -17,7 +17,7 @@
 import nodemailer from 'nodemailer';
 import { prisma } from '@/lib/prisma';
 import { newThreadToken } from '@/lib/crypto';
-import { loadMailbox, markAccountStatus } from './portalAccounts';
+import { imapAuth, loadMailbox, markAccountStatus, smtpAuth } from './portalAccounts';
 import { getOutboundSettings } from './settings';
 import { confirmContact } from './contact';
 import { notify, scheduleReplyCheck } from './followUps';
@@ -174,7 +174,7 @@ export async function sendAnfrage(input: SendAnfrageInput): Promise<SendResult> 
       host: mailbox.credentials.smtpHost,
       port: mailbox.credentials.smtpPort,
       secure: mailbox.credentials.smtpSecure,
-      auth: { user: mailbox.credentials.user, pass: mailbox.credentials.password },
+      auth: smtpAuth(mailbox.credentials),
     });
 
     const info = await transport.sendMail({
@@ -305,7 +305,7 @@ export async function retrySend(
       host: mailbox.credentials.smtpHost,
       port: mailbox.credentials.smtpPort,
       secure: mailbox.credentials.smtpSecure,
-      auth: { user: mailbox.credentials.user, pass: mailbox.credentials.password },
+      auth: smtpAuth(mailbox.credentials),
     });
     const info = await transport.sendMail({
       from: { name: settings.fromName, address: settings.fromAddress },
@@ -371,7 +371,7 @@ export async function verifyMailbox(accountId?: string): Promise<{ ok: boolean; 
       host: c.smtpHost,
       port: c.smtpPort,
       secure: c.smtpSecure,
-      auth: { user: c.user, pass: c.password },
+      auth: smtpAuth(c),
     });
     await transport.verify();
   } catch (err) {
@@ -384,7 +384,7 @@ export async function verifyMailbox(accountId?: string): Promise<{ ok: boolean; 
       host: c.imapHost,
       port: c.imapPort,
       secure: c.imapSecure,
-      auth: { user: c.user, pass: c.imapPassword },
+      auth: imapAuth(c),
       logger: false,
     });
     await client.connect();

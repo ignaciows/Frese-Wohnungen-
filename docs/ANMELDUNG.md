@@ -15,14 +15,16 @@ Einmalig, ungefähr zehn Minuten.
    überhaupt anmelden. Ohne Workspace bleibt nur „Extern", und dann muss jede
    Person einzeln als Testnutzer eingetragen werden.
 3. **Anmeldedaten → OAuth-Client-ID erstellen → Webanwendung.**
-4. Als **autorisierten Redirect-URI** exakt das hier eintragen:
+4. Als **autorisierte Redirect-URIs** exakt das hier eintragen:
 
    ```
-   https://DEINE-DOMAIN/google/callback
+   https://DEINE-DOMAIN/google/callback            ← Anmelden
+   https://DEINE-DOMAIN/google/postfach/callback   ← Postfach verbinden
    ```
 
    Exakt heißt exakt — Google vergleicht Zeichen für Zeichen, inklusive
-   `https` und ohne abschließenden Schrägstrich.
+   `https` und ohne abschließenden Schrägstrich. Die zweite Zeile braucht nur,
+   wer auch ein Postfach über Google anbinden will (siehe unten).
 5. Client-ID und Client-Secret in die Umgebung der App eintragen:
 
    ```
@@ -107,3 +109,47 @@ Bewusst ohne Auth-Bibliothek: die Sitzung existiert bereits (iron-session), und
 OAuth mit Authorization Code sind drei HTTP-Aufrufe. Eine Bibliothek hätte ihr
 eigenes Sitzungsmodell mitgebracht — zwei Wahrheiten darüber, wer angemeldet
 ist, sind der Anfang jedes Auth-Fehlers.
+
+## Ein Postfach mit Google verbinden
+
+Das ist **nicht** dasselbe wie die Anmeldung. Dort geht es darum, wer vor dem
+Bildschirm sitzt; hier darum, dass die App ein Postfach lesen und daraus
+verschicken darf. Zwei Fragen, zwei Zustimmungen — dieselben zwei
+Umgebungsvariablen, weil es dasselbe Google-Projekt ist.
+
+Einmalig zusätzlich in der Cloud Console:
+
+1. **APIs & Dienste → Bibliothek → Gmail API** aktivieren.
+2. Im **OAuth-Zustimmungsbildschirm** den Bereich `https://mail.google.com/`
+   hinzufügen. Das ist der Bereich für IMAP und SMTP — die feineren
+   Gmail-Bereiche gelten nur für die Gmail-API, und die App spricht bewusst
+   IMAP, damit derselbe Weg auch mit Strato oder Outlook funktioniert.
+3. Den zweiten Redirect-URI von oben eintragen.
+
+Danach steht in **Einstellungen → Konten & Postfach** der Knopf „Postfach mit
+Google verbinden". Ein Klick, Konto wählen, zustimmen — fertig. Kein
+App-Passwort, keine Servernamen.
+
+### Was gespeichert wird
+
+Nur der **Refresh-Token**, verschlüsselt wie jedes andere Geheimnis
+(`CREDENTIAL_KEY`). Zugriffstoken halten eine Stunde und werden geholt, wenn
+sie gebraucht werden — ein abgelaufenes aufzubewahren hätte keinen Wert.
+
+### Wenn ein Postfach rot wird
+
+„Muss neu verbunden werden" heißt: Google hat den Zugriff zurückgezogen.
+Passiert, wenn jemand im Google-Konto unter „Drittanbieter-Zugriff" aufräumt,
+das Passwort ändert oder ein Admin die App entfernt. Der Knopf auf der Karte
+führt denselben Weg noch einmal; danach ist es grün.
+
+Wichtig ist der Unterschied zu „Google war gerade nicht erreichbar" — das
+wartet sich aus und markiert nichts rot. Ein gemeinsamer Fehlerzustand für
+beides führt dazu, dass das eine ignoriert und das andere übersehen wird.
+
+### Mehrere Postfächer
+
+Ist der Normalfall: das Postfach für die Suchaufträge, das geteilte Postfach
+des Teams, ein Testkonto. Jedes wird einzeln verbunden, einzeln geprüft und
+einzeln ausgelesen — ein abgelaufener Zugang legt die anderen nicht still. Auf
+dem Bildschirm stehen die, die jemand anfassen muss, vorn.
