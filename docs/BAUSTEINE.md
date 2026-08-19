@@ -74,6 +74,13 @@ Ein Fall mit offenen anschreibbaren Wohnungen wird **nicht** gemeldet — dort
 liegt Arbeit, sie ist nur nicht getan. Das ist Rückstand, kein Stillstand.
 Drückt zusätzlich die Anreise, wird die Meldung als **dringend** markiert.
 
+Gezählt wird ab dem Tag, an dem ein Treffer zum Fall kam (`matchedAt`), nicht
+ab der letzten Neuberechnung — sonst hätte ein Klick auf „Suchprofil
+speichern" jeden Fall wieder auf null gestellt. Und eine inzwischen
+abgelaufene Anzeige zählt weiter mit: sie beweist, dass die Suche einmal etwas
+hergab. Ohne das meldete sich ein Fall, für den es wochenlang lief, irgendwann
+als „noch nie ein Treffer".
+
 ### Antwortquote
 
 Ebenfalls auf **Aufgaben & Posteingang**. Zählt je Quelle und insgesamt, wie
