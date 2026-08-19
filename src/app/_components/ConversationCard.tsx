@@ -9,6 +9,7 @@ import {
 } from '@/app/actions';
 import { CopyFields } from './CopyFields';
 import { RESPONSE_OUTCOME, formatDateTime, formatDate } from '@/lib/labels';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 export interface ConversationData {
   id: string;
@@ -117,13 +118,12 @@ export function ConversationCard({ c }: { c: ConversationData }) {
                 <form key={key} action={setContactOutcomeAction}>
                   <input type="hidden" name="contactAttemptId" value={c.id} />
                   <input type="hidden" name="outcome" value={key} />
-                  <button
-                    type="submit"
+                  <SubmitButton
                     className={`btn sm ${active ? 'primary' : ''}`}
                     aria-pressed={active}
                   >
                     {cfg.icon} {cfg.label}
-                  </button>
+                  </SubmitButton>
                 </form>
               );
             })}
@@ -184,9 +184,9 @@ export function ConversationCard({ c }: { c: ConversationData }) {
                   <option value="INCOMING">Antwort vom Vermieter</option>
                   <option value="OUTGOING">Nachricht von uns</option>
                 </select>
-                <button type="submit" className="btn primary sm">
+                <SubmitButton className="btn primary sm">
                   Hinzufügen
-                </button>
+                </SubmitButton>
               </div>
             </form>
           </div>
@@ -213,9 +213,9 @@ export function ConversationCard({ c }: { c: ConversationData }) {
             ) : (
               <form action={markRegisteredAction}>
                 <input type="hidden" name="contactAttemptId" value={c.id} />
-                <button type="submit" className="btn block">
+                <SubmitButton className="btn block">
                   Als im Firmen-System eingetragen markieren
-                </button>
+                </SubmitButton>
               </form>
             )}
           </>

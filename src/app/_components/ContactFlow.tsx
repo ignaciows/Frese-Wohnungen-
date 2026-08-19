@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { claimListingAction, confirmContactAction, sendAnfrageAction } from '@/app/actions';
 import { telHref } from '@/domain/contact';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 /**
  * Contacting a landlord, by whichever route the ad actually allows.
@@ -259,9 +260,9 @@ export function ContactFlow({
               <form action={confirmContactAction}>
                 <input type="hidden" name="candidateCaseId" value={candidateCaseId} />
                 <input type="hidden" name="listingId" value={listingId} />
-                <button type="submit" className="btn primary">
+                <SubmitButton className="btn primary">
                   Ja, Nachricht wurde gesendet
-                </button>
+                </SubmitButton>
               </form>
               <button type="button" className="btn ghost" onClick={() => setShowConfirm(false)}>
                 Noch nicht

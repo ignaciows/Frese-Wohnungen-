@@ -7,6 +7,7 @@ import { featureOn, getSharingSettings } from '@/server/settings';
 import { refreshSharingAction, decideSharingAction } from '@/app/actions';
 import { AppBar, Empty, Callout } from '@/app/_components/Shell';
 import { formatDate } from '@/lib/labels';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,9 +36,9 @@ export default async function WgPage() {
             </span>
           </div>
           <form action={refreshSharingAction}>
-            <button type="submit" className="btn">
+            <SubmitButton className="btn">
               Vorschläge neu berechnen
-            </button>
+            </SubmitButton>
           </form>
         </div>
 
@@ -102,9 +103,9 @@ export default async function WgPage() {
                       <form action={decideSharingAction}>
                         <input type="hidden" name="suggestionId" value={s.id} />
                         <input type="hidden" name="status" value="ACCEPTED" />
-                        <button type="submit" className="btn primary block">
+                        <SubmitButton className="btn primary block">
                           Beiden vorschlagen
-                        </button>
+                        </SubmitButton>
                       </form>
                       <form action={decideSharingAction} className="stack-sm">
                         <input type="hidden" name="suggestionId" value={s.id} />
@@ -114,9 +115,9 @@ export default async function WgPage() {
                           className="input"
                           placeholder="Grund (optional)"
                         />
-                        <button type="submit" className="btn block">
+                        <SubmitButton className="btn block">
                           Verwerfen
-                        </button>
+                        </SubmitButton>
                       </form>
                     </div>
                   </div>

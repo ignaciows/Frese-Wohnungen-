@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { saveProfileAction, saveSharingProfileAction } from '@/app/actions';
 import { Callout } from '@/app/_components/Shell';
 import { suggestedMinRooms, suggestedPreferredRooms } from '@/domain/ranking';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -189,9 +190,9 @@ export default async function ProfilPage({ params }: { params: Promise<{ id: str
         </div>
         <div className="card-foot row-between">
           <span className="small muted">Änderungen gelten ab dem nächsten Suchlauf.</span>
-          <button type="submit" className="btn primary">
+          <SubmitButton className="btn primary">
             Suchprofil speichern
-          </button>
+          </SubmitButton>
         </div>
       </form>
 
@@ -247,9 +248,9 @@ export default async function ProfilPage({ params }: { params: Promise<{ id: str
           </p>
         </div>
         <div className="card-foot" style={{ textAlign: 'right' }}>
-          <button type="submit" className="btn">
+          <SubmitButton className="btn">
             WG-Angaben speichern
-          </button>
+          </SubmitButton>
         </div>
       </form>
 

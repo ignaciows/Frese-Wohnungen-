@@ -41,6 +41,7 @@ import { anyMailboxConfigured, listAccounts } from '@/server/portalAccounts';
 import { credentialKeyConfigured } from '@/lib/crypto';
 import { AccountsSection, DiscoveryRunsSection, DiscoverySection, FeaturesSection } from './_sections';
 import { googleMailboxEnabled } from '@/lib/googleMailbox';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -288,9 +289,9 @@ export default async function SettingsPage({
           {isAdmin && mailConfigured ? (
             <div className="card-foot" style={{ textAlign: 'right' }}>
               <form action={runMailIngestAction}>
-                <button type="submit" className="btn primary">
+                <SubmitButton className="btn primary">
                   Postfach jetzt abrufen
-                </button>
+                </SubmitButton>
               </form>
             </div>
           ) : null}
@@ -419,9 +420,9 @@ export default async function SettingsPage({
             {isAdmin ? (
               <div className="card-foot row-between">
                 <span className="small muted">Gilt ab dem nächsten Suchlauf.</span>
-                <button type="submit" className="btn primary">
+                <SubmitButton className="btn primary">
                   Speichern
-                </button>
+                </SubmitButton>
               </div>
             ) : null}
           </form>
@@ -519,9 +520,9 @@ export default async function SettingsPage({
             {isAdmin ? (
               <div className="card-foot row-between">
                 <span className="small muted">Vorschläge werden nach dem Speichern neu berechnet.</span>
-                <button type="submit" className="btn primary">
+                <SubmitButton className="btn primary">
                   Speichern
-                </button>
+                </SubmitButton>
               </div>
             ) : null}
           </form>
@@ -564,9 +565,9 @@ export default async function SettingsPage({
             </div>
             {isAdmin ? (
               <div className="card-foot" style={{ textAlign: 'right' }}>
-                <button type="submit" className="btn primary">
+                <SubmitButton className="btn primary">
                   Speichern
-                </button>
+                </SubmitButton>
               </div>
             ) : null}
           </form>
@@ -623,7 +624,7 @@ export default async function SettingsPage({
             </div>
             {isAdmin ? (
               <div className="card-foot" style={{ textAlign: 'right' }}>
-                <button type="submit" className="btn primary">Speichern</button>
+                <SubmitButton className="btn primary">Speichern</SubmitButton>
               </div>
             ) : null}
           </form>
@@ -684,7 +685,7 @@ export default async function SettingsPage({
             </div>
             {isAdmin ? (
               <div className="card-foot" style={{ textAlign: 'right' }}>
-                <button type="submit" className="btn primary">Speichern</button>
+                <SubmitButton className="btn primary">Speichern</SubmitButton>
               </div>
             ) : null}
           </form>
@@ -747,7 +748,7 @@ export default async function SettingsPage({
             </div>
             {isAdmin ? (
               <div className="card-foot row-between">
-                <button type="submit" className="btn primary">Speichern</button>
+                <SubmitButton className="btn primary">Speichern</SubmitButton>
               </div>
             ) : null}
           </form>
@@ -946,14 +947,14 @@ export default async function SettingsPage({
             </div>
             {isAdmin ? (
               <div className="card-foot row-between">
-                <button type="submit" className="btn primary">Speichern</button>
+                <SubmitButton className="btn primary">Speichern</SubmitButton>
               </div>
             ) : null}
           </form>
 
           {isAdmin ? (
             <form action={runLivenessSweepAction} style={{ marginTop: 8, textAlign: 'right' }}>
-              <button type="submit" className="btn">Alle fälligen Anzeigen jetzt prüfen</button>
+              <SubmitButton className="btn">Alle fälligen Anzeigen jetzt prüfen</SubmitButton>
             </form>
           ) : null}
 
@@ -1011,9 +1012,9 @@ export default async function SettingsPage({
             {isAdmin ? (
               <div className="card-foot row-between">
                 <span className="small muted">Gilt ab der nächsten Abholung.</span>
-                <button type="submit" className="btn primary">
+                <SubmitButton className="btn primary">
                   Speichern
-                </button>
+                </SubmitButton>
               </div>
             ) : null}
           </form>
@@ -1078,14 +1079,14 @@ export default async function SettingsPage({
             {isAdmin ? (
               <div className="card-foot row-between">
                 <span className="small muted">Nur der konfigurierte Chat darf den Bot bedienen.</span>
-                <button type="submit" className="btn primary">Speichern</button>
+                <SubmitButton className="btn primary">Speichern</SubmitButton>
               </div>
             ) : null}
           </form>
 
           {isAdmin && telegramConfigured ? (
             <form action={sendTelegramTestAction} style={{ marginTop: 8, textAlign: 'right' }}>
-              <button type="submit" className="btn">Testnachricht senden</button>
+              <SubmitButton className="btn">Testnachricht senden</SubmitButton>
             </form>
           ) : null}
 
@@ -1132,9 +1133,9 @@ export default async function SettingsPage({
                   Reine Beschriftung des Kopier-Panels. Es gibt bewusst keine API-Verbindung zum
                   Firmen-System.
                 </span>
-                <button type="submit" className="btn primary">
+                <SubmitButton className="btn primary">
                   Speichern
-                </button>
+                </SubmitButton>
               </div>
             ) : null}
           </form>

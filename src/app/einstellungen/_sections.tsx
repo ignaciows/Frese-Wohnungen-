@@ -22,6 +22,7 @@ import {
 import { formatDateTime } from '@/lib/labels';
 import type { DiscoverySettings, OutboundSettings, FollowUpSettings } from '@/server/settings';
 import type { PortalAccountView } from '@/server/portalAccounts';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 export interface SourceRow {
   id: string;
@@ -162,9 +163,9 @@ export function DiscoverySection({
             </span>
             <div className="grow" />
             <form action={runDiscoverySweepFormAction}>
-              <button className="btn sm primary" type="submit">
+              <SubmitButton className="btn sm primary">
                 Jetzt suchen
-              </button>
+              </SubmitButton>
             </form>
           </div>
           <div className="card-body stack">
@@ -355,9 +356,9 @@ function SourceRowItem({ source }: { source: SourceRow }) {
           ) : null}
 
           <div className="row" style={{ justifyContent: 'flex-end' }}>
-            <button className="btn sm" type="submit">
+            <SubmitButton className="btn sm">
               Übernehmen
-            </button>
+            </SubmitButton>
           </div>
         </form>
       </details>
@@ -586,18 +587,18 @@ function MailboxCard({
             ) : null}
             <form action={verifyMailboxFormAction}>
               <input type="hidden" name="id" value={account.id} />
-              <button className="btn sm" type="submit">
+              <SubmitButton className="btn sm">
                 Prüfen
-              </button>
+              </SubmitButton>
             </form>
           </div>
           {/* Bewusst abgesetzt und unauffällig: „Entfernen" gehört nicht neben
               den Knopf, den man eigentlich drücken wollte. */}
           <form action={deleteAccountAction}>
             <input type="hidden" name="id" value={account.id} />
-            <button className="btn sm ghost quiet" type="submit">
+            <SubmitButton className="btn sm ghost quiet">
               Entfernen
-            </button>
+            </SubmitButton>
           </form>
         </div>
       ) : null}
@@ -890,15 +891,15 @@ export function AccountsSection({
                     <div className="row" style={{ gap: 6 }}>
                       <form action={verifyPortalAccountFormAction}>
                         <input type="hidden" name="id" value={a.id} />
-                        <button className="btn sm" type="submit">
+                        <SubmitButton className="btn sm">
                           Prüfen
-                        </button>
+                        </SubmitButton>
                       </form>
                     <form action={deleteAccountAction}>
                       <input type="hidden" name="id" value={a.id} />
-                      <button className="btn sm ghost" type="submit">
+                      <SubmitButton className="btn sm ghost">
                         Entfernen
-                      </button>
+                      </SubmitButton>
                     </form>
                     </div>
                   ) : null}
@@ -1040,9 +1041,9 @@ export function AccountsSection({
             <span className="small muted">
               Anfragen gehen nur an Adressen, die in der Anzeige selbst veröffentlicht sind.
             </span>
-            <button type="submit" className="btn primary">
+            <SubmitButton className="btn primary">
               Speichern
-            </button>
+            </SubmitButton>
           </div>
         ) : null}
       </form>
@@ -1085,9 +1086,9 @@ export function AccountsSection({
         {isAdmin ? (
           <div className="card-foot row-between">
             <span className="small muted">Antwortet jemand, verschwindet die Aufgabe von selbst.</span>
-            <button type="submit" className="btn primary">
+            <SubmitButton className="btn primary">
               Speichern
-            </button>
+            </SubmitButton>
           </div>
         ) : null}
       </form>
@@ -1178,9 +1179,9 @@ function MailboxForm() {
       </details>
 
       <div className="row">
-        <button className="btn primary" type="submit">
+        <SubmitButton className="btn primary">
           Postfach speichern
-        </button>
+        </SubmitButton>
       </div>
     </form>
   );
@@ -1277,9 +1278,9 @@ function PortalAccountForm({
       </details>
 
       <div className="row">
-        <button className="btn primary" type="submit">
+        <SubmitButton className="btn primary">
           Zugang speichern
-        </button>
+        </SubmitButton>
       </div>
     </form>
   );

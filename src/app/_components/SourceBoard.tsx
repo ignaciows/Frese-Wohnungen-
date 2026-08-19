@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { importListingAction } from '@/app/actions';
 import { SourceTask, type SourceTaskData } from './SourceTask';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 /**
  * Die Aufgabenliste eines Suchlaufs: eine Karte pro Portal.
@@ -95,9 +96,9 @@ export function SourceBoard({ tasks }: { tasks: SourceTaskData[] }) {
               </div>
             </div>
             <div className="row">
-              <button type="submit" className="btn primary">
+              <SubmitButton className="btn primary">
                 Importieren &amp; bewerten
-              </button>
+              </SubmitButton>
               <span className="small muted">
                 Doppelte Links werden automatisch erkannt und nicht doppelt angelegt.
               </span>

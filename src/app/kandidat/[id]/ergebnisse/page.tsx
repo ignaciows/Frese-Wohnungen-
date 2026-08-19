@@ -38,6 +38,7 @@ import { markListingExpiredAction, checkListingNowAction, setFollowUpAction } fr
 import { RESULT_TABS, liveListingFilter, matchWhere } from '@/server/listingFilters';
 import { getFeatureSettings } from '@/server/settings';
 import { isFeatureOn } from '@/domain/features';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -887,9 +888,9 @@ async function DetailPane({
               placeholder="Notiz (optional)"
               defaultValue={match.followUpNote ?? ''}
             />
-            <button type="submit" className="btn sm">
+            <SubmitButton className="btn sm">
               Setzen
-            </button>
+            </SubmitButton>
           </div>
           <p className="field-hint">
             Leer lassen und speichern entfernt die Wiedervorlage. Fällige stehen im Reiter
@@ -900,9 +901,9 @@ async function DetailPane({
         <form action={markListingExpiredAction}>
           <input type="hidden" name="listingId" value={l.id} />
           <input type="hidden" name="expired" value={l.expired ? 'false' : 'true'} />
-          <button type="submit" className="btn sm block">
+          <SubmitButton className="btn sm block">
             {l.expired ? 'Wieder als aktiv markieren' : 'Anzeige ist nicht mehr verfügbar'}
-          </button>
+          </SubmitButton>
         </form>
 
         {match.status !== 'CONTACTED' ? (
@@ -911,9 +912,9 @@ async function DetailPane({
               <form action={favoriteListingAction}>
                 <input type="hidden" name="candidateCaseId" value={candidateId} />
                 <input type="hidden" name="listingId" value={l.id} />
-                <button type="submit" className="btn sm">
+                <SubmitButton className="btn sm">
                   ★ Favorit
-                </button>
+                </SubmitButton>
               </form>
             ) : null}
             {match.status !== 'REJECTED' ? (
@@ -921,9 +922,9 @@ async function DetailPane({
                 <input type="hidden" name="candidateCaseId" value={candidateId} />
                 <input type="hidden" name="listingId" value={l.id} />
                 <input name="reason" className="input" placeholder="Grund (optional)" style={{ width: 150 }} />
-                <button type="submit" className="btn sm danger">
+                <SubmitButton className="btn sm danger">
                   Ablehnen
-                </button>
+                </SubmitButton>
               </form>
             ) : null}
           </div>
@@ -1063,9 +1064,9 @@ function TimingBlock({
       ) : null}
       <form action={checkListingNowAction}>
         <input type="hidden" name="listingId" value={listing.id} />
-        <button type="submit" className="btn sm">
+        <SubmitButton className="btn sm">
           Jetzt prüfen, ob die Anzeige noch online ist
-        </button>
+        </SubmitButton>
       </form>
 
       {arrival ? (

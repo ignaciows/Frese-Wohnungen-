@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { updateSourceCheckAction } from '@/app/actions';
 import { MAPPING_QUALITY, SOURCE_CHECK_STATUS, SOURCE_ROUTE, relativeDays } from '@/lib/labels';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 interface RecipeLine {
   filter: string;
@@ -156,27 +157,27 @@ export function SourceTask({
           <form action={updateSourceCheckAction}>
             <input type="hidden" name="sourceCheckId" value={task.id} />
             <input type="hidden" name="status" value="CHECKED_NO_RESULTS" />
-            <button type="submit" className="btn sm">
+            <SubmitButton className="btn sm">
               Geprüft — nichts gefunden
-            </button>
+            </SubmitButton>
           </form>
           {task.status !== 'UNAVAILABLE' ? (
             <form action={updateSourceCheckAction}>
               <input type="hidden" name="sourceCheckId" value={task.id} />
               <input type="hidden" name="status" value="UNAVAILABLE" />
               <input type="hidden" name="note" value="Portal aktuell nicht erreichbar" />
-              <button type="submit" className="btn ghost sm">
+              <SubmitButton className="btn ghost sm">
                 Nicht erreichbar
-              </button>
+              </SubmitButton>
             </form>
           ) : null}
           {done ? (
             <form action={updateSourceCheckAction}>
               <input type="hidden" name="sourceCheckId" value={task.id} />
               <input type="hidden" name="status" value="PENDING" />
-              <button type="submit" className="btn ghost sm">
+              <SubmitButton className="btn ghost sm">
                 Zurücksetzen
-              </button>
+              </SubmitButton>
             </form>
           ) : null}
         </div>

@@ -4119,3 +4119,42 @@ label {
   padding: 14px 16px;
   border-top: 1px solid var(--border);
 }
+
+/* ------------------------------------------------- Knopf, der arbeitet --- */
+/*
+ * Siehe docs/OBERFLAECHE.md, 2.1: eine Handlung ohne sichtbare Antwort wird
+ * wiederholt. Bei „Anfrage senden" heißt das zwei Anfragen an denselben
+ * Vermieter.
+ *
+ * Der Knopf ändert beim Drücken seine Breite nicht — ein Knopf, der unter dem
+ * Finger wandert, ist schlimmer als einer, der stillsteht.
+ */
+.btn.is-pending {
+  cursor: progress;
+  opacity: 0.85;
+}
+.btn .spinner {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  margin-right: 7px;
+  vertical-align: -2px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin 0.6s linear infinite;
+}
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* Wer „Bewegung stört mich" eingestellt hat, bekommt denselben Hinweis ohne
+   Drehung — die Auskunft bleibt, der Effekt geht. */
+@media (prefers-reduced-motion: reduce) {
+  .btn .spinner {
+    animation: none;
+    border-right-color: currentColor;
+    opacity: 0.5;
+  }
+}

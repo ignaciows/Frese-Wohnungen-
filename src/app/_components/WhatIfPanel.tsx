@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { simulateProfileAction, applySimulatedProfileAction } from '@/app/actions';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 interface Props {
   candidateCaseId: string;
@@ -324,9 +325,9 @@ export function WhatIfPanel({ candidateCaseId, current, startOpen = false }: Pro
           <span className="small muted">
             {changed ? 'Änderungen sind noch nicht gespeichert.' : 'Unverändert.'}
           </span>
-          <button type="submit" className="btn primary" disabled={!changed || pending}>
+          <SubmitButton className="btn primary" disabled={!changed || pending}>
             Ins Suchprofil übernehmen
-          </button>
+          </SubmitButton>
         </form>
       </div>
     </div>

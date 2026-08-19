@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { currentUser } from '@/lib/auth';
 import { createCandidateAction } from '@/app/actions';
 import { AppBar, Crumbs, Callout } from '@/app/_components/Shell';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -201,9 +202,9 @@ export default async function NewCandidatePage() {
             <Link href="/" className="btn">
               Abbrechen
             </Link>
-            <button type="submit" className="btn primary">
+            <SubmitButton className="btn primary">
               Anlegen &amp; weiter zum Anschreiben →
-            </button>
+            </SubmitButton>
           </div>
         </form>
       </main>

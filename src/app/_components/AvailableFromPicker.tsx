@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { setListingAvailableFromAction } from '../actions';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 /**
  * "Frei ab" for a flat whose advert never said.
@@ -64,9 +65,9 @@ export function AvailableFromPicker({
         aria-label="Frei ab"
         autoFocus
       />
-      <button type="submit" className="btn sm primary" disabled={pending}>
+      <SubmitButton className="btn sm primary" disabled={pending}>
         {pending ? '…' : 'Setzen'}
-      </button>
+      </SubmitButton>
       {/* A symbol, not the word: on the timeline the whole control has to fit
           in the 290px label column, and "Abbrechen" wrapped to its own line. */}
       <button

@@ -5,6 +5,7 @@ import { Callout, Empty } from '@/app/_components/Shell';
 import { SourceBoard } from '@/app/_components/SourceBoard';
 import type { SourceTaskData } from '@/app/_components/SourceTask';
 import { formatDate } from '@/lib/labels';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,9 +35,9 @@ export default async function QuellenPage({ params }: { params: Promise<{ id: st
           action={
             <form action={newSearchRunAction}>
               <input type="hidden" name="candidateCaseId" value={id} />
-              <button type="submit" className="btn primary">
+              <SubmitButton className="btn primary">
                 Suchlauf starten
-              </button>
+              </SubmitButton>
             </form>
           }
         >
@@ -87,9 +88,9 @@ export default async function QuellenPage({ params }: { params: Promise<{ id: st
             </Link>
             <form action={newSearchRunAction}>
               <input type="hidden" name="candidateCaseId" value={id} />
-              <button type="submit" className="btn">
+              <SubmitButton className="btn">
                 Neuer Suchlauf
-              </button>
+              </SubmitButton>
             </form>
           </div>
         </div>

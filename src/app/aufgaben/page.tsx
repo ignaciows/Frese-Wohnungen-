@@ -17,6 +17,7 @@ import { responseStats, stalledCases } from '@/server/insights';
 import { dailyWorklist } from '@/server/worklist';
 import { Worklist } from '@/app/_components/Worklist';
 import { describeResponseRate } from '@/domain/insights';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -205,9 +206,9 @@ export default async function AufgabenPage({
                       </Link>
                       <form action={markRepliesReadAction}>
                         <input type="hidden" name="contactAttemptId" value={m.contactAttempt.id} />
-                        <button className="btn sm ghost" type="submit">
+                        <SubmitButton className="btn sm ghost">
                           Als gelesen markieren
-                        </button>
+                        </SubmitButton>
                       </form>
                     </div>
                   </li>
@@ -255,16 +256,16 @@ export default async function AufgabenPage({
                       <form action={completeTaskAction}>
                         <input type="hidden" name="id" value={t.id} />
                         <input type="hidden" name="state" value="DONE" />
-                        <button className="btn sm" type="submit">
+                        <SubmitButton className="btn sm">
                           Erledigt
-                        </button>
+                        </SubmitButton>
                       </form>
                       <form action={completeTaskAction}>
                         <input type="hidden" name="id" value={t.id} />
                         <input type="hidden" name="state" value="DISMISSED" />
-                        <button className="btn sm ghost" type="submit">
+                        <SubmitButton className="btn sm ghost">
                           Verwerfen
-                        </button>
+                        </SubmitButton>
                       </form>
                     </div>
                   </li>
@@ -294,9 +295,9 @@ export default async function AufgabenPage({
                     </div>
                     <form action={retrySendFormAction}>
                       <input type="hidden" name="contactAttemptId" value={a.id} />
-                      <button className="btn sm" type="submit">
+                      <SubmitButton className="btn sm">
                         Erneut senden
-                      </button>
+                      </SubmitButton>
                     </form>
                   </li>
                 ))}
@@ -312,9 +313,9 @@ export default async function AufgabenPage({
             <div className="grow" />
             {counts.notifications > 0 ? (
               <form action={markNotificationsReadAction}>
-                <button className="btn sm ghost" type="submit">
+                <SubmitButton className="btn sm ghost">
                   Alle als gelesen
-                </button>
+                </SubmitButton>
               </form>
             ) : null}
           </div>

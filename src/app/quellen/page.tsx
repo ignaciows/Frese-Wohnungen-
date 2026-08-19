@@ -13,6 +13,7 @@ import { currentUser } from '@/lib/auth';
 import { syncCatalogAction } from '@/app/actions';
 import { AppBar, Callout } from '@/app/_components/Shell';
 import { SOURCE_ROUTE, formatDateTime } from '@/lib/labels';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,9 +41,9 @@ export default async function QuellenRegistryPage() {
           </div>
           {user.role === 'ADMIN' ? (
             <form action={syncCatalogAction}>
-              <button type="submit" className="btn">
+              <SubmitButton className="btn">
                 Katalog neu einlesen
-              </button>
+              </SubmitButton>
             </form>
           ) : null}
         </div>

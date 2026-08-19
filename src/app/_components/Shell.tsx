@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ThemeToggle } from './ThemeToggle';
 import { getFeatureSettings } from '@/server/settings';
 import { isFeatureOn } from '@/domain/features';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 /**
  * Die Hauptnavigation liest selbst nach, welche Bausteine an sind.
@@ -65,9 +66,9 @@ export async function AppBar({
         </span>
         {/* POST, so route prefetching can never sign the user out. */}
         <form action="/logout" method="post">
-          <button type="submit" className="btn sm ghost">
+          <SubmitButton className="btn sm ghost">
             Abmelden
-          </button>
+          </SubmitButton>
         </form>
       </div>
     </header>

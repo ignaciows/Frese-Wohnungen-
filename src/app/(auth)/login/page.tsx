@@ -4,6 +4,7 @@ import { verifyPassword } from '@/lib/auth';
 import { getSession } from '@/lib/session';
 import { googleLoginEnabled } from '@/lib/googleAuth';
 import { LOGIN_ERRORS } from './messages';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,9 +76,9 @@ export default async function LoginPage({
               className="input"
             />
           </div>
-          <button type="submit" className="btn primary block">
+          <SubmitButton className="btn primary block">
             Anmelden
-          </button>
+          </SubmitButton>
 
           {withGoogle ? (
             <>

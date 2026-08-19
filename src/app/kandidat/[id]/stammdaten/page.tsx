@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { updateCandidateAction, archiveCandidateAction, deleteCandidateAction } from '@/app/actions';
 import { currentUser } from '@/lib/auth';
 import { Callout } from '@/app/_components/Shell';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -116,9 +117,9 @@ export default async function StammdatenPage({
           <Link href={`/kandidat/${c.id}`} className="btn">
             Zurück
           </Link>
-          <button type="submit" className="btn primary">
+          <SubmitButton className="btn primary">
             Änderungen speichern
-          </button>
+          </SubmitButton>
         </div>
       </form>
 
@@ -134,9 +135,9 @@ export default async function StammdatenPage({
           <form action={archiveCandidateAction}>
             <input type="hidden" name="candidateCaseId" value={c.id} />
             <input type="hidden" name="archive" value={c.status === 'ARCHIVED' ? 'false' : 'true'} />
-            <button type="submit" className="btn">
+            <SubmitButton className="btn">
               {c.status === 'ARCHIVED' ? 'Wieder aktivieren' : 'Archivieren'}
-            </button>
+            </SubmitButton>
           </form>
         </div>
       </div>
@@ -177,9 +178,9 @@ export default async function StammdatenPage({
                 required
               />
               <div className="row" style={{ justifyContent: 'flex-end' }}>
-                <button type="submit" className="btn danger">
+                <SubmitButton className="btn danger">
                   Endgültig löschen
-                </button>
+                </SubmitButton>
               </div>
             </form>
           </div>

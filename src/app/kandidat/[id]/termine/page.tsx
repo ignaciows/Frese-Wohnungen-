@@ -5,6 +5,7 @@ import { createAppointmentAction, setAppointmentOutcomeAction, deleteAppointment
 import { Empty, Callout } from '@/app/_components/Shell';
 import { formatDateTime } from '@/lib/labels';
 import { featureOn } from '@/server/settings';
+import { SubmitButton } from '@/app/_components/SubmitButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -111,9 +112,9 @@ export default async function TerminePage({ params }: { params: Promise<{ id: st
           <span className="small muted">
             Termine leben nur in diesem Tool — es wird nichts in einen externen Kalender geschrieben.
           </span>
-          <button type="submit" className="btn primary">
+          <SubmitButton className="btn primary">
             Termin anlegen
-          </button>
+          </SubmitButton>
         </div>
       </form>
 
@@ -155,9 +156,9 @@ export default async function TerminePage({ params }: { params: Promise<{ id: st
                   </div>
                   <form action={deleteAppointmentAction}>
                     <input type="hidden" name="appointmentId" value={a.id} />
-                    <button type="submit" className="btn ghost sm">
+                    <SubmitButton className="btn ghost sm">
                       Löschen
-                    </button>
+                    </SubmitButton>
                   </form>
                 </div>
 
@@ -166,9 +167,9 @@ export default async function TerminePage({ params }: { params: Promise<{ id: st
                     <form key={s} action={setAppointmentOutcomeAction}>
                       <input type="hidden" name="appointmentId" value={a.id} />
                       <input type="hidden" name="status" value={s} />
-                      <button type="submit" className="btn sm">
+                      <SubmitButton className="btn sm">
                         {STATUS[s].label}
-                      </button>
+                      </SubmitButton>
                     </form>
                   ))}
                 </div>
