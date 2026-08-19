@@ -161,7 +161,6 @@ export async function computeMatchesForListing(listingId: string): Promise<void>
         reasons: result.reasons as unknown as object,
         blockers: result.blockers as unknown as object,
         rankVersion: result.rankVersion,
-        computedAt: new Date(),
       },
     });
   }
@@ -199,7 +198,6 @@ export async function recomputeAllForCandidate(candidateCaseId: string): Promise
         reasons: result.reasons as unknown as object,
         blockers: result.blockers as unknown as object,
         rankVersion: result.rankVersion,
-        computedAt: new Date(),
       },
     });
   }

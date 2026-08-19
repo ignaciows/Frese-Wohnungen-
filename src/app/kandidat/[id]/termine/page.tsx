@@ -1,7 +1,9 @@
+import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { createAppointmentAction, setAppointmentOutcomeAction, deleteAppointmentAction } from '@/app/actions';
 import { Empty, Callout } from '@/app/_components/Shell';
 import { formatDateTime } from '@/lib/labels';
+import { featureOn } from '@/server/settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +25,10 @@ const STATUS: Record<string, { label: string; tone: string }> = {
 
 export default async function TerminePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // Der Reiter ist ohne den Baustein schon aus der Navigation verschwunden.
+  // Die Seite muss trotzdem selbst zumachen — sonst reicht ein alter Link oder
+  // ein Lesezeichen, und die abgeschaltete Funktion steht wieder da.
+  if (!(await featureOn('appointments'))) notFound();
 
   const [appointments, contactedListings] = await Promise.all([
     prisma.appointment.findMany({

@@ -7,7 +7,7 @@ ein Bildschirm ohne sie — er kostet bei jedem Hinsehen Aufmerksamkeit.
 Deshalb ist alles Nicht-Zwingende ein **Baustein** mit einem Schalter:
 **Einstellungen → Erweiterte Einstellungen → Funktionen der App.**
 
-## Die zwei Regeln
+## Die drei Regeln
 
 **1. Ausschalten macht nie etwas kaputt.** Wer WG-Vorschläge abschaltet,
 verliert den Menüpunkt und die Berechnung — nicht die Kandidatinnen, die schon
@@ -19,40 +19,35 @@ Anzeigenliste, Bewertung, Kontaktverlauf haben bewusst keinen Schalter. Alles
 abschalten zu können klingt nach Freiheit und heißt in der Praxis, dass niemand
 mehr weiß, was das Programm eigentlich tut.
 
+**3. Kein zweiter Schalter für dieselbe Sache.** Versand, Telegram,
+Textprüfung, Altersfilter und Wiedervorlagen haben in ihrer eigenen
+Einstellungskarte schon ein „an/aus" und stehen deshalb nicht in dieser Liste.
+Zwei Schalter für eine Funktion sind schlimmer als keiner: dann sucht jemand
+den, der gerade nicht wirkt.
+
 ## Was es gibt
 
 ### Suche & Anzeigen
 
 | Baustein | Aus heißt |
 | --- | --- |
-| **Textprüfung** | Anzeigen bleiben stehen, bis jemand sie von Hand als vergeben markiert. Portale liefern gelöschte Anzeigen als ganz normale Seite aus — ohne die Prüfung merkt es erst, wer sie öffnet. |
-| **Doppelte zusammenfassen** | Dieselbe Wohnung kann mehrfach in der Liste stehen. |
+| **Doppelte Anzeigen zusammenfassen** | Dieselbe Wohnung kann mehrfach in der Liste stehen. Schon gebildete Gruppen bleiben. |
 | **Suchkriterien durchspielen** | Das „was bringt mehr Treffer"-Panel verschwindet. |
-| **Nur frisch inserierte** | Das Alter wird weiter angezeigt, filtert aber nichts. |
 
 ### Kontakt & Anfragen
 
 | Baustein | Aus heißt |
 | --- | --- |
 | **Telefonnummer aus der Anzeige lesen** | Keine grünen Zeilen, keine Anrufen-Knöpfe. Bereits gefundene Nummern bleiben gespeichert. |
-| **Anfragen aus der App versenden** | Zurück zu „kopieren, Portal öffnen, bestätigen". |
-| **Wiedervorlagen** | Keine automatischen „Antwort prüfen"-Aufgaben mehr. |
 
 ### Planung & Priorität
 
 | Baustein | Aus heißt |
 | --- | --- |
 | **WG-Vorschläge** | Menüpunkt weg. Die Zustimmung am Kandidaten bleibt. |
-| **Überbrückung berechnen** | Wohnungen mit späterem Einzug ohne Kostenhinweis. |
+| **Überbrückung berechnen** | Die Lücke zwischen Ankunft und Einzug steht weiter da, nur ohne Preisschild. |
 | **Zeitleiste** | Die Linie auf der Fallübersicht verschwindet. |
-| **Termine** | Der Reiter verschwindet. Bestehende Termine bleiben. |
-
-### Benachrichtigungen
-
-| Baustein | Aus heißt |
-| --- | --- |
-| **Telegram** | Keine Push-Nachrichten. Alles steht weiter unter „Aufgaben". |
-| **Wochenübersicht** | Keine wöchentliche Zusammenfassung. |
+| **Termine** | Der Reiter verschwindet — auch über die Adresse direkt. Bestehende Termine bleiben. |
 
 ### Auswertung
 
@@ -92,9 +87,11 @@ Zwei bewusste Entscheidungen:
   50 %, und beides heißt nichts. Lieber „zu wenige" als eine Zahl, nach der
   jemand eine funktionierende Quelle abschaltet.
 
-Anfragen der letzten drei Tage zählen nicht mit, sonst drückt jede heute
-verschickte Anfrage die Quote und die Zahl sagt mehr über den Vormittag als
-über das Anschreiben.
+Zwei Grenzen, beide absichtlich: Anfragen der letzten drei Tage zählen nicht
+mit, sonst drückt jede heute verschickte Anfrage die Quote und die Zahl sagt
+mehr über den Vormittag als über das Anschreiben. Und älter als ein halbes Jahr
+zählt auch nicht — ein Anschreiben, das vor einem Jahr schlecht lief, sagt
+nichts über das von heute.
 
 ## Einen neuen Baustein bauen
 
@@ -119,6 +116,11 @@ verschickte Anfrage die Quote und die Zahl sagt mehr über den Vormittag als
    Schalter, der nur ein Kästchen umlegt, ist schlimmer als kein Schalter:
    er verspricht eine Wirkung, die es nicht gibt. Vorbild:
    `tests/features.test.ts`.
+
+Schritt 3 ist der, den man vergisst. `tests/features.test.ts` sucht deshalb
+jeden Schlüssel im Quelltext und schlägt fehl, wenn einer nirgends abgefragt
+wird — das ist genau der Fehler, den diese Liste einmal hatte: fünfzehn
+Schalter, neun davon ohne jede Wirkung.
 
 Der Schalter erscheint danach von selbst in seiner Gruppe — es gibt keine
 zweite Liste zu pflegen.

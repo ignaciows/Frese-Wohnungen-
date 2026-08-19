@@ -7,6 +7,7 @@ import { Timeline } from '@/app/_components/Timeline';
 import { SentAnfragen } from '@/app/_components/SentAnfragen';
 import { loadCandidatePriority } from '@/server/priority';
 import { loadCandidateTimeline } from '@/server/timeline';
+import { featureOn } from '@/server/settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,9 +32,11 @@ export default async function CandidateOverview({ params }: { params: Promise<{ 
   });
   if (!candidate) notFound();
 
+  // Abschaltbar: ohne den Baustein „Zeitleiste" wird sie gar nicht erst
+  // geladen — ein ausgeschalteter Baustein soll auch nichts rechnen.
   const [priority, timeline] = await Promise.all([
     loadCandidatePriority(id),
-    loadCandidateTimeline(id),
+    (await featureOn('timeline')) ? loadCandidateTimeline(id) : null,
   ]);
   const hasMessage = (candidate.applicationMessage?.body ?? '').trim().length > 0;
   const runs = candidate.searchRuns;

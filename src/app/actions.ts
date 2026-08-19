@@ -455,18 +455,24 @@ export async function deleteCandidateAction(formData: FormData) {
     );
   }
 
-  await prisma.auditEvent.create({
-    data: {
-      userId: user.id,
-      candidateCaseId,
-      entityType: 'CandidateCase',
-      entityId: candidateCaseId,
-      action: 'case.delete',
-      fromState: 'ACTIVE',
-      reason: `Fall „${candidate!.displayName}" (${candidate!.reference}) endgültig gelöscht.`,
-    },
+  // Beides zusammen oder gar nicht — sonst bleibt im Fehlerfall entweder ein
+  // Protokolleintrag über eine Löschung, die nie stattfand, oder ein gelöschter
+  // Fall ohne jede Spur. Der Eintrag selbst überlebt (`onDelete: SetNull`);
+  // welcher Fall gemeint war, steht in `entityId`.
+  await prisma.$transaction(async (tx) => {
+    await tx.auditEvent.create({
+      data: {
+        userId: user.id,
+        candidateCaseId,
+        entityType: 'CandidateCase',
+        entityId: candidateCaseId,
+        action: 'case.delete',
+        fromState: 'ACTIVE',
+        reason: `Fall „${candidate!.displayName}" (${candidate!.reference}) endgültig gelöscht.`,
+      },
+    });
+    await tx.candidateCase.delete({ where: { id: candidateCaseId } });
   });
-  await prisma.candidateCase.delete({ where: { id: candidateCaseId } });
 
   revalidatePath('/', 'layout');
   redirect('/?gespeichert=' + encodeURIComponent(`Fall „${candidate!.displayName}" gelöscht.`));

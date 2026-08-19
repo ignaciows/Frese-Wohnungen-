@@ -9,7 +9,12 @@ import { formatDate, PRIORITY_TIER, difficultyLabel } from '@/lib/labels';
 
 export const dynamic = 'force-dynamic';
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ gespeichert?: string; fehler?: string }>;
+}) {
+  const sp = await searchParams;
   const user = await currentUser();
   if (!user) redirect('/login');
   const pending = await inboxCounts();
@@ -45,6 +50,11 @@ export default async function DashboardPage() {
     <>
       <AppBar user={user} active="kandidaten" pending={pending.dueTasks + pending.unreadReplies} />
       <main className="container page">
+        {/* Wer hier landet, kommt oft von einer Aktion auf einer Seite, die es
+            danach nicht mehr gibt — nach dem Löschen eines Falls zum Beispiel.
+            Ohne diese Zeile verschwindet die Rückmeldung mit der Seite. */}
+        {sp.gespeichert ? <Callout tone="success">{sp.gespeichert}</Callout> : null}
+        {sp.fehler ? <Callout tone="danger">{sp.fehler}</Callout> : null}
         <div className="page-head">
           <div className="page-title">
             <h1>Kandidaten</h1>

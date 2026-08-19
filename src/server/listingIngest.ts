@@ -220,7 +220,9 @@ export async function ingestListing(input: IngestInput): Promise<IngestResult> {
     return record;
   });
 
-  await registerDuplicates(listing.id);
+  // Abschaltbar: ohne die Dublettensuche steht jede Anzeige für sich. Schon
+  // gebildete Gruppen bleiben erhalten, es kommen nur keine neuen dazu.
+  if (await featureOn('duplicateDetection')) await registerDuplicates(listing.id);
   await computeMatchesForListing(listing.id);
 
   return {

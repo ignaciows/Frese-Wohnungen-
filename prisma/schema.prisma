@@ -606,7 +606,13 @@ model CandidateListingMatch {
   /// workflow status, so you can park something without rejecting it.
   followUpAt   DateTime?
   followUpNote String?
-  computedAt   DateTime  @default(now())
+  /// Wann dieser Treffer für diesen Fall entstanden ist — einmal gesetzt und
+  /// danach nie wieder angefasst. Das ist die Antwort auf „wann kam für diesen
+  /// Fall zuletzt etwas Anschreibbares dazu". Hieß früher `computedAt` und
+  /// wurde bei jeder Neuberechnung neu gestempelt; damit sah jeder Fall nach
+  /// einem Profil-Update taufrisch aus und die Stillstands-Warnung kam nie.
+  /// Wann zuletzt gerechnet wurde, steht ohnehin in `updatedAt`.
+  matchedAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   candidateCase CandidateCase @relation(fields: [candidateCaseId], references: [id], onDelete: Cascade)

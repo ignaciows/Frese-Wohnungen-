@@ -112,6 +112,10 @@ export default async function ErgebnissePage({
     getFeatureSettings(),
   ]);
   const arrival = profile?.moveInDate ?? null;
+  // Baustein „Überbrückung berechnen": aus heißt, die Lücke wird weiter
+  // genannt — nur eben ohne Preisschild. Die Lücke selbst ist keine
+  // Zusatzfunktion, die entscheidet mit über die Wohnung.
+  const showBridgeCost = isFeatureOn(features, 'bridging');
 
   // Nothing vanishes without being counted. Three quarters of a real
   // candidate's matches are unusable, and a list that silently drops them is
@@ -347,7 +351,8 @@ export default async function ErgebnissePage({
                       ) : null}
                       {timing.verdict === 'BRIDGE_NEEDED' || timing.verdict === 'BRIDGE_TOO_LONG' ? (
                         <span className="badge warning">
-                          {timing.bridgeNights} Tage Lücke ≈ {formatEuroCents(timing.bridgeCostCents)}
+                          {timing.bridgeNights} Tage Lücke
+                          {showBridgeCost ? ` ≈ ${formatEuroCents(timing.bridgeCostCents)}` : ''}
                         </span>
                       ) : null}
                       {fresh.state === 'STALE' ? (
@@ -465,6 +470,7 @@ export default async function ErgebnissePage({
               arrival={arrival}
               freshnessSettings={freshnessSettings}
               bridging={bridging}
+              showBridgeCost={showBridgeCost}
               liveness={liveness}
             />
           ) : null}
@@ -576,6 +582,7 @@ async function DetailPane({
   arrival,
   freshnessSettings,
   bridging,
+  showBridgeCost,
   liveness,
 }: {
   candidateId: string;
@@ -585,6 +592,7 @@ async function DetailPane({
   arrival: Date | null;
   freshnessSettings: FreshnessSettings;
   bridging: BridgingSettings;
+  showBridgeCost: boolean;
   liveness: LivenessPolicy;
 }) {
   const l = match.listing;
@@ -660,6 +668,7 @@ async function DetailPane({
             arrival={arrival}
             freshnessSettings={freshnessSettings}
             bridging={bridging}
+            showBridgeCost={showBridgeCost}
             liveness={liveness}
           />
 
@@ -850,12 +859,14 @@ function TimingBlock({
   arrival,
   freshnessSettings,
   bridging,
+  showBridgeCost,
   liveness,
 }: {
   listing: DetailMatch['listing'];
   arrival: Date | null;
   freshnessSettings: FreshnessSettings;
   bridging: BridgingSettings;
+  showBridgeCost: boolean;
   liveness: LivenessPolicy;
 }) {
   const fresh = evaluateFreshness(
@@ -960,7 +971,7 @@ function TimingBlock({
               </strong>{' '}
               · Ankunft {formatDate(arrival)}
             </div>
-            {needsBridge ? (
+            {needsBridge && showBridgeCost ? (
               <>
                 <div className="small">
                   {timing.bridgeNights} Nächte Zwischenunterkunft ×{' '}
@@ -978,6 +989,9 @@ function TimingBlock({
                   </div>
                 ) : null}
               </>
+            ) : needsBridge ? (
+              // Baustein aus: die Lücke bleibt sichtbar, was sie kostet nicht.
+              <div className="small">{timing.bridgeNights} Nächte zwischen Ankunft und Einzug.</div>
             ) : (
               <div className="small">{timing.label}</div>
             )}

@@ -11,7 +11,7 @@
  * die Funktion existiert; aus heißt, sie ist nirgends zu sehen und rechnet
  * auch nichts. Kein halber Zustand.
  *
- * ## Die zwei Regeln
+ * ## Die drei Regeln
  *
  * 1. **Ausschalten darf nie etwas kaputt machen.** Wer WG-Vorschläge
  *    abschaltet, verliert den Menüpunkt und die Berechnung — nicht die
@@ -22,13 +22,20 @@
  *    Schalter. Alles abschalten zu können klingt nach Freiheit und heißt in
  *    der Praxis, dass niemand mehr weiß, was das Programm eigentlich tut.
  *
+ * 3. **Kein zweiter Schalter für dieselbe Sache.** Versand, Telegram,
+ *    Textprüfung, Altersfilter und Wiedervorlagen haben in ihrer eigenen
+ *    Einstellungskarte schon ein „an/aus" und stehen deshalb bewusst nicht
+ *    hier. Zwei Schalter für eine Funktion sind schlimmer als keiner: dann
+ *    sucht jemand den, der gerade nicht wirkt.
+ *
  * Neue Funktionen kommen als Baustein herein: hier einen Eintrag ergänzen,
- * `defaultOn` bewusst wählen, und dort abfragen, wo die Funktion sichtbar
- * wird. Mehr braucht es nicht.
+ * `defaultOn` bewusst wählen, und **dort abfragen, wo die Funktion sichtbar
+ * wird**. Ein Eintrag ohne Abfrage ist ein Schalter, der nichts tut — und der
+ * ist schlimmer als kein Schalter, weil er eine Wirkung verspricht.
  */
 
 /** Wozu ein Baustein gehört — nur zur Gruppierung auf dem Bildschirm. */
-export type FeatureGroup = 'suche' | 'kontakt' | 'planung' | 'benachrichtigung' | 'auswertung';
+export type FeatureGroup = 'suche' | 'kontakt' | 'planung' | 'auswertung';
 
 export interface FeatureDefinition {
   key: string;
@@ -52,21 +59,11 @@ export const FEATURE_GROUP_LABELS: Record<FeatureGroup, string> = {
   suche: 'Suche & Anzeigen',
   kontakt: 'Kontakt & Anfragen',
   planung: 'Planung & Priorität',
-  benachrichtigung: 'Benachrichtigungen',
   auswertung: 'Auswertung',
 };
 
 export const FEATURES = [
   /* ------------------------------------------------ Suche & Anzeigen --- */
-  {
-    key: 'livenessCheck',
-    label: 'Textprüfung: Ist die Anzeige noch online?',
-    description:
-      'Liest Anzeigenseiten im Text nach und blendet aus, was erkennbar vergeben ist. Portale liefern gelöschte Anzeigen als ganz normale Seite aus — ohne diese Prüfung merkt es erst, wer sie öffnet.',
-    group: 'suche',
-    defaultOn: true,
-    offMeans: 'Anzeigen bleiben stehen, bis jemand sie von Hand als vergeben markiert.',
-  },
   {
     key: 'duplicateDetection',
     label: 'Doppelte Anzeigen zusammenfassen',
@@ -85,15 +82,6 @@ export const FEATURES = [
     defaultOn: true,
     offMeans: 'Das Panel verschwindet. Kriterien ändert man dann direkt im Suchprofil.',
   },
-  {
-    key: 'ageFilter',
-    label: 'Nur frisch inserierte Anzeigen',
-    description:
-      'Blendet Anzeigen aus, die älter sind als eine eingestellte Zahl von Tagen. Standardmäßig ohne Wirkung, bis eine Obergrenze gesetzt ist.',
-    group: 'suche',
-    defaultOn: true,
-    offMeans: 'Das Alter wird weiterhin angezeigt, filtert aber nichts.',
-  },
 
   /* ---------------------------------------------- Kontakt & Anfragen --- */
   {
@@ -104,24 +92,6 @@ export const FEATURES = [
     group: 'kontakt',
     defaultOn: true,
     offMeans: 'Kontaktdaten werden nicht mehr gelesen. Bereits gefundene Nummern bleiben gespeichert.',
-  },
-  {
-    key: 'outboundEmail',
-    label: 'Anfragen aus der App versenden',
-    description:
-      'Wo eine Anzeige selbst eine Adresse nennt, geht die Anfrage direkt aus dem gemeinsamen Postfach raus — samt Wiedervorlage und Antwort-Zuordnung.',
-    group: 'kontakt',
-    defaultOn: true,
-    offMeans: 'Anfragen laufen wieder über „kopieren, Portal öffnen, bestätigen“.',
-  },
-  {
-    key: 'followUps',
-    label: 'Wiedervorlagen',
-    description:
-      'Legt nach einer Anfrage automatisch „Antwort prüfen“ an und schließt die Aufgabe, sobald jemand antwortet.',
-    group: 'kontakt',
-    defaultOn: true,
-    offMeans: 'Keine automatischen Aufgaben mehr. Wer nachfasst, merkt es sich selbst.',
   },
 
   /* --------------------------------------------- Planung & Priorität --- */
@@ -158,25 +128,6 @@ export const FEATURES = [
     group: 'planung',
     defaultOn: true,
     offMeans: 'Der Reiter „Termine“ verschwindet. Bestehende Termine bleiben gespeichert.',
-  },
-
-  /* ------------------------------------------------ Benachrichtigung --- */
-  {
-    key: 'telegram',
-    label: 'Telegram',
-    description:
-      'Schickt eine Nachricht, wenn jemand geantwortet hat oder eine Wiedervorlage fällig ist — und nimmt Notizen aus dem Chat entgegen.',
-    group: 'benachrichtigung',
-    defaultOn: false,
-    offMeans: 'Keine Push-Nachrichten. Alles steht weiterhin unter „Aufgaben & Posteingang“.',
-  },
-  {
-    key: 'weeklyDigest',
-    label: 'Wochenübersicht',
-    description: 'Fasst einmal pro Woche zusammen, was gelaufen ist und was liegen geblieben ist.',
-    group: 'benachrichtigung',
-    defaultOn: false,
-    offMeans: 'Keine Zusammenfassung. Der Verlauf bleibt jederzeit abrufbar.',
   },
 
   /* ---------------------------------------------------- Auswertung ----- */

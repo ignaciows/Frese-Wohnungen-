@@ -11,11 +11,14 @@ import { formatDate } from '@/lib/labels';
 export const dynamic = 'force-dynamic';
 
 export default async function WgPage() {
-  // Der Menüpunkt ist weg, wenn der Baustein aus ist — die Adresse aber nicht.
-  // Wer sie noch im Verlauf hat, soll nicht auf einer halben Seite landen.
-  if (!(await featureOn('wgMatching'))) notFound();
+  // Erst anmelden, dann erst verraten, ob es die Seite überhaupt gibt: sonst
+  // sagt ein 404 gegen 302 einem Nichtangemeldeten, welche Bausteine hier
+  // laufen. Der Menüpunkt ist weg, wenn der Baustein aus ist — die Adresse
+  // aber nicht, und wer sie im Verlauf hat, soll nicht auf einer halben Seite
+  // landen.
   const user = await currentUser();
   if (!user) redirect('/login');
+  if (!(await featureOn('wgMatching'))) notFound();
   const pending = await inboxCounts();
 
   const [suggestions, settings] = await Promise.all([loadOpenSuggestions(), getSharingSettings()]);
