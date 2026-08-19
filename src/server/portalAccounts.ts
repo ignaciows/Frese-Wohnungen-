@@ -281,7 +281,7 @@ export async function loadMailbox(
       // Einstellungs-Bildschirm steht und nicht erst auffällt, wenn eine
       // Woche lang keine Antwort mehr ankam.
       if (token.needsReconnect) {
-        await markAccountStatus(account.id, 'FAILED', token.reason).catch(() => {});
+        await markAccountStatus(account.id, 'REAUTH', token.reason).catch(() => {});
       }
       return { ok: false, reason: `„${account.label}": ${token.reason}` };
     }
@@ -313,6 +313,17 @@ export async function loadMailbox(
  * next one up. Each is loaded, verified and read on its own, so a broken
  * password on one never silences the others.
  */
+/**
+ * Gibt es überhaupt ein hinterlegtes Postfach?
+ *
+ * Absichtlich billig: nur ein `count`, keine Entschlüsselung und kein Ruf nach
+ * Google. Wer nur wissen will, ob eingerichtet ist, soll dafür nicht bei jedem
+ * Seitenaufbau ein Zugriffstoken erneuern.
+ */
+export async function anyMailboxConfigured(): Promise<boolean> {
+  return (await prisma.portalAccount.count({ where: { kind: 'MAILBOX', active: true } })) > 0;
+}
+
 export async function listMailboxes(): Promise<Array<{ id: string; label: string }>> {
   const rows = await prisma.portalAccount.findMany({
     where: { kind: 'MAILBOX', active: true },
@@ -322,9 +333,21 @@ export async function listMailboxes(): Promise<Array<{ id: string; label: string
   return rows;
 }
 
+/**
+ * Der Zustand eines Zugangs.
+ *
+ * `REAUTH` ist bewusst kein `FAILED`: „Google hat den Zugriff zurückgezogen"
+ * braucht einen Menschen, der einmal auf einen Knopf drückt, und „der
+ * Mailserver hat gerade abgelehnt" wartet sich aus. Ein gemeinsamer Zustand
+ * für beides führt dazu, dass ein zugestellter Fehlversuch eine
+ * Neuverbindung anbietet, die nichts repariert — und dass die echte
+ * Neuverbindung zwischen Rauschen untergeht.
+ */
+export type AccountStatus = 'OK' | 'FAILED' | 'REAUTH';
+
 export async function markAccountStatus(
   id: string,
-  status: 'OK' | 'FAILED',
+  status: AccountStatus,
   note: string | null,
 ): Promise<void> {
   await prisma.portalAccount.update({

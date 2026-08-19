@@ -74,6 +74,11 @@ export async function GET(request: Request) {
     label: existing?.label ?? grant.email,
     loginName: grant.email,
     secret: grant.refreshToken,
+    // Ein früher hinterlegtes IMAP-Passwort muss weg. Es wird nicht mehr
+    // gebraucht, und stehen bliebe es genau so lange, bis jemand dasselbe
+    // Postfach wieder über das IMAP-Formular speichert — dann bekäme
+    // nodemailer den Refresh-Token als SMTP-Passwort.
+    secondarySecret: '',
     replyToAddress: grant.email,
     meta: { ...GMAIL_HOSTS, authMethod: 'GOOGLE_OAUTH' },
     active: true,

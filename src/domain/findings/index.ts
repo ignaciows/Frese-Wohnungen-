@@ -27,6 +27,8 @@ export interface CandidateFindings {
 
 export interface Finding {
   candidateCaseId: string;
+  /** Wie viele passende Wohnungen dazukamen — entscheidet die Reihenfolge. */
+  added: number;
   title: string;
   body: string;
   url: string;
@@ -54,6 +56,7 @@ export function findingsToNotices(findings: CandidateFindings[]): Finding[] {
     const callable = f.withPhone > 0;
     out.push({
       candidateCaseId: f.candidateCaseId,
+      added: f.added,
       title: callable
         ? `${f.displayName}: ${plural(f.withPhone, 'Wohnung', 'Wohnungen')} zum Anrufen`
         : `${f.displayName}: ${plural(f.added, 'neue passende Wohnung', 'neue passende Wohnungen')}`,
@@ -65,10 +68,10 @@ export function findingsToNotices(findings: CandidateFindings[]): Finding[] {
     });
   }
 
-  // Erst die mit Nummer, dann die größte Ausbeute. Bei Gleichstand der Name,
+  // Erst die mit Nummer, dann die größte Ausbeute. Bei Gleichstand der Titel,
   // damit zwei Durchläufe dieselbe Reihenfolge ergeben.
   return out.sort((a, b) => {
     if (a.callable !== b.callable) return a.callable ? -1 : 1;
-    return a.title.localeCompare(b.title, 'de');
+    return b.added - a.added || a.title.localeCompare(b.title, 'de');
   });
 }

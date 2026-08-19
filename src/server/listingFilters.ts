@@ -83,6 +83,21 @@ export type ResultTab = (typeof RESULT_TABS)[number]['key'];
 type MatchStatusValue = 'NEW' | 'FAVORITE' | 'IN_PROGRESS' | 'CONTACTED' | 'REJECTED' | 'EXPIRED';
 
 /**
+ * „Nicht als unpassend markiert" — die eine Definition von anschreibbar.
+ *
+ * Bewusst `not: INCOMPATIBLE` und nicht `in: [COMPATIBLE, NEAR_MATCH]`: dazwischen
+ * liegt `INSUFFICIENT_DATA`, der Standardwert für jeden Treffer, dem noch Miete,
+ * Zimmerzahl oder Fläche fehlt. Die Ergebnisliste zeigt die, weil eine Anzeige
+ * ohne Quadratmeterangabe trotzdem die richtige Wohnung sein kann.
+ *
+ * Wer hier enger filtert als die Liste, baut denselben Fehler wie damals der
+ * Zähler auf dem Reiter: die Tagesliste sagt „nichts offen", die Liste zeigt
+ * vierzig Zeilen. Deshalb steht das hier einmal und wird von Tagesliste,
+ * Meldungen und Stillstands-Warnung geteilt.
+ */
+export const USABLE_COMPATIBILITY = { not: 'INCOMPATIBLE' } as const;
+
+/**
  * The working list holds nothing that cannot be written to.
  *
  * On a real candidate, 234 of 311 live matches were INCOMPATIBLE — three

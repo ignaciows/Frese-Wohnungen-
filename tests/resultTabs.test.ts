@@ -101,6 +101,10 @@ async function seedMixedPool() {
   await addMatch({ status: 'NEW', compatibility: 'COMPATIBLE' });
   await addMatch({ status: 'NEW', compatibility: 'NEAR_MATCH' });
   await addMatch({ status: 'FAVORITE', compatibility: 'COMPATIBLE' });
+  // Zu wenig im Anzeigentext für ein Urteil — Standardwert bei jedem Treffer,
+  // dem Miete, Zimmer oder Fläche fehlen. Zählt mit: eine Anzeige ohne
+  // Quadratmeterangabe kann trotzdem die richtige Wohnung sein.
+  await addMatch({ status: 'NEW', compatibility: 'INSUFFICIENT_DATA' });
   // Wrong city / over budget: counted nowhere in the working tab.
   await addMatch({ status: 'NEW', compatibility: 'INCOMPATIBLE' });
   await addMatch({ status: 'NEW', compatibility: 'INCOMPATIBLE' });
@@ -129,6 +133,23 @@ describe('the number on a tab', () => {
     }
   });
 
+  it('stimmt mit der Tagesliste überein', async () => {
+    // Dieselbe Falle eine Ebene höher: „Heute dran" hat einmal enger gefiltert
+    // als der Reiter, auf den es verlinkt — Ergebnis wäre „nichts offen" über
+    // einer Liste mit Zeilen darin gewesen. Beide zählen jetzt dasselbe.
+    const { candidate } = await seedMixedPool();
+    const { dailyWorklist } = await import('@/server/worklist');
+
+    const tabCount = await prisma.candidateListingMatch.count({
+      where: matchWhere({ candidateCaseId: candidate.id, tab: 'zu-kontaktieren', expiredCutoff }),
+    });
+    const list = await dailyWorklist();
+    const item = [...list.call, ...list.write, ...list.idle].find(
+      (i) => i.candidateCaseId === candidate.id,
+    )!;
+    expect(item.callable + item.writable).toBe(tabCount);
+  });
+
   it('keeps the unusable and the dead out of "Zu kontaktieren"', async () => {
     // The concrete shape of the old bug: three usable, seven not, and the tab
     // used to say ten.
@@ -136,7 +157,7 @@ describe('the number on a tab', () => {
     const count = await prisma.candidateListingMatch.count({
       where: matchWhere({ candidateCaseId: candidate.id, tab: 'zu-kontaktieren', expiredCutoff }),
     });
-    expect(count).toBe(3);
+    expect(count).toBe(4);
   });
 
   it('keeps a contacted ad reachable after the ad itself dies', async () => {

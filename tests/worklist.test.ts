@@ -110,12 +110,22 @@ describe('der Satz über den Tag', () => {
     const text = describeWorklist(
       buildWorklist([work({ candidateCaseId: 'a', callable: 2 }), work({ candidateCaseId: 'b', writable: 5 })]),
     );
-    expect(text).toBe('2 Wohnungen mit Telefonnummer bei 1 Fall · 5 Wohnungen zum Anschreiben.');
+    // „weitere", weil auch die anschreibbaren Wohnungen der Anruf-Fälle
+    // mitzählen — die Zahl ist eine Tagessumme, nicht die Blockgröße.
+    expect(text).toBe('2 Wohnungen mit Telefonnummer bei 1 Fall · 5 weitere Wohnungen zum Anschreiben.');
   });
 
   it('feiert keinen Feierabend, wenn nur nichts nachkommt', () => {
     const text = describeWorklist(buildWorklist([work({ candidateCaseId: 'leer' })]));
     expect(text).toMatch(/kein Feierabend/);
+  });
+
+  it('zählt auch die anschreibbaren Wohnungen der Anruf-Fälle mit', () => {
+    // Der Fall, an dem die alte Fassung log: ein einziger Fall mit Nummer und
+    // vier weiteren Wohnungen. „4 Wohnungen zum Anschreiben" über einem leeren
+    // Block gelesen zu haben, wäre schlimmer als gar keine Zahl.
+    const text = describeWorklist(buildWorklist([work({ callable: 1, writable: 4 })]));
+    expect(text).toMatch(/4 weitere Wohnungen zum Anschreiben/);
   });
 
   it('bleibt still, wenn es gar keine Fälle gibt', () => {

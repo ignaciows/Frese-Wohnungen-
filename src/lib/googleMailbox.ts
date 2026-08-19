@@ -94,6 +94,8 @@ export function mailboxAuthorizeUrl(args: {
   config: MailboxOAuthConfig;
   requestUrl: string;
   state: string;
+  /** Adresse, die schon verbunden war — beim Neuverbinden. */
+  loginHint?: string | null;
 }): string {
   const url = new URL(AUTH_ENDPOINT);
   url.searchParams.set('client_id', args.config.clientId);
@@ -105,6 +107,11 @@ export function mailboxAuthorizeUrl(args: {
   // zweiten Verbinden kein Refresh-Token mehr.
   url.searchParams.set('access_type', 'offline');
   url.searchParams.set('prompt', 'consent select_account');
+  // Beim Neuverbinden das Konto vorschlagen, das kaputt ist. Ohne das wählt
+  // jemand im Zweifel das falsche, und dann steht ein zweites, funktionierendes
+  // Postfach in der Liste — während das kaputte weiter kaputt ist und niemand
+  // sagt warum. Nur ein Vorschlag; wer will, wählt trotzdem ein anderes.
+  if (args.loginHint) url.searchParams.set('login_hint', args.loginHint);
   return url.toString();
 }
 

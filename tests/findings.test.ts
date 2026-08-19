@@ -50,6 +50,16 @@ describe('Meldungen nach einem Suchlauf', () => {
     expect(notices.map((n) => n.candidateCaseId)).toEqual(['nummer', 'viele']);
   });
 
+  it('sortiert bei gleichem Rang nach Ausbeute', () => {
+    // „Ana: 1 neue Wohnung" über „Zoe: 40 neue Wohnungen" wäre reine
+    // Alphabetik und hätte mit Dringlichkeit nichts zu tun.
+    const notices = findingsToNotices([
+      found({ candidateCaseId: 'wenig', displayName: 'Ana', added: 1 }),
+      found({ candidateCaseId: 'viel', displayName: 'Zoe', added: 40 }),
+    ]);
+    expect(notices.map((n) => n.candidateCaseId)).toEqual(['viel', 'wenig']);
+  });
+
   it('bleibt zwischen zwei Durchläufen in derselben Reihenfolge', () => {
     const cases = [
       found({ candidateCaseId: 'b', displayName: 'Bea', added: 3 }),

@@ -500,7 +500,7 @@ function sourceState(source: SourceRow, gaps: string[]): SourceState {
 function accountReadiness(a: PortalAccountView): 'running' | 'setup' | 'blocked' | 'off' {
   if (!a.active) return 'off';
   if (!a.hasSecret) return 'setup';
-  if (a.status === 'FAILED') return 'blocked';
+  if (a.status === 'FAILED' || a.status === 'REAUTH') return 'blocked';
   return a.status === 'OK' ? 'running' : 'setup';
 }
 
@@ -514,11 +514,10 @@ function accountReadiness(a: PortalAccountView): 'running' | 'setup' | 'blocked'
 function mailboxLabel(a: PortalAccountView): string {
   const viaGoogle = a.meta.authMethod === 'GOOGLE_OAUTH';
   if (!a.hasSecret) return viaGoogle ? 'Nicht verbunden' : 'Passwort fehlt';
-  if (a.status === 'FAILED') {
-    // Bei Google ist „fehlgeschlagen" fast immer ein zurückgezogener Zugriff,
-    // und dann ist die einzige sinnvolle Handlung der Knopf daneben.
-    return viaGoogle ? 'Muss neu verbunden werden' : 'Anmeldung fehlgeschlagen';
-  }
+  // Nur ein zurückgezogener Zugriff darf so heißen. Ein abgelehnter Versand
+  // ist ein anderer Fehler, und „neu verbinden" repariert ihn nicht.
+  if (a.status === 'REAUTH') return 'Muss neu verbunden werden';
+  if (a.status === 'FAILED') return 'Anmeldung fehlgeschlagen';
   if (a.status === 'OK') {
     return a.lastVerifiedAt
       ? `Aktiv — geprüft ${formatDateTime(a.lastVerifiedAt)}`
@@ -547,6 +546,8 @@ function MailboxCard({
   const viaGoogle = account.meta.authMethod === 'GOOGLE_OAUTH';
   const readiness = accountReadiness(account);
   const broken = readiness === 'blocked';
+  // Nur hier ist „neu verbinden" wirklich die Lösung.
+  const needsReconnect = account.status === 'REAUTH';
 
   return (
     <div className={`mailbox-card ${readiness}`}>
@@ -574,8 +575,13 @@ function MailboxCard({
         <div className="mailbox-actions">
           <div className="row" style={{ gap: 6 }}>
             {viaGoogle && googleReady ? (
-              <a href="/google/postfach/start" className={`btn sm ${broken ? 'primary' : 'ghost'}`}>
-                {broken ? 'Neu verbinden' : 'Erneut verbinden'}
+              <a
+                href={`/google/postfach/start${
+                  account.loginName ? `?konto=${encodeURIComponent(account.loginName)}` : ''
+                }`}
+                className={`btn sm ${needsReconnect ? 'primary' : 'ghost'}`}
+              >
+                {needsReconnect ? 'Neu verbinden' : 'Erneut verbinden'}
               </a>
             ) : null}
             <form action={verifyMailboxFormAction}>

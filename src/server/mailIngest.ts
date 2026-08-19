@@ -54,20 +54,36 @@ export function readMailConfigFromEnv(): MailConfig | null {
  * the environment variables that predate it. The settings route exists so the
  * team can set this up themselves; the env route keeps existing deployments
  * working untouched.
+ *
+ * Der Rückfall greift nur, wenn **gar kein** Postfach hinterlegt ist. Vorher
+ * fing er jeden Fehler ab, und seit es Google-Postfächer gibt, hieß das: eine
+ * Minute Störung bei Google, und die App liest klaglos ein ganz anderes
+ * Postfach aus — oder meldet „MAIL_IMAP_HOST fehlt" statt des wahren Grundes.
+ * Ein hinterlegtes Postfach, das gerade nicht geht, ist ein Fehler und kein
+ * Anlass, woanders nachzusehen.
  */
-export async function readMailConfig(accountId?: string): Promise<MailConfig | null> {
+export async function readMailConfig(
+  accountId?: string,
+): Promise<{ ok: true; config: MailConfig } | { ok: false; reason: string | null }> {
+  const { anyMailboxConfigured } = await import('@/server/portalAccounts');
   const stored = await loadMailbox(accountId);
   if (stored.ok) {
     const c = stored.credentials;
     return {
-      host: c.imapHost,
-      port: c.imapPort,
-      secure: c.imapSecure,
-      auth: imapAuth(c),
-      mailbox: 'INBOX',
+      ok: true,
+      config: {
+        host: c.imapHost,
+        port: c.imapPort,
+        secure: c.imapSecure,
+        auth: imapAuth(c),
+        mailbox: 'INBOX',
+      },
     };
   }
-  return readMailConfigFromEnv();
+  if (await anyMailboxConfigured()) return { ok: false, reason: stored.reason };
+
+  const fromEnv = readMailConfigFromEnv();
+  return fromEnv ? { ok: true, config: fromEnv } : { ok: false, reason: null };
 }
 
 export interface IngestSummary {
@@ -88,9 +104,9 @@ export interface IngestSummary {
 export async function ingestMailbox(
   options: { limit?: number; accountId?: string } = {},
 ): Promise<IngestSummary> {
-  const cfg = await readMailConfig(options.accountId);
+  const loaded = await readMailConfig(options.accountId);
   const summary: IngestSummary = {
-    configured: cfg != null,
+    configured: loaded.ok,
     examined: 0,
     processed: 0,
     listingsCreated: 0,
@@ -98,10 +114,17 @@ export async function ingestMailbox(
     errors: 0,
     messages: [],
   };
-  if (!cfg) {
-    summary.messages.push('Kein Postfach konfiguriert (MAIL_IMAP_HOST/USER/PASSWORD fehlen).');
+  if (!loaded.ok) {
+    // Der echte Grund, wenn es einen gibt. „MAIL_IMAP_HOST fehlt" auf ein
+    // abgelaufenes Google-Token zu antworten hat schon einmal jemanden eine
+    // Stunde gekostet.
+    summary.messages.push(
+      loaded.reason ?? 'Kein Postfach konfiguriert (MAIL_IMAP_HOST/USER/PASSWORD fehlen).',
+    );
+    if (loaded.reason) summary.errors += 1;
     return summary;
   }
+  const cfg = loaded.config;
 
   const limit = options.limit ?? 50;
   const mailbox = await getMailboxSettings();

@@ -33,11 +33,11 @@ import {
 } from '@/app/actions';
 import { AppBar, Callout } from '@/app/_components/Shell';
 import { prisma } from '@/lib/prisma';
-import { readMailConfig } from '@/server/mailIngest';
+import { readMailConfigFromEnv } from '@/server/mailIngest';
 import { isTelegramConfigured } from '@/server/telegram';
 import { runMailIngestAction } from '@/app/actions';
 import { formatDateTime } from '@/lib/labels';
-import { listAccounts } from '@/server/portalAccounts';
+import { anyMailboxConfigured, listAccounts } from '@/server/portalAccounts';
 import { credentialKeyConfigured } from '@/lib/crypto';
 import { AccountsSection, DiscoveryRunsSection, DiscoverySection, FeaturesSection } from './_sections';
 import { googleMailboxEnabled } from '@/lib/googleMailbox';
@@ -140,7 +140,12 @@ export default async function SettingsPage({
       include: { source: { select: { name: true } } },
     }),
   ]);
-  const mailConfigured = (await readMailConfig()) != null;
+  // Nur die Frage „ist eingerichtet", und die kostet eine Zählung. Vorher
+  // stand hier `readMailConfig()`, was seit den Google-Postfächern bei jedem
+  // Seitenaufbau ein Token erneuert hat — und bei einer Google-Störung stand
+  // dann „nicht konfiguriert" über einem funktionierenden Postfach.
+  const mailConfigured =
+    (await anyMailboxConfigured()) || readMailConfigFromEnv() != null;
   const credentialKeyOk = credentialKeyConfigured();
   const telegramConfigured = isTelegramConfigured();
 

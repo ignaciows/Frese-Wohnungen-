@@ -10,7 +10,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { findingsToNotices, type CandidateFindings } from '@/domain/findings';
 import { notify } from './followUps';
-import { liveListingFilter } from './listingFilters';
+import { USABLE_COMPATIBILITY, liveListingFilter } from './listingFilters';
 import { getLivenessSettings } from './settings';
 
 /**
@@ -29,7 +29,7 @@ export async function notifyNewFindings(since: Date): Promise<number> {
   const fresh: Prisma.CandidateListingMatchWhereInput = {
     matchedAt: { gte: since },
     status: 'NEW',
-    compatibility: { in: ['COMPATIBLE', 'NEAR_MATCH'] },
+    compatibility: USABLE_COMPATIBILITY,
     candidateCase: { status: 'ACTIVE', housingSecuredAt: null },
   };
 

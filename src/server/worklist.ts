@@ -10,7 +10,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { buildWorklist, type CaseWork, type Worklist } from '@/domain/worklist';
 import { loadCandidatePriorities } from './priority';
-import { liveListingFilter } from './listingFilters';
+import { USABLE_COMPATIBILITY, liveListingFilter } from './listingFilters';
 import { getLivenessSettings } from './settings';
 
 /**
@@ -36,10 +36,12 @@ export async function dailyWorklist(now = new Date()): Promise<Worklist> {
   if (cases.length === 0) return buildWorklist([]);
 
   const ids = cases.map((c) => c.id);
+  // Exakt der Reiter „Zu kontaktieren" — dieselben drei Bedingungen. Weicht
+  // das ab, sagt die Tagesliste „nichts offen" und die Liste zeigt Zeilen.
   const open: Prisma.CandidateListingMatchWhereInput = {
     candidateCaseId: { in: ids },
     status: { in: ['NEW', 'FAVORITE'] },
-    compatibility: { in: ['COMPATIBLE', 'NEAR_MATCH'] },
+    compatibility: USABLE_COMPATIBILITY,
   };
 
   // Zweimal dieselbe Frage, einmal mit und einmal ohne Nummer. Zwei Zählungen

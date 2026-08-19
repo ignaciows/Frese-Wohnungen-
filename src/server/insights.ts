@@ -14,13 +14,13 @@ import {
   type StalledCase,
   type StalledSettings,
 } from '@/domain/insights';
-import { liveListingFilter } from './listingFilters';
+import { USABLE_COMPATIBILITY, liveListingFilter } from './listingFilters';
 import { getLivenessSettings } from './settings';
 
 /** Passt zum Profil und hat niemand abgelehnt — unabhängig davon, ob die
  *  Anzeige heute noch online ist. */
 const COMPATIBLE: Prisma.CandidateListingMatchWhereInput = {
-  compatibility: { in: ['COMPATIBLE', 'NEAR_MATCH'] },
+  compatibility: USABLE_COMPATIBILITY,
 };
 
 /**

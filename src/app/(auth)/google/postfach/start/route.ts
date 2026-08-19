@@ -42,5 +42,9 @@ export async function GET(request: Request) {
     maxAge: 600,
   });
 
-  redirect(mailboxAuthorizeUrl({ config, requestUrl: request.url, state }));
+  // `?konto=` kommt vom Knopf auf einer Postfach-Karte und sagt Google, welches
+  // Konto gemeint ist. Bewusst nur ein Vorschlag an die Kontoauswahl: geprüft
+  // wird beim Zurückkommen die Adresse, die Google tatsächlich nennt.
+  const loginHint = new URL(request.url).searchParams.get('konto');
+  redirect(mailboxAuthorizeUrl({ config, requestUrl: request.url, state, loginHint }));
 }

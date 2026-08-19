@@ -66,7 +66,12 @@ export interface Worklist {
   idle: WorkItem[];
   /** Wohnungen mit Nummer über alle Fälle. */
   totalCallable: number;
-  /** Offene anschreibbare Wohnungen über alle Fälle. */
+  /**
+   * Offene Wohnungen ohne Nummer, **über alle Fälle** — auch die im
+   * Anruf-Block, wo neben den Nummern noch anschreibbare liegen. Also nicht
+   * die Größe des „Dann anschreiben"-Blocks; der Satz oben sagt das mit
+   * „weitere" auch so.
+   */
   totalWritable: number;
 }
 
@@ -165,8 +170,15 @@ export function describeWorklist(list: Worklist): string | null {
       `${plural(list.totalCallable, 'Wohnung', 'Wohnungen')} mit Telefonnummer bei ${plural(list.call.length, 'Fall', 'Fällen')}`,
     );
   }
-  if (list.write.length > 0) {
-    parts.push(`${plural(list.totalWritable, 'Wohnung', 'Wohnungen')} zum Anschreiben`);
+  if (list.totalWritable > 0) {
+    // „weitere", weil hier auch die anschreibbaren Wohnungen der Fälle aus dem
+    // Anruf-Block mitzählen. Ohne das Wort liest sich die Zahl wie die Größe
+    // des Blocks darunter, und die ist kleiner.
+    parts.push(
+      list.call.length > 0
+        ? `${plural(list.totalWritable, 'weitere Wohnung', 'weitere Wohnungen')} zum Anschreiben`
+        : `${plural(list.totalWritable, 'Wohnung', 'Wohnungen')} zum Anschreiben`,
+    );
   }
   if (parts.length === 0) {
     return list.idle.length > 0
