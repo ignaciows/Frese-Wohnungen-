@@ -189,6 +189,39 @@ describe('ein Schalter bewirkt etwas', () => {
     const listing = await prisma.listing.findFirstOrThrow({ where: { rawUrl: url } });
     expect(listing.contactPhone).toBe('+49 7131 445566');
   });
+
+  /** Dieselbe Wohnung, einmal auf jedem Portal — der klassische Dublettenfall. */
+  async function ingestTwice(user: { id: string }, source: { id: string }, n: number) {
+    const { ingestListing } = await import('@/server/listingIngest');
+    const ad = {
+      sourceId: source.id,
+      title: 'Möbliertes 2-Zimmer-Apartment Fürfeld',
+      descriptionRaw: '55 m², Kaltmiete 620 €, 74906 Bad Rappenau-Fürfeld.',
+      importedById: user.id,
+      structured: { rooms: 2, livingSpaceSqm: 55, locationRaw: '74906 Bad Rappenau-Fürfeld' },
+    };
+    await ingestListing({
+      ...ad,
+      rawUrl: `https://www.kleinanzeigen.de/s-anzeige/wohnung/${n}`,
+    });
+    await ingestListing({
+      ...ad,
+      rawUrl: `https://www.kleinanzeigen.de/s-anzeige/wohnung/${n}-erneut`,
+    });
+  }
+
+  it('fasst Doppelte zusammen, solange der Baustein an ist', async () => {
+    const { user, source } = await seed();
+    await ingestTwice(user, source, 910001);
+    expect(await prisma.duplicateMember.count()).toBeGreaterThan(0);
+  });
+
+  it('fasst nichts mehr zusammen, wenn er aus ist', async () => {
+    const { user, source } = await seed();
+    await setFeature('duplicateDetection', false, user.id);
+    await ingestTwice(user, source, 910002);
+    expect(await prisma.duplicateMember.count()).toBe(0);
+  });
 });
 
 /** Alle Dateien unter einem Ordner, rekursiv. */
