@@ -44,6 +44,7 @@ den, der gerade nicht wirkt.
 
 | Baustein | Aus heißt |
 | --- | --- |
+| **Tagesliste „Heute dran"** | Die Reihenfolge muss sich wieder jeder selbst aus der Kandidatenliste ableiten. |
 | **WG-Vorschläge** | Menüpunkt weg. Die Zustimmung am Kandidaten bleibt. |
 | **Überbrückung berechnen** | Die Lücke zwischen Ankunft und Einzug steht weiter da, nur ohne Preisschild. |
 | **Zeitleiste** | Die Linie auf der Fallübersicht verschwindet. |
@@ -55,6 +56,30 @@ den, der gerade nicht wirkt.
 | --- | --- |
 | **Antwortquote** | Die Auswertung verschwindet. Gezählt wird weiter, nur nicht gezeigt. |
 | **Warnung bei Fällen ohne Treffer** | Kein Hinweis mehr. Auffallen muss es dann jemandem beim Durchsehen. |
+
+## Die Tagesliste
+
+Steht ganz oben auf **Aufgaben & Posteingang** und beantwortet die Frage, mit
+der ein Arbeitstag anfängt: **womit fange ich an?**
+
+Drei Blöcke in genau einer Reihenfolge:
+
+1. **Zuerst anrufen** — Fälle, für die eine passende Anzeige selbst eine
+   Telefonnummer nennt.
+2. **Dann anschreiben** — der Rest mit offenen Wohnungen, nach Dringlichkeit.
+3. **Ohne offene Wohnung** — zugeklappt. Dort ist heute nichts zu holen; das
+   ist derselbe Befund wie die Stillstands-Warnung weiter unten.
+
+Die eine Regel, die das von der Kandidatenliste unterscheidet: **eine
+Telefonnummer schlägt jeden Punktestand.** Wer anruft, hat in zehn Minuten
+eine Antwort; wer schreibt, hat sie am Donnerstag oder nie. Das ist keine
+dringendere Aufgabe derselben Art, sondern eine andere Art von Aufgabe.
+
+Innerhalb eines Blocks zählt wieder die normale Dringlichkeit aus
+`domain/priority`: Anreisedatum, Wartezeit seit Vertragsunterschrift,
+Schwierigkeit des Zielmarkts, Rückstand an Anfragen. Bei Gleichstand
+entscheidet der Name, damit die Reihenfolge zwischen zwei Aufrufen stehen
+bleibt und niemand sucht, wohin ein Fall gesprungen ist.
 
 ## Die zwei neuen Auswertungen
 

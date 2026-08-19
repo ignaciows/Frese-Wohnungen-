@@ -3883,3 +3883,127 @@ label {
 .btn.danger:hover {
   filter: brightness(1.08);
 }
+
+/* ---------------------------------------------------------- Tagesliste --- */
+/*
+ * „Heute dran" auf dem Aufgaben-Bildschirm. Zwei Blöcke, eine Reihenfolge.
+ *
+ * Der Anruf-Block trägt bewusst dieselbe grüne Behandlung wie eine
+ * Anzeigenzeile mit Telefonnummer: es ist derselbe Befund an einer anderen
+ * Stelle, und zwei Farben für dieselbe Sache müsste sich jemand merken.
+ */
+.worklist-head {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.worklist-head.call {
+  color: var(--success);
+}
+
+.worklist-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.worklist-row {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+}
+.worklist-row:hover {
+  border-color: var(--accent);
+}
+
+.worklist-row.has-phone {
+  border-left: 3px solid var(--success);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--success) 9%, transparent), transparent 220px),
+    var(--surface);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 22%, transparent),
+    0 0 14px -4px color-mix(in srgb, var(--success) 45%, transparent);
+}
+.worklist-row.has-phone:hover {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 38%, transparent),
+    0 0 20px -3px color-mix(in srgb, var(--success) 60%, transparent);
+}
+
+.worklist-rank {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--surface-2, var(--bg));
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--muted);
+}
+.worklist-row.has-phone .worklist-rank {
+  background: var(--success);
+  color: #fff;
+}
+
+.worklist-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.worklist-name {
+  font-weight: 600;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.worklist-employer {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--muted);
+}
+.worklist-action {
+  font-size: 13px;
+  color: var(--text-2, var(--muted));
+}
+
+.worklist-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: right;
+}
+
+.worklist-idle > summary {
+  cursor: pointer;
+}
+
+/* Auf schmalen Bildschirmen fällt der Grund unter den Namen, statt die
+   Namensspalte auf zwei Zeichen zusammenzudrücken. */
+@media (max-width: 640px) {
+  .worklist-row {
+    grid-template-columns: 26px 1fr;
+  }
+  .worklist-side {
+    grid-column: 2;
+    justify-content: flex-start;
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .worklist-row.has-phone,
+  .worklist-row.has-phone:hover {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 30%, transparent);
+  }
+}

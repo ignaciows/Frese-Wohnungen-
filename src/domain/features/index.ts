@@ -96,6 +96,16 @@ export const FEATURES = [
 
   /* --------------------------------------------- Planung & Priorität --- */
   {
+    key: 'dailyWorklist',
+    label: 'Tagesliste „Heute dran"',
+    description:
+      'Sortiert auf „Aufgaben & Posteingang" alle Fälle in die Reihenfolge, in der sie heute drankommen — Wohnungen mit Telefonnummer zuerst, danach nach Dringlichkeit.',
+    group: 'planung',
+    defaultOn: true,
+    offMeans:
+      'Die Reihenfolge muss sich wieder jeder selbst aus der Kandidatenliste ableiten.',
+  },
+  {
     key: 'wgMatching',
     label: 'WG-Vorschläge',
     description:

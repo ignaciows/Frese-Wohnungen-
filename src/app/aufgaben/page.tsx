@@ -14,6 +14,8 @@ import { formatDateTime } from '@/lib/labels';
 import { getFeatureSettings } from '@/server/settings';
 import { isFeatureOn } from '@/domain/features';
 import { responseStats, stalledCases } from '@/server/insights';
+import { dailyWorklist } from '@/server/worklist';
+import { Worklist } from '@/app/_components/Worklist';
 import { describeResponseRate } from '@/domain/insights';
 
 export const dynamic = 'force-dynamic';
@@ -38,8 +40,10 @@ export default async function AufgabenPage({
   const features = await getFeatureSettings();
   const showStalled = isFeatureOn(features, 'stalledCases');
   const showRates = isFeatureOn(features, 'responseStats');
+  const showWorklist = isFeatureOn(features, 'dailyWorklist');
 
-  const [tasks, notifications, counts, unreadReplies, failedSends, stalled, rates] = await Promise.all([
+  const [tasks, notifications, counts, unreadReplies, failedSends, stalled, rates, worklist] =
+    await Promise.all([
     listDueTasks({ includeFuture: showFuture }),
     listNotifications(20),
     inboxCounts(),
@@ -71,6 +75,7 @@ export default async function AufgabenPage({
     // Baustein soll auch keine Abfrage kosten.
     showStalled ? stalledCases() : Promise.resolve([]),
     showRates ? responseStats() : Promise.resolve(null),
+    showWorklist ? dailyWorklist() : Promise.resolve(null),
   ]);
 
   return (
@@ -80,9 +85,15 @@ export default async function AufgabenPage({
         <div className="page-title" style={{ marginBottom: 18 }}>
           <h1>Aufgaben &amp; Posteingang</h1>
           <span className="sub">
-            Antworten, Wiedervorlagen und Fehlversuche an einem Ort — ohne ein einziges Portal zu öffnen.
+            Womit heute anfangen, welche Antworten offen sind, und was schiefgegangen ist — an einem
+            Ort, ohne ein einziges Portal zu öffnen.
           </span>
         </div>
+
+        {/* Ganz oben, vor Antworten und Wiedervorlagen: das hier beantwortet
+            „womit fange ich an", und alles darunter beantwortet „was ist
+            außerdem noch offen". */}
+        {worklist ? <Worklist list={worklist} /> : null}
 
         <div className="stats" style={{ marginBottom: 18 }}>
           <Stat value={unreadReplies.length} label="Ungelesene Antworten" accent={unreadReplies.length > 0} />
