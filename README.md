@@ -103,6 +103,15 @@ Diagnose-Skripte (nur Entwicklung, nicht Teil der App):
 
 ## Automatische Suche, Kontakt und Aufgaben
 
+- **Tagesliste**: Ganz oben auf **Aufgaben & Posteingang** steht „Heute dran" —
+  alle Fälle in der Reihenfolge, in der sie drankommen. Zuerst die, für die
+  eine Anzeige selbst eine Telefonnummer nennt, danach nach Dringlichkeit
+  (Anreisedatum, Wartezeit, Schwierigkeit des Zielmarkts, Rückstand an
+  Anfragen). Siehe `docs/BAUSTEINE.md`.
+- **Von selbst suchen**: Die App sucht alle 20 Minuten, auch wenn niemand sie
+  geöffnet hat, und meldet danach je Fall, was Anschreibbares dazugekommen ist
+  — Wohnungen mit Telefonnummer zuerst. Abschaltbar über `AUTO_SWEEP=off`;
+  Details in `docs/BETRIEB.md`.
 - **Anzeigen finden**: Es gibt drei Quellen und zwei Wege. **Kleinanzeigen**
   liest die App selbst, robots.txt-konform. **ImmoScout24** und **Immowelt**
   sperren automatische Abrufe und schicken ihre Treffer stattdessen per
@@ -134,7 +143,9 @@ Diagnose-Skripte (nur Entwicklung, nicht Teil der App):
 - **Zugangsdaten**: Postfach und Portal-Konten liegen unter „Einstellungen →
   Konten & Postfach", verschlüsselt mit `CREDENTIAL_KEY`. Ohne diesen Schlüssel
   speichert die App kein Passwort — statt einer schwächeren Ablage gibt es eine
-  klare Fehlermeldung.
+  klare Fehlermeldung. Ein Google-Postfach wird per Knopf verbunden, ohne
+  App-Passwort und ohne Servernamen (`docs/ANMELDUNG.md`); mehrere Postfächer
+  nebeneinander sind der Normalfall, jedes mit eigenem Lämpchen.
 
 ## Grenzen und ehrliche Zusagen
 
