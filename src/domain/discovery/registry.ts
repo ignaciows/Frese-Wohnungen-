@@ -14,8 +14,9 @@
 
 import type { DiscoveryAdapter } from './types';
 import { kleinanzeigenAdapter } from './adapters/kleinanzeigen';
+import { immoweltAdapter } from './adapters/immowelt';
 
-export const ADAPTERS: DiscoveryAdapter[] = [kleinanzeigenAdapter];
+export const ADAPTERS: DiscoveryAdapter[] = [kleinanzeigenAdapter, immoweltAdapter];
 
 const BY_KEY = new Map(ADAPTERS.map((a) => [a.key, a]));
 

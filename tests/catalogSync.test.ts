@@ -130,12 +130,12 @@ describe('syncSeedCatalog', () => {
   it('schaltet den Suchlauf bei den Mail-Portalen ab — dort gibt es nichts zu suchen', async () => {
     await syncSeedCatalog();
     await prisma.source.update({
-      where: { key: 'immowelt' },
+      where: { key: 'immoscout24' },
       data: { discoveryEnabled: true },
     });
     await syncSeedCatalog();
-    const immowelt = await prisma.source.findUniqueOrThrow({ where: { key: 'immowelt' } });
-    expect(immowelt.discoveryEnabled).toBe(false);
+    const is24 = await prisma.source.findUniqueOrThrow({ where: { key: 'immoscout24' } });
+    expect(is24.discoveryEnabled).toBe(false);
     // Kleinanzeigen entscheidet weiterhin der Admin.
     await prisma.source.update({ where: { key: 'kleinanzeigen' }, data: { discoveryEnabled: true } });
     await syncSeedCatalog();
@@ -143,13 +143,15 @@ describe('syncSeedCatalog', () => {
     expect(ka.discoveryEnabled).toBe(true);
   });
 
-  it('setzt den Weg je Quelle: Kleinanzeigen läuft, die anderen zwei kommen per Mail', async () => {
+  it('setzt den Weg je Quelle: zwei werden gelesen, ImmoScout kommt per Mail', async () => {
     await syncSeedCatalog();
     const byKey = new Map(
       (await prisma.source.findMany({ select: { key: true, route: true } })).map((s) => [s.key, s.route]),
     );
     expect(byKey.get('kleinanzeigen')).toBe('DISCOVERY');
     expect(byKey.get('immoscout24')).toBe('EMAIL_ALERT');
-    expect(byKey.get('immowelt')).toBe('EMAIL_ALERT');
+    // Immowelts Trefferliste ist lesbar und in der robots.txt nicht gesperrt;
+    // nur die Exposé-Seiten dahinter antworten mit 403.
+    expect(byKey.get('immowelt')).toBe('DISCOVERY');
   });
 });

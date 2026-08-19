@@ -53,7 +53,8 @@ describe('source catalogue', () => {
 
   it('looks a source up by key, and returns null for anything else', () => {
     expect(seedSource('kleinanzeigen')?.route).toBe('DISCOVERY');
-    expect(seedSource('immowelt')?.route).toBe('EMAIL_ALERT');
+    expect(seedSource('immowelt')?.route).toBe('DISCOVERY');
+    expect(seedSource('immoscout24')?.route).toBe('EMAIL_ALERT');
     expect(seedSource('wg-gesucht')).toBeNull();
   });
 });

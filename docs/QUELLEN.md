@@ -8,12 +8,14 @@ Deshalb gibt es jetzt nur noch diese drei, und die richtig.
 
 ## Zwei Wege, mehr gibt es nicht
 
-|  | Kleinanzeigen | ImmoScout24 | Immowelt |
+|  | Kleinanzeigen | Immowelt | ImmoScout24 |
 | --- | --- | --- | --- |
-| Automatisch lesbar | **ja** | nein (HTTP 401) | nein (Exposé 403) |
+| Trefferliste lesbar | **ja** | **ja** | nein (HTTP 401) |
+| Exposé-Seite lesbar | ja | nein (HTTP 403) | nein |
 | Öffentliche API | nein | nur für Vertragspartner | nur für Vertragspartner |
-| Weg in die App | **Suchlauf** | **Suchauftrag per E-Mail** | **Suchauftrag per E-Mail** |
-| Woher Beschreibung & „frei ab" | aus der Detailseite | aus der Mail | aus der Mail |
+| Weg in die App | **Suchlauf** | **Suchlauf** (+ Mail optional) | **Suchauftrag per E-Mail** |
+| Woher Beschreibung & „frei ab" | aus der Detailseite | aus der Trefferliste | aus der Mail |
+| Telefonnummer aus der Anzeige | ja | nein | aus der Mail, falls genannt |
 
 Im Code heißt das `Source.route`: `DISCOVERY` oder `EMAIL_ALERT`. Eine dritte
 Möglichkeit gibt es nicht, und alles im Programm hängt an diesen zwei Werten.
@@ -35,15 +37,40 @@ selbst — mehrere Orte ersetzen den Umkreis. Ein Portal-Zugang wird nur zum
 
 ---
 
-## ImmoScout24 und Immowelt — der Suchauftrag
+## Immowelt — läuft ebenfalls von selbst
 
-Beide sperren automatische Abrufe. ImmoScout24 antwortet auf Listenseiten mit
-401, Immowelts Exposé-Seiten mit 403. Eine API gibt es nur mit
+Einstellungen → **Quellen** → Immowelt einschalten. Mehr nicht: die
+Suchadresse holt sich der Adapter über Immowelts eigene Weiterleitung
+(`/suche/heilbronn/wohnungen/mieten` landet auf der Suchseite mit Ortskennung),
+also gibt es keinen Ortsnummern-Katalog, der veraltet.
+
+Was dabei herauskommt: die **erste Seite**, rund 20–24 Anzeigen je Ort und
+Durchlauf, mit Preis, Zimmern, Fläche, Straße, Postleitzahl und dem Anfang des
+Anzeigentexts. Weitere Seiten lädt Immowelt per JavaScript nach; Seiten-
+parameter liefern dieselben Anzeigen noch einmal (ausprobiert: `?sp=2`,
+`?page=2`, `?pageIndex=2`, `/seite-2`).
+
+Was **nicht** geht: die Exposé-Seiten antworten mit 403. Von dort kommt also
+kein voller Anzeigentext und **keine Telefonnummer**. Wer die will, legt
+zusätzlich einen Suchauftrag per E-Mail an — beides nebeneinander ist erlaubt
+und stört sich nicht.
+
+Die robots.txt von Immowelt sperrt `/suche/` nicht (gesperrt sind dort
+Formulare, Karten, Druckansichten und ein paar Sonderpfade). Nachgeprüft, nicht
+angenommen.
+
+---
+
+## ImmoScout24 — der Suchauftrag
+
+ImmoScout24 antwortet einem Abruf ohne Browser mit `401 Ich bin kein Roboter` —
+eine Schranke, keine Bitte, und um die geht dieses Programm nicht herum. Eine
+API gibt es nur mit
 Business-Vertrag — kein Entwicklerkonto, das man sich selbst anlegen kann. Wer
 behauptet, das ginge „mit einem Schlüssel", meint das Partnerprogramm.
 
-**Der Weg, der funktioniert und erlaubt ist: der Suchauftrag.** Beide Portale
-schicken neue Treffer selbst per Mail, an eine Adresse, die man ihnen nennt. Die
+**Der Weg, der funktioniert und erlaubt ist: der Suchauftrag.** Das Portal
+schickt neue Treffer selbst per Mail, an eine Adresse, die man ihm nennt. Die
 App liest dieses Postfach und legt daraus Anzeigen an. Das ist kein Umweg um
 eine Sperre, sondern der vom Portal selbst vorgesehene Weg — und die Mail
 enthält mehr, als ein Suchlauf lesen könnte: Beschreibung, Preis, Größe,

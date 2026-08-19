@@ -42,7 +42,7 @@ funktioniert.
 | --- | --- | --- |
 | Kleinanzeigen | eigener Adapter | Ergebnisliste direkt lesbar. Einschränkungen unten. |
 | ImmoScout24 | E-Mail-Suchauftrag | HTTP 401 auf jeder Listenseite. |
-| Immowelt | E-Mail-Suchauftrag | Liste lesbar, aber jedes Exposé dahinter 403. |
+| Immowelt | **Suchlauf** | Trefferliste lesbar und in der robots.txt nicht gesperrt; die Exposé-Seiten dahinter antworten mit 403, also ohne Nachlesen und ohne Telefonnummer. |
 
 Einrichtung der beiden E-Mail-Portale: `docs/QUELLEN.md`. Wie die Mails gelesen
 werden: `docs/EMAIL_INGEST.md`.
@@ -206,7 +206,7 @@ mit Status und Begründung. Die drei häufigsten Fälle:
 
 - `SKIPPED`: Quelle ausgeschaltet oder Konfiguration unvollständig.
 - `BLOCKED`: Das Portal sperrt automatische Abrufe. Erwartet bei ImmoScout24
-  und Immowelt; dort hilft der E-Mail-Suchauftrag.
+  ImmoScout24; dort hilft der E-Mail-Suchauftrag.
 - `ERROR` mit Hinweis auf die Seitenstruktur: Die Quelle hat ihr Markup
   geändert und der Adapter braucht eine Anpassung.
 

@@ -8,7 +8,8 @@
  *
  *   kleinanzeigen — read automatically, once a sweep
  *   immoscout24   — arrives by e-mail (Suchauftrag), see docs/QUELLEN.md
- *   immowelt      — arrives by e-mail (Suchauftrag), same route
+ *   immowelt      — the app reads its result list (robots-compliant); the
+ *                   detail pages are blocked, so no phone numbers from there
  *
  * Adding a fourth means adding it here *and* teaching an adapter to read it.
  * That is deliberate: a source nobody can read is a source nobody uses.
@@ -135,13 +136,14 @@ export const SEED_SOURCES: SeedSource[] = [
     key: 'immowelt',
     name: 'Immowelt',
     websiteUrl: 'https://www.immowelt.de/',
-    route: 'EMAIL_ALERT',
+    route: 'DISCOVERY',
+    discoveryAdapter: 'immowelt',
     priority: 30,
     filters: MARKETPLACE_FILTERS,
     notes:
-      'Wie ImmoScout24: die Ergebnisliste ist zwar erreichbar, aber jede Exposé-Seite dahinter antwortet mit 403 — ein Suchlauf fände also nur Links, die er nicht lesen kann. Deshalb ebenfalls über den Suchauftrag per E-Mail. Immonet gehört zur selben Familie und taucht in denselben Mails auf.',
+      'Die Trefferliste ist lesbar und in der robots.txt nicht gesperrt — die erste Seite, rund 24 Anzeigen je Ort und Durchlauf, mit Preis, Zimmern, Fläche und Adresse. Die Exposé-Seiten dahinter antworten mit 403; von dort kommt also keine Telefonnummer und kein voller Anzeigentext. Wer beides will, legt zusätzlich einen Suchauftrag per E-Mail an. Immonet gehört zur selben Familie und taucht in denselben Mails auf.',
     manualRecipe:
-      'Im Portal anmelden → Suche mit Ort, Umkreis, Kaltmiete-Obergrenze und Mindestzimmern → „Suchauftrag speichern" → täglich an das Suchagent-Postfach.',
+      'Läuft automatisch. Zusätzlich möglich: im Portal anmelden → Suche mit Ort, Umkreis, Kaltmiete-Obergrenze und Mindestzimmern → „Suchauftrag speichern" → täglich an das Suchagent-Postfach.',
   },
 ];
 

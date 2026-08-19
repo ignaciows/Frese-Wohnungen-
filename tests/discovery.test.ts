@@ -303,12 +303,18 @@ describe('registry', () => {
     // what kept the source switched off and producing nothing.
     expect(missingConfig('kleinanzeigen', {})).toEqual([]);
     expect(missingConfig('kleinanzeigen', { locationIds: ['9228'] })).toEqual([]);
-    // ImmoScout24 and Immowelt have no adapter at all — that is a normal state,
-    // not a gap somebody has to fill in.
+    // Immowelt braucht nichts Ausgefülltes: die Suchadresse holt sich der
+    // Adapter über Immowelts eigene Weiterleitung. ImmoScout24 hat gar keinen
+    // Adapter — auch das ist ein normaler Zustand, keine Lücke.
+    expect(missingConfig('immowelt', {})).toEqual([]);
     expect(missingConfig(null, {})).toEqual([]);
   });
 
-  it('holds exactly one adapter, because exactly one portal can be read', () => {
-    expect(ADAPTERS.map((a) => a.key)).toEqual(['kleinanzeigen']);
+  it('führt genau die Portale, deren Trefferliste lesbar ist', () => {
+    // ImmoScout24 fehlt bewusst: ein Abruf ohne Browser bekommt dort
+    // „401 Ich bin kein Roboter". Das ist eine Schranke, keine Bitte, und um
+    // die geht dieses Programm nicht herum — dort bleibt der Suchauftrag
+    // per E-Mail.
+    expect(ADAPTERS.map((a) => a.key)).toEqual(['kleinanzeigen', 'immowelt']);
   });
 });

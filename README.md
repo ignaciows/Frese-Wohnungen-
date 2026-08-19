@@ -113,10 +113,11 @@ Diagnose-Skripte (nur Entwicklung, nicht Teil der App):
   — Wohnungen mit Telefonnummer zuerst. Abschaltbar über `AUTO_SWEEP=off`;
   Details in `docs/BETRIEB.md`.
 - **Anzeigen finden**: Es gibt drei Quellen und zwei Wege. **Kleinanzeigen**
-  liest die App selbst, robots.txt-konform. **ImmoScout24** und **Immowelt**
-  sperren automatische Abrufe und schicken ihre Treffer stattdessen per
-  Suchauftrag an ein gemeinsames Postfach, das die App mitliest. Einrichtung in
-  `docs/QUELLEN.md`, Technik in `docs/DISCOVERY.md`.
+  und **Immowelt** liest die App selbst, robots.txt-konform — bei Immowelt die
+  Trefferliste, denn die Exposé-Seiten dahinter sind gesperrt. **ImmoScout24**
+  antwortet einem Abruf ohne Browser mit „Ich bin kein Roboter" und schickt
+  seine Treffer stattdessen per Suchauftrag an ein gemeinsames Postfach, das die
+  App mitliest. Einrichtung in `docs/QUELLEN.md`, Technik in `docs/DISCOVERY.md`.
 - **Kontaktdaten lesen**: Nennt eine Anzeige eine Telefonnummer, eine
   E-Mail-Adresse oder einen Ansprechpartner, steht das auf der Karte — ein
   Anruf wird in zehn Minuten beantwortet, ein Portalformular am Donnerstag.
@@ -149,7 +150,7 @@ Diagnose-Skripte (nur Entwicklung, nicht Teil der App):
 
 ## Grenzen und ehrliche Zusagen
 
-- **Gesperrte Portale**: ImmoScout24 (HTTP 401) und Immowelt (HTTP 403) lehnen
+- **Gesperrte Portale**: ImmoScout24 (HTTP 401) und Immowelts Exposé-Seiten (HTTP 403) lehnen
   serverseitige Abrufe ab. Sie werden nicht umgangen; dort bleiben der
   E-Mail-Suchauftrag und der manuelle Weg.
 - **Kleinanzeigen-Umkreis**: Deren robots.txt sperrt die Umkreis- und
