@@ -66,16 +66,27 @@ export function limboListingFilter(policy: LivenessPolicy = DEFAULT_LIVENESS): P
  * Here rather than in the page, because the count on each tab and the rows
  * under it must come from the same definition — see `matchWhere`.
  */
+/**
+ * Die Reiter der Ergebnisliste.
+ *
+ * `primary` trennt die Arbeit vom Archiv. Vorher standen „Zu kontaktieren 0"
+ * und „Abgelaufen 428" gleichberechtigt nebeneinander, und der Bildschirm sah
+ * aus, als wäre viel da — während gar nichts anzufassen war.
+ *
+ * „Abgelaufen" ist ganz weg. Eine Anzeige, die es nicht mehr gibt, ist keine
+ * Auskunft: anschreiben kann man sie nicht, und was für sie schon geschrieben
+ * wurde, steht unter „Kontaktiert". Vierhundert davon zu zählen hat nur den
+ * Bildschirm gefüllt.
+ */
 export const RESULT_TABS = [
-  { key: 'zu-kontaktieren', label: 'Zu kontaktieren', always: true },
-  { key: 'kontaktiert', label: 'Kontaktiert', always: true },
-  { key: 'in-arbeit', label: 'In Arbeit', always: false },
-  { key: 'wiedervorlage', label: 'Wiedervorlage', always: false },
-  { key: 'favoriten', label: 'Favoriten', always: false },
-  { key: 'zu-pruefen', label: 'Zu prüfen', always: false },
-  { key: 'abgelehnt', label: 'Abgelehnt', always: false },
-  { key: 'abgelaufen', label: 'Abgelaufen', always: false },
-  { key: 'alle', label: 'Alle', always: true },
+  { key: 'zu-kontaktieren', label: 'Zu kontaktieren', always: true, primary: true },
+  { key: 'kontaktiert', label: 'Kontaktiert', always: true, primary: true },
+  { key: 'favoriten', label: 'Favoriten', always: false, primary: true },
+  { key: 'in-arbeit', label: 'In Arbeit', always: false, primary: false },
+  { key: 'wiedervorlage', label: 'Wiedervorlage', always: false, primary: false },
+  { key: 'zu-pruefen', label: 'Zu prüfen', always: false, primary: false },
+  { key: 'abgelehnt', label: 'Abgelehnt', always: false, primary: false },
+  { key: 'alle', label: 'Alle', always: true, primary: false },
 ] as const;
 
 export type ResultTab = (typeof RESULT_TABS)[number]['key'];
@@ -146,9 +157,8 @@ export function matchWhere(args: {
   tab: string;
   liveness?: LivenessPolicy;
   /** Ads retired before this stay out of "Abgelaufen"; the graveyard is short. */
-  expiredCutoff: Date;
 }): Prisma.CandidateListingMatchWhereInput {
-  const { candidateCaseId, tab, liveness = DEFAULT_LIVENESS, expiredCutoff } = args;
+  const { candidateCaseId, tab, liveness = DEFAULT_LIVENESS } = args;
   return {
     candidateCaseId,
     ...statusFilter(tab),
@@ -163,12 +173,27 @@ export function matchWhere(args: {
     ...(tab === 'kontaktiert' || tab === 'in-arbeit'
       ? {}
       : {
-          listing:
-            tab === 'abgelaufen'
-              ? { ...DEAD_LISTING, expiredAt: { gte: expiredCutoff } }
-              : tab === 'zu-pruefen'
-                ? limboListingFilter(liveness)
-                : liveListingFilter(liveness),
+          listing: tab === 'zu-pruefen' ? limboListingFilter(liveness) : liveListingFilter(liveness),
         }),
+  };
+}
+
+/**
+ * Die eine Zahl, die „für diesen Fall ist Arbeit da" bedeutet.
+ *
+ * Exakt der Reiter „Zu kontaktieren". Steht hier, weil dieselbe Zahl an drei
+ * Stellen gebraucht wird — Reiter, Abzeichen in der Fallnavigation, Tagesliste
+ * — und drei eigene Zählungen genau der Fehler waren, der einmal „581" auf ein
+ * Abzeichen geschrieben hat, unter dem eine einzige Wohnung lag.
+ */
+export function openWorkWhere(
+  candidateCaseId: string,
+  policy?: LivenessPolicy,
+): Prisma.CandidateListingMatchWhereInput {
+  return {
+    candidateCaseId,
+    status: { in: ['NEW', 'FAVORITE'] },
+    compatibility: USABLE_COMPATIBILITY,
+    listing: liveListingFilter(policy),
   };
 }

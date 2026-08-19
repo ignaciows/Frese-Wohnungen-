@@ -7,7 +7,8 @@ import { Timeline } from '@/app/_components/Timeline';
 import { SentAnfragen } from '@/app/_components/SentAnfragen';
 import { loadCandidatePriority } from '@/server/priority';
 import { loadCandidateTimeline } from '@/server/timeline';
-import { featureOn } from '@/server/settings';
+import { featureOn, getLivenessSettings } from '@/server/settings';
+import { USABLE_COMPATIBILITY, liveListingFilter, openWorkWhere } from '@/server/listingFilters';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,10 +51,25 @@ export default async function CandidateOverview({ params }: { params: Promise<{ 
     : 0;
   const checksTotal = runs.length ? runs[0]._count.sourceChecks : 0;
 
-  const good = candidate.matches.filter(
-    (m) => m.compatibility === 'COMPATIBLE' || m.compatibility === 'NEAR_MATCH',
-  ).length;
-  const toContact = candidate.matches.filter((m) => m.status === 'NEW' || m.status === 'FAVORITE').length;
+  // Beide Zahlen aus der Datenbank und mit derselben Bedingung wie der Reiter
+  // „Zu kontaktieren".
+  //
+  // Vorher wurden sie aus den geladenen Treffern gezählt, ohne zu prüfen, ob
+  // die Anzeige überhaupt noch online ist und ob sie zum Profil passt. Ergebnis
+  // war ein grüner Balken „350 Anzeigen zu kontaktieren" über einer Kachel
+  // „0 Passende Anzeigen" — auf demselben Bildschirm. Wer dem Balken folgte,
+  // landete auf einer leeren Liste.
+  const liveness = await getLivenessSettings();
+  const [good, toContact] = await Promise.all([
+    prisma.candidateListingMatch.count({
+      where: {
+        candidateCaseId: id,
+        compatibility: USABLE_COMPATIBILITY,
+        listing: liveListingFilter(liveness),
+      },
+    }),
+    prisma.candidateListingMatch.count({ where: openWorkWhere(id, liveness) }),
+  ]);
   const contacted = candidate.contactAttempts.length;
   const positive = candidate.contactAttempts.filter((a) => a.outcome === 'POSITIVE').length;
   const awaiting = candidate.contactAttempts.filter((a) => a.outcome === 'AWAITING').length;

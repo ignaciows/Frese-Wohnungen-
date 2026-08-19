@@ -26,7 +26,6 @@ beforeEach(async () => {
   await truncateAll();
 });
 
-const expiredCutoff = new Date(Date.now() - 7 * 86_400_000);
 
 /**
  * One candidate with a match of every interesting shape: usable, unusable,
@@ -124,7 +123,7 @@ describe('the number on a tab', () => {
     const { candidate } = await seedMixedPool();
 
     for (const t of RESULT_TABS) {
-      const where = matchWhere({ candidateCaseId: candidate.id, tab: t.key, expiredCutoff });
+      const where = matchWhere({ candidateCaseId: candidate.id, tab: t.key });
       const [count, rows] = await Promise.all([
         prisma.candidateListingMatch.count({ where }),
         prisma.candidateListingMatch.findMany({ where, select: { id: true } }),
@@ -141,7 +140,7 @@ describe('the number on a tab', () => {
     const { dailyWorklist } = await import('@/server/worklist');
 
     const tabCount = await prisma.candidateListingMatch.count({
-      where: matchWhere({ candidateCaseId: candidate.id, tab: 'zu-kontaktieren', expiredCutoff }),
+      where: matchWhere({ candidateCaseId: candidate.id, tab: 'zu-kontaktieren' }),
     });
     const list = await dailyWorklist();
     const item = [...list.call, ...list.write, ...list.idle].find(
@@ -155,7 +154,7 @@ describe('the number on a tab', () => {
     // used to say ten.
     const { candidate } = await seedMixedPool();
     const count = await prisma.candidateListingMatch.count({
-      where: matchWhere({ candidateCaseId: candidate.id, tab: 'zu-kontaktieren', expiredCutoff }),
+      where: matchWhere({ candidateCaseId: candidate.id, tab: 'zu-kontaktieren' }),
     });
     expect(count).toBe(4);
   });
@@ -165,7 +164,7 @@ describe('the number on a tab', () => {
     // reply we are still waiting for.
     const { candidate } = await seedMixedPool();
     const count = await prisma.candidateListingMatch.count({
-      where: matchWhere({ candidateCaseId: candidate.id, tab: 'kontaktiert', expiredCutoff }),
+      where: matchWhere({ candidateCaseId: candidate.id, tab: 'kontaktiert' }),
     });
     expect(count).toBe(1);
   });
@@ -173,10 +172,10 @@ describe('the number on a tab', () => {
   it('does not let "Alle" promise rows the working tabs already buried', async () => {
     const { candidate } = await seedMixedPool();
     const all = await prisma.candidateListingMatch.count({
-      where: matchWhere({ candidateCaseId: candidate.id, tab: 'alle', expiredCutoff }),
+      where: matchWhere({ candidateCaseId: candidate.id, tab: 'alle' }),
     });
     const rows = await prisma.candidateListingMatch.findMany({
-      where: matchWhere({ candidateCaseId: candidate.id, tab: 'alle', expiredCutoff }),
+      where: matchWhere({ candidateCaseId: candidate.id, tab: 'alle' }),
     });
     expect(all).toBe(rows.length);
     // Ten matches exist; three are dead and outside "Alle", which only shows

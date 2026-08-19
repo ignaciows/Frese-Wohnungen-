@@ -42,15 +42,6 @@ import { isFeatureOn } from '@/domain/features';
 export const dynamic = 'force-dynamic';
 
 
-/**
- * How long a vanished ad stays visible after it goes.
- *
- * Not forever: the graveyard grows every sweep and is read by nobody. A few
- * days is enough to see what was missed this week — after that it is noise on
- * a screen whose whole value is being short. Anything anyone wrote to is
- * exempt and lives in its own tab, because a conversation outlives the ad.
- */
-const EXPIRED_VISIBLE_DAYS = 7;
 
 /**
  * What is holding a listing back, in three words or fewer, for the row.
@@ -71,12 +62,39 @@ function shortcomings(reasons: unknown, limit = 3): string[] {
     .slice(0, limit);
 }
 
+/**
+ * Ein Hinweis, der auf fast jeder Zeile steht, sagt nichts.
+ *
+ * „Entfernung unbekannt" und „Anzeige nennt kein Einzugsdatum" standen auf
+ * zehn von zehn Zeilen. Zehnmal dasselbe zu lesen kostet Aufmerksamkeit und
+ * unterscheidet nichts — und zwischen drei grauen Kästchen pro Zeile geht der
+ * eine Hinweis unter, der wirklich nur diese Wohnung betrifft.
+ *
+ * Dieselbe Regel wie beim „Noch nicht geprüft"-Abzeichen weiter unten, nur
+ * ausgerechnet statt aufgeschrieben: was fast überall steht, wandert einmal
+ * unter die Liste.
+ */
+const EVERYWHERE = 0.7;
+
+function commonShortcomings(rows: Array<{ reasons: unknown }>): Set<string> {
+  if (rows.length < 4) return new Set();
+  const seen = new Map<string, number>();
+  for (const r of rows) {
+    for (const s of new Set(shortcomings(r.reasons, 99))) {
+      seen.set(s, (seen.get(s) ?? 0) + 1);
+    }
+  }
+  return new Set(
+    [...seen.entries()].filter(([, n]) => n / rows.length >= EVERYWHERE).map(([s]) => s),
+  );
+}
+
 export default async function ErgebnissePage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; listing?: string; error?: string }>;
+  searchParams: Promise<{ tab?: string; listing?: string; error?: string; zeigen?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -86,11 +104,10 @@ export default async function ErgebnissePage({
   const tab = sp.tab ?? 'zu-kontaktieren';
 
   const [liveness, ageFilter] = await Promise.all([getLivenessSettings(), getAgeFilterSettings()]);
-  const expiredCutoff = new Date(Date.now() - EXPIRED_VISIBLE_DAYS * 86_400_000);
 
   const [matchList, counts, message, profile, freshnessSettings, bridging, features] = await Promise.all([
     prisma.candidateListingMatch.findMany({
-      where: matchWhere({ candidateCaseId: id, tab, liveness, expiredCutoff }),
+      where: matchWhere({ candidateCaseId: id, tab, liveness }),
       orderBy: [{ compatibility: 'asc' }, { score: 'desc' }],
       include: { listing: { include: { source: { select: { name: true } } } } },
     }),
@@ -101,7 +118,7 @@ export default async function ErgebnissePage({
       RESULT_TABS.map(async (t) => [
         t.key,
         await prisma.candidateListingMatch.count({
-          where: matchWhere({ candidateCaseId: id, tab: t.key, liveness, expiredCutoff }),
+          where: matchWhere({ candidateCaseId: id, tab: t.key, liveness }),
         }),
       ] as const),
     ),
@@ -160,9 +177,24 @@ export default async function ErgebnissePage({
 
   const countByTab = new Map<string, number>(counts);
   const tabCount = (key: string) => countByTab.get(key) ?? 0;
+  const visibleTabs = RESULT_TABS.filter((t) => t.always || tabCount(t.key) > 0 || tab === t.key);
+
+  // Zehn auf einmal. Eine Liste mit achtzig Zeilen wird nicht durchgearbeitet,
+  // sie wird überflogen — und die zehn besten stehen ohnehin oben, weil oben
+  // nach Punktzahl sortiert wird. „Weitere anzeigen" hängt zwanzig an.
+  const PAGE_SIZE = 10;
+  const MORE_STEP = 20;
 
   const selected = sp.listing ? matches.find((m) => m.listingId === sp.listing) ?? null : null;
   const totalAll = tabCount('alle');
+
+  // Der ausgewählte Treffer bleibt in der Liste, auch wenn er hinter der
+  // Grenze liegt — sonst verschwindet beim Anklicken die eigene Zeile.
+  const asked = Math.min(Math.max(Number(sp.zeigen) || PAGE_SIZE, PAGE_SIZE), 200);
+  const shownCount = Math.max(asked, selected ? matches.indexOf(selected) + 1 : 0);
+  const visible = matches.slice(0, shownCount);
+  const hiddenCount = matches.length - visible.length;
+  const everywhere = commonShortcomings(visible);
 
   const usableNow = await prisma.candidateListingMatch.count({
     where: {
@@ -201,19 +233,42 @@ export default async function ErgebnissePage({
         />
       ) : null}
 
+      {/* Zwei Reihen statt einer: oben, woran gearbeitet wird, darunter klein
+          das Nachschlagbare. Vorher standen „Zu kontaktieren 0" und
+          „Abgelaufen 428" gleich groß nebeneinander, und der Bildschirm sah
+          voll aus, während nichts zu tun war. */}
       <nav className="tabs" aria-label="Status">
-        {RESULT_TABS.filter((t) => t.always || tabCount(t.key) > 0 || tab === t.key).map((t) => (
-          <Link
-            key={t.key}
-            href={`/kandidat/${id}/ergebnisse?tab=${t.key}`}
-            className="tab"
-            aria-current={tab === t.key ? 'page' : undefined}
-          >
-            {t.label}
-            <span className="tab-count">{tabCount(t.key)}</span>
-          </Link>
-        ))}
+        {visibleTabs
+          .filter((t) => t.primary)
+          .map((t) => (
+            <Link
+              key={t.key}
+              href={`/kandidat/${id}/ergebnisse?tab=${t.key}`}
+              className="tab"
+              aria-current={tab === t.key ? 'page' : undefined}
+            >
+              {t.label}
+              <span className="tab-count">{tabCount(t.key)}</span>
+            </Link>
+          ))}
       </nav>
+      {visibleTabs.some((t) => !t.primary) ? (
+        <nav className="tabs-quiet" aria-label="Weitere Ansichten">
+          <span className="small muted">Auch da:</span>
+          {visibleTabs
+            .filter((t) => !t.primary)
+            .map((t) => (
+              <Link
+                key={t.key}
+                href={`/kandidat/${id}/ergebnisse?tab=${t.key}`}
+                className={`tab-quiet ${tab === t.key ? 'is-active' : ''}`}
+                aria-current={tab === t.key ? 'page' : undefined}
+              >
+                {t.label} <span className="muted">{tabCount(t.key)}</span>
+              </Link>
+            ))}
+        </nav>
+      ) : null}
 
       {tab === 'zu-kontaktieren' && setAside > 0 ? (
         <p className="listing-note">
@@ -241,16 +296,48 @@ export default async function ErgebnissePage({
         </div>
       ) : matches.length === 0 ? (
         <div className="card">
-          <Empty icon="○" title="Nichts in diesem Reiter">
-            In „{RESULT_TABS.find((t) => t.key === tab)?.label}“ liegt gerade nichts. Wechsle auf „Alle“, um alle
-            {' '}
-            {totalAll} Anzeigen zu sehen.
-          </Empty>
+          {/* Leer heißt hier nicht dasselbe wie leer.
+              „Nichts zum Anschreiben, aber 79 Anzeigen liegen daneben" ist ein
+              Suchprofil-Problem und kein Nachschub-Problem, und der Unterschied
+              entscheidet, was jemand als nächstes tut. Vorher stand hier
+              „wechsle auf Alle" — ein Vorschlag, der auf eine Liste führt, aus
+              der man auch nichts anschreiben kann. */}
+          {tab === 'zu-kontaktieren' && setAside > 0 ? (
+            <Empty
+              icon="⚙"
+              title="Nichts zum Anschreiben — die Suche passt nicht zum Profil"
+              action={
+                <Link href={`/kandidat/${id}/profil`} className="btn primary">
+                  Suchprofil öffnen
+                </Link>
+              }
+            >
+              {setAside} gefundene Anzeigen liegen daneben: falscher Ort, über Budget oder falscher
+              Objekttyp. Meistens ist der Umkreis zu klein oder das Budget zu knapp.
+            </Empty>
+          ) : tab === 'zu-kontaktieren' ? (
+            <Empty
+              icon="○"
+              title="Alles abgearbeitet"
+              action={
+                <Link href={`/kandidat/${id}/quellen`} className="btn">
+                  Quellen ansehen
+                </Link>
+              }
+            >
+              Für diesen Fall ist gerade keine passende Wohnung offen. Die Suche läuft weiter und meldet
+              sich, sobald etwas dazukommt.
+            </Empty>
+          ) : (
+            <Empty icon="○" title="Hier liegt gerade nichts">
+              Unter „{RESULT_TABS.find((t) => t.key === tab)?.label}“ ist nichts eingetragen.
+            </Empty>
+          )}
         </div>
       ) : (
         <div className={`results-grid ${selected ? 'with-pane' : ''}`}>
           <div className="card">
-            {matches.map((m, i) => {
+            {visible.map((m, i) => {
               const l = m.listing;
               const comp = COMPATIBILITY[m.compatibility] ?? COMPATIBILITY.INSUFFICIENT_DATA;
               const st = MATCH_STATUS[m.status] ?? MATCH_STATUS.NEW;
@@ -332,11 +419,14 @@ export default async function ErgebnissePage({
                       {m.compatibility !== 'COMPATIBLE' ? (
                         <span className={`badge ${comp.tone}`}>{comp.short}</span>
                       ) : null}
-                      {shortcomings(m.reasons).map((r, k) => (
-                        <span key={k} className="lack" title={r}>
-                          {r}
-                        </span>
-                      ))}
+                      {shortcomings(m.reasons)
+                        .filter((r) => !everywhere.has(r))
+                        .slice(0, 2)
+                        .map((r, k) => (
+                          <span key={k} className="lack" title={r}>
+                            {r}
+                          </span>
+                        ))}
                       {/* Only say something about the check when it is news.
                           "Noch nicht geprüft" sat on every row, and a label
                           that never varies is one more thing to read past. */}
@@ -452,7 +542,26 @@ export default async function ErgebnissePage({
             {/* One footnote for the whole list. It used to be repeated on
                 every Kleinanzeigen row, where it said the same thing eleven
                 times and crowded out what differed between them. */}
-            {matches.some((m) => !m.listing.monthlyTotalComplete) ? (
+            {everywhere.size > 0 ? (
+              <div className="listing-note">
+                Gilt für fast alle Anzeigen hier und steht deshalb nur einmal:{' '}
+                {[...everywhere].join(' · ')}.
+              </div>
+            ) : null}
+            {hiddenCount > 0 ? (
+              <div className="listing-more">
+                <Link
+                  href={`/kandidat/${id}/ergebnisse?tab=${tab}&zeigen=${shownCount + MORE_STEP}`}
+                  className="btn"
+                >
+                  Weitere {Math.min(hiddenCount, MORE_STEP)} anzeigen
+                </Link>
+                <span className="small muted">
+                  {visible.length} von {matches.length} · die besten stehen oben
+                </span>
+              </div>
+            ) : null}
+            {visible.some((m) => !m.listing.monthlyTotalComplete) ? (
               <div className="listing-note">
                 <strong>„ca.&ldquo;</strong> heißt: das Portal nennt nur die Kaltmiete. Die Nebenkosten sind
                 mit 2,50 €/m² geschätzt — der deutsche Durchschnitt — damit die Zahl mit dem Budget

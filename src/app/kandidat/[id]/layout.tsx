@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { inboxCounts } from '@/server/followUps';
 import { currentUser } from '@/lib/auth';
 import { AppBar, Crumbs } from '@/app/_components/Shell';
-import { getFeatureSettings } from '@/server/settings';
+import { getFeatureSettings, getLivenessSettings } from '@/server/settings';
+import { openWorkWhere } from '@/server/listingFilters';
 import { isFeatureOn } from '@/domain/features';
 import { CandidateNav } from './_nav';
 
@@ -43,9 +44,12 @@ export default async function CandidateLayout({
   if (!candidate) notFound();
 
   const [toContact, upcomingAppointments] = await Promise.all([
-    prisma.candidateListingMatch.count({
-      where: { candidateCaseId: id, status: { in: ['NEW', 'FAVORITE'] } },
-    }),
+    // Genau die Zahl, die unter dem Reiter auch steht. Vorher zählte das
+    // Abzeichen jeden offenen Treffer — 581 — während darunter eine einzige
+    // anschreibbare Wohnung lag; der Rest war abgelaufen oder passte nicht.
+    // Ein Abzeichen, das Arbeit verspricht, die es nicht gibt, ist schlimmer
+    // als keins.
+    prisma.candidateListingMatch.count({ where: openWorkWhere(id, await getLivenessSettings()) }),
     // Only what is still ahead: a badge counting last month's viewings is a
     // number nobody can act on.
     prisma.appointment.count({
