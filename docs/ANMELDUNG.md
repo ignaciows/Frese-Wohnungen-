@@ -130,6 +130,38 @@ Danach steht in **Einstellungen → Konten & Postfach** der Knopf „Postfach mi
 Google verbinden". Ein Klick, Konto wählen, zustimmen — fertig. Kein
 App-Passwort, keine Servernamen.
 
+### ⚠️ Intern oder Extern — das entscheidet, ob es dauerhaft läuft
+
+Der Bereich `https://mail.google.com/` gilt bei Google als **restricted**, und
+davon hängt mehr ab als eine Häkchenliste:
+
+| Zustimmungsbildschirm | Prüfung durch Google | Wie lange der Zugriff hält |
+| --- | --- | --- |
+| **Intern** (nur mit Google Workspace) | keine | **dauerhaft** |
+| **Extern**, Status „Test" | keine, aber Warnbildschirm und max. 100 Testnutzer | **7 Tage**, dann muss neu verbunden werden |
+| **Extern**, veröffentlicht | jährliches Sicherheits-Audit durch einen von Google zugelassenen Prüfer | dauerhaft |
+
+Der mittlere Fall ist die Falle: es funktioniert, sieht grün aus, und eine
+Woche später steht das Postfach auf „muss neu verbunden werden" — und zwar
+jede Woche wieder. Google vergibt für externe Apps im Teststatus bewusst nur
+kurzlebige Refresh-Token, sobald mehr als Name und E-Mail-Adresse im Spiel
+sind.
+
+**Praktisch heißt das:**
+
+- **Firmenkonto mit eigener Domain (Workspace)** → „Intern" wählen, fertig.
+  Das ist der einzige Weg, der ohne Audit dauerhaft läuft.
+- **Privates @gmail.com** → „Intern" gibt es dort nicht. Statt sich mit dem
+  Sieben-Tage-Rhythmus herumzuschlagen, lieber den IMAP-Weg nehmen:
+  **App-Passwort** unter *myaccount.google.com → Sicherheit → Bestätigung in
+  zwei Schritten → App-Passwörter*, dann in der App unter „Anderes Postfach
+  (IMAP/SMTP)" eintragen. Kein Cloud-Projekt, keine Prüfung, kein Ablauf.
+  Server: `imap.gmail.com` 993 und `smtp.gmail.com` 465.
+
+Das gilt nur für das **Postfach**. Für die reine Anmeldung („Mit Google
+anmelden") reichen Name und E-Mail-Adresse, und dort gibt es weder Prüfung noch
+Sieben-Tage-Grenze.
+
 ### Was gespeichert wird
 
 Nur der **Refresh-Token**, verschlüsselt wie jedes andere Geheimnis
