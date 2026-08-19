@@ -9,6 +9,12 @@ import { formatDate, PRIORITY_TIER, difficultyLabel } from '@/lib/labels';
 
 export const dynamic = 'force-dynamic';
 
+/** Was nach einer Aktion hier oben stehen darf — und sonst nichts. */
+const MELDUNGEN: Record<string, string> = {
+  'fall-geloescht': 'Der Fall wurde endgültig gelöscht.',
+  'fall-weg': 'Diesen Fall gibt es nicht mehr.',
+};
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -52,9 +58,15 @@ export default async function DashboardPage({
       <main className="container page">
         {/* Wer hier landet, kommt oft von einer Aktion auf einer Seite, die es
             danach nicht mehr gibt — nach dem Löschen eines Falls zum Beispiel.
-            Ohne diese Zeile verschwindet die Rückmeldung mit der Seite. */}
-        {sp.gespeichert ? <Callout tone="success">{sp.gespeichert}</Callout> : null}
-        {sp.fehler ? <Callout tone="danger">{sp.fehler}</Callout> : null}
+            Ohne diese Zeile verschwindet die Rückmeldung mit der Seite.
+
+            Kürzel und keine freien Texte: hier steht die Meldung in einer
+            grünen bzw. roten Box, und was aus der Adresse kommt, kann jeder
+            in einen Link schreiben. */}
+        {MELDUNGEN[sp.gespeichert ?? ''] ? (
+          <Callout tone="success">{MELDUNGEN[sp.gespeichert!]}</Callout>
+        ) : null}
+        {MELDUNGEN[sp.fehler ?? ''] ? <Callout tone="danger">{MELDUNGEN[sp.fehler!]}</Callout> : null}
         <div className="page-head">
           <div className="page-title">
             <h1>Kandidaten</h1>

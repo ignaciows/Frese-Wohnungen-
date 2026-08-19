@@ -33,10 +33,13 @@ export default async function CandidateOverview({ params }: { params: Promise<{ 
   if (!candidate) notFound();
 
   // Abschaltbar: ohne den Baustein „Zeitleiste" wird sie gar nicht erst
-  // geladen — ein ausgeschalteter Baustein soll auch nichts rechnen.
+  // geladen — ein ausgeschalteter Baustein soll auch nichts rechnen. Die
+  // Abfrage steht bewusst vor dem Promise.all: ein `await` mitten im Array
+  // lässt die anderen Versprechen unbeaufsichtigt laufen.
+  const showTimeline = await featureOn('timeline');
   const [priority, timeline] = await Promise.all([
     loadCandidatePriority(id),
-    (await featureOn('timeline')) ? loadCandidateTimeline(id) : null,
+    showTimeline ? loadCandidateTimeline(id) : null,
   ]);
   const hasMessage = (candidate.applicationMessage?.body ?? '').trim().length > 0;
   const runs = candidate.searchRuns;

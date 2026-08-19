@@ -11,6 +11,7 @@
  */
 
 import { spawn, spawnSync } from 'node:child_process';
+import { readdirSync } from 'node:fs';
 
 const step = (msg) => console.log(`\n[start] ${msg}`);
 
@@ -83,6 +84,15 @@ async function migrate() {
   // Last resort: the schema was created out-of-band and the history cannot be
   // reconciled. Keep the app usable, and say so loudly — /api/diagnostics
   // reports the mismatch so it does not stay invisible.
+  //
+  // Erst aber jede Migration von Hand durchlaufen lassen. `db push` vergleicht
+  // nur Schema und Datenbank und kennt kein Umbenennen: eine Spalte, die
+  // anders heißt, wird gelöscht und neu angelegt — mitsamt allem, was drin
+  // stand. Die Dateien hier sind alle wiederholbar geschrieben (IF EXISTS /
+  // IF NOT EXISTS), also kostet ein zweiter Durchlauf nichts und rettet im
+  // Zweifel genau das.
+  applyMigrationsByHand();
+
   console.warn('[start] migrate deploy still failing — reconciling schema with `prisma db push`.');
   if (run('npx', ['prisma', 'db', 'push', '--skip-generate', '--accept-data-loss'], { allowFailure: true })) {
     console.warn('[start] Schema reconciled via db push. Migration history is NOT up to date.');
@@ -92,6 +102,27 @@ async function migrate() {
   console.error('[start] Could not bring the database up to date. Starting anyway;');
   console.error('[start] check /api/diagnostics and run `npx prisma migrate deploy` in the console.');
   return false;
+}
+
+/**
+ * Jede Migrationsdatei einmal einspielen, ohne Buchführung.
+ *
+ * Nur für den Notfallpfad oben. Fehler sind erwartet — was schon angewandt
+ * ist, meldet sich als „existiert bereits" — deshalb bricht hier nichts ab.
+ */
+function applyMigrationsByHand() {
+  const dir = new URL('../prisma/migrations/', import.meta.url);
+  let names;
+  try {
+    names = readdirSync(dir).filter((n) => !n.endsWith('.toml')).sort();
+  } catch {
+    return;
+  }
+  step(`Replaying ${names.length} migration file(s) directly…`);
+  for (const name of names) {
+    run('npx', ['prisma', 'db', 'execute', '--file', `prisma/migrations/${name}/migration.sql`,
+      '--schema', 'prisma/schema.prisma'], { allowFailure: true });
+  }
 }
 
 function seed() {

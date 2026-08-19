@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { verifyPassword } from '@/lib/auth';
 import { getSession } from '@/lib/session';
 import { googleLoginEnabled } from '@/lib/googleAuth';
+import { LOGIN_ERRORS } from './messages';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,14 +13,12 @@ async function loginAction(formData: FormData) {
   const password = String(formData.get('password') ?? '');
   if (!email || !password) return;
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || !user.active) redirect('/login?error=Ungültige+Zugangsdaten');
+  if (!user || !user.active) redirect('/login?error=falsche-daten');
   // Konten, die nur über Google hereinkommen, haben kein Passwort. Die
   // Fehlermeldung nennt den Weg, statt „falsch" zu behaupten.
-  if (!user.passwordHash) {
-    redirect('/login?error=' + encodeURIComponent('Dieses Konto meldet sich über Google an.'));
-  }
+  if (!user.passwordHash) redirect('/login?error=nur-google');
   const ok = await verifyPassword(password, user.passwordHash);
-  if (!ok) redirect('/login?error=Ungültige+Zugangsdaten');
+  if (!ok) redirect('/login?error=falsche-daten');
   const session = await getSession();
   session.userId = user.id;
   session.role = user.role;
@@ -34,6 +33,7 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
+  const message = LOGIN_ERRORS[error ?? ''] ?? null;
   // Der Knopf erscheint nur, wenn Google-Login wirklich eingerichtet ist —
   // ein Knopf, der zu einer 404 führt, ist schlimmer als keiner.
   const withGoogle = googleLoginEnabled();
@@ -50,12 +50,12 @@ export default async function LoginPage({
           Interne Wohnungssuche — Anmeldung erforderlich
         </p>
 
-        {error ? (
+        {message ? (
           <div className="callout danger" style={{ marginBottom: 14 }}>
             <span className="callout-icon" aria-hidden>
               !
             </span>
-            <div>{error}</div>
+            <div>{message}</div>
           </div>
         ) : null}
 

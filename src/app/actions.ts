@@ -446,36 +446,43 @@ export async function deleteCandidateAction(formData: FormData) {
     where: { id: candidateCaseId },
     select: { displayName: true, reference: true },
   });
-  if (!candidate) redirect('/?fehler=' + encodeURIComponent('Dieser Fall existiert nicht mehr.'));
+  // Kürzel statt Klartext: die Startseite zeigt die Rückmeldung in einer
+  // Erfolgs- bzw. Fehlerbox, und wer den Text in die Adresse schreiben darf,
+  // kann jedem per Link eine amtlich aussehende Meldung unterschieben.
+  if (!candidate) redirect('/?fehler=fall-weg');
 
   if (confirmation !== candidate!.displayName) {
-    redirect(
-      `/kandidat/${candidateCaseId}/stammdaten?fehler=` +
-        encodeURIComponent('Zum Löschen den Namen exakt eingeben.'),
-    );
+    redirect(`/kandidat/${candidateCaseId}/stammdaten?fehler=name-stimmt-nicht`);
   }
 
   // Beides zusammen oder gar nicht — sonst bleibt im Fehlerfall entweder ein
   // Protokolleintrag über eine Löschung, die nie stattfand, oder ein gelöschter
   // Fall ohne jede Spur. Der Eintrag selbst überlebt (`onDelete: SetNull`);
   // welcher Fall gemeint war, steht in `entityId`.
-  await prisma.$transaction(async (tx) => {
-    await tx.auditEvent.create({
-      data: {
-        userId: user.id,
-        candidateCaseId,
-        entityType: 'CandidateCase',
-        entityId: candidateCaseId,
-        action: 'case.delete',
-        fromState: 'ACTIVE',
-        reason: `Fall „${candidate!.displayName}" (${candidate!.reference}) endgültig gelöscht.`,
-      },
-    });
-    await tx.candidateCase.delete({ where: { id: candidateCaseId } });
-  });
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.auditEvent.create({
+        data: {
+          userId: user.id,
+          candidateCaseId,
+          entityType: 'CandidateCase',
+          entityId: candidateCaseId,
+          action: 'case.delete',
+          fromState: 'ACTIVE',
+          reason: `Fall „${candidate!.displayName}" (${candidate!.reference}) endgültig gelöscht.`,
+        },
+      });
+      await tx.candidateCase.delete({ where: { id: candidateCaseId } });
+    },
+    // Prismas Standard sind fünf Sekunden. Am Fall hängen Treffer, Anfragen,
+    // Termine und Nachrichten — bei einem lange laufenden Fall sind das
+    // zehntausende Zeilen, und ein Zeitüberlauf rollt alles zurück, sodass
+    // der zweite Versuch genauso scheitert wie der erste.
+    { timeout: 60_000 },
+  );
 
   revalidatePath('/', 'layout');
-  redirect('/?gespeichert=' + encodeURIComponent(`Fall „${candidate!.displayName}" gelöscht.`));
+  redirect('/?gespeichert=fall-geloescht');
 }
 
 export async function markRegisteredAction(formData: FormData) {
@@ -782,7 +789,8 @@ export async function setListingAvailableFromAction(formData: FormData) {
   // stamp lands on the previous day in any timezone west of Berlin.
   const value = availableFrom ? new Date(`${availableFrom}T12:00:00`) : null;
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(
+    async (tx) => {
     await tx.listing.update({
       where: { id: listingId },
       data: { availableFrom: value, availableNow: false },

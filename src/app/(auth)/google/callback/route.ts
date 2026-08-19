@@ -17,10 +17,12 @@ import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { domainAllowed, exchangeCodeForIdentity, googleConfig, STATE_COOKIE } from '@/lib/googleAuth';
+import { LOGIN_ERRORS } from '../../login/messages';
 
 export const dynamic = 'force-dynamic';
 
-const fail = (reason: string) => redirect(`/login?error=${encodeURIComponent(reason)}`);
+/** Kürzel statt Klartext — die Anmeldeseite kennt die Sätze dazu. */
+const fail = (code: keyof typeof LOGIN_ERRORS) => redirect(`/login?error=${code}`);
 
 export async function GET(request: Request) {
   const config = googleConfig();
@@ -33,20 +35,25 @@ export async function GET(request: Request) {
   store.delete(STATE_COOKIE);
 
   // Der Nutzer hat bei Google abgebrochen.
-  if (url.searchParams.get('error')) fail('Anmeldung bei Google abgebrochen.');
+  if (url.searchParams.get('error')) fail('google-abgebrochen');
 
   const state = url.searchParams.get('state');
   if (!expectedState || !state || state !== expectedState) {
-    fail('Anmeldung abgelaufen oder ungültig. Bitte noch einmal versuchen.');
+    fail('google-abgelaufen');
   }
 
   const code = url.searchParams.get('code');
-  if (!code) fail('Google hat keinen Anmelde-Code geschickt.');
+  if (!code) fail('google-abgelaufen');
 
   const result = await exchangeCodeForIdentity({ config, code: code!, requestUrl: request.url });
-  if (!result.ok) fail(result.reason);
+  // Der genaue Grund steht im Serverprotokoll; auf dem Bildschirm nützt er
+  // niemandem und verrät im Zweifel, ob es diese Adresse hier gibt.
+  if (!result.ok) {
+    console.warn(`[google] Anmeldung abgelehnt: ${result.reason}`);
+    fail('google-fehlgeschlagen');
+  }
   const identity = result.ok ? result.identity : null;
-  if (!identity) fail('Anmeldung fehlgeschlagen.');
+  if (!identity) fail('google-fehlgeschlagen');
 
   // Erst über die Google-ID suchen, dann über die E-Mail: die ID ist
   // unveränderlich, die Adresse nicht. Wer heiratet und umbenannt wird,
@@ -57,7 +64,7 @@ export async function GET(request: Request) {
   let user = existing;
 
   if (user) {
-    if (!user.active) fail('Dieses Konto ist deaktiviert. Bitte an einen Admin wenden.');
+    if (!user.active) fail('konto-deaktiviert');
     if (!user.googleId) {
       user = await prisma.user.update({
         where: { id: user.id },
@@ -67,11 +74,7 @@ export async function GET(request: Request) {
   } else {
     // Neu. Nur mit passender Domain, und nie als Admin.
     if (!domainAllowed(identity!.email, config)) {
-      fail(
-        config.allowedDomain
-          ? `Nur Adressen von @${config.allowedDomain} können sich anmelden.`
-          : 'Für diese Adresse gibt es kein Konto. Bitte von einem Admin anlegen lassen.',
-      );
+      fail('kein-konto');
     }
     user = await prisma.user.create({
       data: {

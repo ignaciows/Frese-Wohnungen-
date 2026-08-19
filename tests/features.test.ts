@@ -51,7 +51,11 @@ describe('die Liste der Bausteine', () => {
       .join('\n');
 
     for (const f of FEATURES) {
-      expect(src.includes(`'${f.key}'`), `Baustein „${f.key}" wird nirgends abgefragt`).toBe(true);
+      // Nicht „der Schlüssel kommt irgendwo vor" — der stünde schon in einer
+      // Konstantenliste. Gesucht ist der Aufruf selbst: featureOn('x') oder
+      // isFeatureOn(irgendwas, 'x').
+      const call = new RegExp(`\\b(?:is)?[Ff]eatureOn\\([^)]*'${f.key}'`);
+      expect(call.test(src), `Baustein „${f.key}" wird nirgends abgefragt`).toBe(true);
     }
   });
 

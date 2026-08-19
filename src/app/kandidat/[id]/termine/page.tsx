@@ -1,4 +1,5 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
+import { currentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createAppointmentAction, setAppointmentOutcomeAction, deleteAppointmentAction } from '@/app/actions';
 import { Empty, Callout } from '@/app/_components/Shell';
@@ -25,9 +26,11 @@ const STATUS: Record<string, { label: string; tone: string }> = {
 
 export default async function TerminePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  // Der Reiter ist ohne den Baustein schon aus der Navigation verschwunden.
-  // Die Seite muss trotzdem selbst zumachen — sonst reicht ein alter Link oder
-  // ein Lesezeichen, und die abgeschaltete Funktion steht wieder da.
+  // Erst anmelden, dann erst verraten, ob es die Seite überhaupt gibt.
+  // Der Reiter ist ohne den Baustein schon aus der Navigation verschwunden;
+  // die Seite muss trotzdem selbst zumachen, sonst reicht ein Lesezeichen und
+  // die abgeschaltete Funktion steht wieder da.
+  if (!(await currentUser())) redirect('/login');
   if (!(await featureOn('appointments'))) notFound();
 
   const [appointments, contactedListings] = await Promise.all([

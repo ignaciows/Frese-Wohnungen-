@@ -146,7 +146,7 @@ export default async function StammdatenPage({
           angelegten Fall, die Dublette, oder wenn jemand seine Daten
           zurückverlangt. Kein Knopf, den man im Vorbeigehen trifft. */}
       {user?.role === 'ADMIN' ? (
-        <details className="card danger-zone" open={!!sp.fehler}>
+        <details className="card danger-zone" open={sp.fehler === 'name-stimmt-nicht'}>
           <summary>
             <strong>Fall endgültig löschen</strong>
             <span className="small muted"> — kann nicht rückgängig gemacht werden</span>
@@ -155,7 +155,9 @@ export default async function StammdatenPage({
             {/* Aufgeklappt, wenn hier etwas schiefging — eine Fehlermeldung in
                 einem zugeklappten Abschnitt liest niemand, und der Versuch
                 sähe aus, als wäre einfach nichts passiert. */}
-            {sp.fehler ? <Callout tone="danger">{sp.fehler}</Callout> : null}
+            {sp.fehler === 'name-stimmt-nicht' ? (
+              <Callout tone="danger">Zum Löschen den Namen exakt eingeben.</Callout>
+            ) : null}
             <p className="small muted">
               Gelöscht werden Suchprofil, Treffer, Anfragen, Termine und Nachrichten dieses Falls. Der
               Eintrag im Protokoll bleibt — dass gelöscht wurde, ist selbst eine Tatsache, die nachlesbar
