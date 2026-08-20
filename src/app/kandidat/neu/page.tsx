@@ -4,6 +4,8 @@ import { currentUser } from '@/lib/auth';
 import { createCandidateAction } from '@/app/actions';
 import { AppBar, Crumbs, Callout } from '@/app/_components/Shell';
 import { SubmitButton } from '@/app/_components/SubmitButton';
+import { AddressPicker } from '@/app/_components/AddressPicker';
+import { RadiusPicker } from '@/app/_components/RadiusPicker';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +14,12 @@ export default async function NewCandidatePage() {
   if (!user) redirect('/login');
 
   const year = new Date().getFullYear();
+  // Pre-filled so nobody has to invent one. Counting what already exists keeps
+  // it unique without a round trip on every keystroke; a clash is still caught
+  // on save and reported, because two people can create a case at once.
+  const { prisma } = await import('@/lib/prisma');
+  const soFar = await prisma.candidateCase.count();
+  const suggestedReference = `CAND-${year}-${String(soFar + 1).padStart(3, '0')}`;
 
   return (
     <>
@@ -28,9 +36,9 @@ export default async function NewCandidatePage() {
 
         <form action={createCandidateAction} className="card">
           <div className="card-body stack">
-            {/* Der Name zuerst, weil er auf jedem Bildschirm die Überschrift
-                ist. Die interne Referenz steht daneben und nicht davor: sie
-                ist zum Wiederfinden im Firmen-System da, nicht zum Erkennen. */}
+            {/* Wer, und für wen sie arbeitet. Zusammen sind das die beiden
+                Angaben, an denen ein Fall auf jedem Bildschirm erkannt wird —
+                dieselbe Aufteilung wie in den Stammdaten. */}
             <div className="grid-2">
               <div>
                 <label htmlFor="displayName">Name der Kandidatin *</label>
@@ -41,80 +49,44 @@ export default async function NewCandidatePage() {
                   required
                   placeholder="Tanvi Gupta"
                 />
-                <p className="field-hint">Steht als Überschrift über dem ganzen Fall.</p>
               </div>
               <div>
-                <label htmlFor="reference">Interne Referenz *</label>
+                <label htmlFor="employer">Arbeitgeber</label>
                 <input
-                  id="reference"
-                  name="reference"
+                  id="employer"
+                  name="employer"
                   className="input"
-                  required
-                  placeholder={`CAND-${year}-001`}
+                  placeholder="SLK-Kliniken Heilbronn"
                 />
-                <p className="field-hint">Kennung aus dem Firmen-System, zum Wiederfinden.</p>
               </div>
             </div>
 
-            <div className="grid-2">
-              <div>
-                <label htmlFor="contractSignedAt">Vertrag unterschrieben am</label>
-                <input id="contractSignedAt" name="contractSignedAt" type="date" className="input" />
-                <p className="field-hint">
-                  Datum aus dem Frese-System. Ab hier läuft die Suchuhr — bestimmt die Dringlichkeit.
-                </p>
-              </div>
-              <div>
-                <label htmlFor="moveInDate">Gewünschter Einzug</label>
-                <input id="moveInDate" name="moveInDate" type="date" className="input" />
-                <p className="field-hint">Wichtigster Faktor für die Priorisierung.</p>
-              </div>
-            </div>
+            {/* Gesucht wird um diese Adresse herum, und ein Tippfehler sieht
+                hier nicht wie ein Fehler aus — er sieht aus wie eine Suche, die
+                still die Wohnungen der falschen Stadt zurückbringt. Deshalb
+                wird die Adresse nachgeschlagen und ausgewählt; PLZ, Ort und
+                Koordinaten kommen aus demselben Datensatz. */}
+            <AddressPicker />
 
-            <hr className="divider" />
+            <RadiusPicker />
 
-            {/* Arbeitgeber und Arbeitsort gehören zusammen und stehen deshalb
-                nebeneinander: um genau diese Adresse herum wird gesucht, und
-                der Name des Trägers macht sie einordenbar, ohne sie
-                nachzuschlagen. */}
-            <div>
-              <label htmlFor="employer">Arbeitgeber</label>
-              <input
-                id="employer"
-                name="employer"
-                className="input"
-                placeholder="SLK-Kliniken Heilbronn"
-              />
-              <p className="field-hint">Klinik, Pflegeheim oder Träger — wo die Kandidatin arbeiten wird.</p>
-            </div>
-
-            <div>
-              <label htmlFor="workplaceAddress">Arbeitsort (Adresse) *</label>
-              <input
-                id="workplaceAddress"
-                name="workplaceAddress"
-                className="input"
-                required
-                placeholder="Salinenstraße 2, 74906 Bad Rappenau"
-              />
-              <p className="field-hint">
-                <strong>Um diese Adresse herum wird gesucht.</strong> Alles Weitere — Umkreis, Anfahrt,
-                welche Wohnung wie gut passt — rechnet von hier aus.
-              </p>
-            </div>
-            <div className="grid-2">
-              <div>
-                <label htmlFor="workplaceCity">Stadt</label>
-                <input id="workplaceCity" name="workplaceCity" className="input" placeholder="Bad Rappenau" />
-              </div>
-              <div>
-                <label htmlFor="workplacePostalCode">PLZ</label>
-                <input id="workplacePostalCode" name="workplacePostalCode" className="input" placeholder="74906" />
-                <p className="field-hint">Bestimmt, welche regionalen Quellen in den Suchlauf kommen.</p>
-              </div>
-            </div>
-
-            <hr className="divider" />
+            {/* Alles mit einer vertretbaren Voreinstellung. Bleibt im
+                Formular, wird also weiterhin mitgeschickt — nur zugeklappt,
+                damit die vier Angaben, die wirklich jetzt bekannt sein müssen,
+                die Seite sind. Änderbar bleibt später alles im Suchprofil. */}
+            <details className="disclosure">
+              <summary>Weitere Angaben — später änderbar</summary>
+              <div className="stack" style={{ marginTop: 12 }}>
+                <div className="grid-2">
+                  <div>
+                    <label htmlFor="moveInDate">Gewünschter Einzug</label>
+                    <input id="moveInDate" name="moveInDate" type="date" className="input" />
+                  </div>
+                  <div>
+                    <label htmlFor="contractSignedAt">Vertrag unterschrieben am</label>
+                    <input id="contractSignedAt" name="contractSignedAt" type="date" className="input" />
+                  </div>
+                </div>
 
             <div className="grid-2">
               <div>
@@ -129,19 +101,7 @@ export default async function NewCandidatePage() {
                   max={10000}
                 />
               </div>
-              <div>
-                <label htmlFor="maxCommuteMinutes">Max. Anfahrt (Min.)</label>
-                <input
-                  id="maxCommuteMinutes"
-                  name="maxCommuteMinutes"
-                  type="number"
-                  className="input"
-                  defaultValue={35}
-                  min={1}
-                  max={240}
-                />
               </div>
-            </div>
 
             <div className="grid-4">
               <div>
@@ -192,6 +152,26 @@ export default async function NewCandidatePage() {
               <input id="temporaryMode" name="temporaryMode" type="checkbox" value="true" />
               <label htmlFor="temporaryMode">Notfall-/Übergangsmodus (Monteurzimmer &amp; Boardinghäuser)</label>
             </div>
+
+
+                {/* Die Referenz ordnet Suchagent-Mails dem richtigen Fall zu.
+                    Sie ist nichts, was jemand sich ausdenken muss — vorbelegt
+                    und klein, statt als zweites Pflichtfeld ganz oben. */}
+                <div>
+                  <label htmlFor="reference">Kennung für Suchagent-Mails</label>
+                  <input
+                    id="reference"
+                    name="reference"
+                    className="input"
+                    required
+                    defaultValue={suggestedReference}
+                  />
+                  <p className="field-hint">
+                    Portale schicken ihre Treffer an <span className="mono">postfach+kennung@…</span>.
+                  </p>
+                </div>
+              </div>
+            </details>
 
             <Callout tone="info">
               Beim Anlegen wird automatisch ein erster Suchlauf geplant — mit einer Aufgabe für jede Quelle,

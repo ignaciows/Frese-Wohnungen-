@@ -91,11 +91,11 @@ function adviceFor(quality: MappingQuality): string {
     case 'EXACT':
       return 'Filter im Portal 1:1 setzen.';
     case 'APPROXIMATE':
-      return 'Portal-Filter breiter setzen; Frese Wohnung filtert nach Import exakt.';
+      return 'Portal-Filter breiter setzen; Wohnungssucher filtert nach Import exakt.';
     case 'MANUAL':
-      return 'Nicht als Filter — nach Import in Frese Wohnung prüfen.';
+      return 'Nicht als Filter — nach Import in Wohnungssucher prüfen.';
     case 'UNSUPPORTED':
-      return 'Portal kann diesen Filter nicht — nach Import in Frese Wohnung prüfen.';
+      return 'Portal kann diesen Filter nicht — nach Import in Wohnungssucher prüfen.';
     case 'UNKNOWN':
       return 'Mapping noch nicht verifiziert — bitte manuell prüfen.';
   }

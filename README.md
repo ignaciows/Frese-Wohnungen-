@@ -1,4 +1,4 @@
-# Frese Wohnung
+# Wohnungssucher
 
 Interne Wohnungssuche-Werkbank für Frese Recruiting GmbH. Organisiert die
 Wohnungssuche für internationale Pflegekräfte über alle relevanten Quellen

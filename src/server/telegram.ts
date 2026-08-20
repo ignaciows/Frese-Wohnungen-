@@ -204,7 +204,7 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<stri
 
   if (text.startsWith('/start') || text.startsWith('/hilfe') || text.startsWith('/help')) {
     return (
-      'Frese Wohnung — Bot\n\n' +
+      'Wohnungssucher — Bot\n\n' +
       '/status — offene Anfragen, fällige Wiedervorlagen, nächste Termine\n' +
       '/notiz REF Text — Notiz an das jüngste Gespräch des Kandidaten anhängen'
     );

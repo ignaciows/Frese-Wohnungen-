@@ -55,14 +55,22 @@ export async function createCandidateCase(input: CreateCandidateInput) {
             workplacePostalCode: input.workplace.postalCode ?? null,
             workplaceLat: input.workplace.lat ?? null,
             workplaceLon: input.workplace.lon ?? null,
-            geocodeStatus: input.workplace.lat != null ? 'MANUAL' : 'UNKNOWN',
+            // RESOLVED, not MANUAL: these coordinates came from the address
+            // lookup, not from somebody typing numbers in by hand.
+            geocodeStatus: input.workplace.lat != null ? 'RESOLVED' : 'UNKNOWN',
             maxWarmmieteCents: input.maxWarmmieteCents ?? 90000,
             minRooms: input.minRooms ?? 1,
             preferredRooms: input.preferredRooms ?? 2,
             adults: input.adults ?? 1,
             children: input.children ?? 0,
             furnished: input.furnished ?? 'PREFERRED',
-            maxCommuteMinutes: input.maxCommuteMinutes ?? 35,
+            // Explicit null wins: a profile that carries a radius must not also
+            // carry a 35-minute default, or the ranking judges on the minutes —
+            // the number nobody chose.
+            maxCommuteMinutes:
+              input.maxCommuteMinutes === null
+                ? null
+                : (input.maxCommuteMinutes ?? (input.radiusKm != null ? null : 35)),
             radiusKm: input.radiusKm ?? null,
             wbsStatus: input.wbsStatus ?? 'UNKNOWN',
             temporaryMode: input.temporaryMode ?? false,

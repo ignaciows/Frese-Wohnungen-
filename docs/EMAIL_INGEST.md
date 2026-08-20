@@ -21,7 +21,7 @@ wir bestimmen. Sie auszuwerten verletzt keine Bedingungen, braucht keine
 Portal-Passwörter in dieser App und überlebt jedes Redesign.
 
 ```
-Portal-Suchagent  ──E-Mail──▶  gemeinsames Postfach  ──IMAP──▶  Frese Wohnung
+Portal-Suchagent  ──E-Mail──▶  gemeinsames Postfach  ──IMAP──▶  Wohnungssucher
                                                                  └▶ Anzeige beim
                                                                     richtigen
                                                                     Kandidaten

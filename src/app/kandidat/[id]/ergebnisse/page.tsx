@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { Empty, Callout } from '@/app/_components/Shell';
+import { WhyEmpty } from '@/app/_components/WhyEmpty';
+import { explainEmptyList } from '@/server/emptyList';
 import { LiveSearch } from '@/app/_components/LiveSearch';
 import { WhatIfPanel } from '@/app/_components/WhatIfPanel';
 import { ContactFlow } from '@/app/_components/ContactFlow';
@@ -189,6 +191,11 @@ export default async function ErgebnissePage({
   const selected = sp.listing ? matches.find((m) => m.listingId === sp.listing) ?? null : null;
   const totalAll = tabCount('alle');
 
+  // Only assembled when there is nothing to show: it costs a couple of queries
+  // and a re-rank, and on a full list nobody would read it.
+  const listIsEmpty = matches.length === 0;
+  const why = listIsEmpty ? await explainEmptyList(id) : null;
+
   // Der ausgewählte Treffer bleibt in der Liste, auch wenn er hinter der
   // Grenze liegt — sonst verschwindet beim Anklicken die eigene Zeile.
   const asked = Math.min(Math.max(Number(sp.zeigen) || PAGE_SIZE, PAGE_SIZE), 200);
@@ -334,6 +341,18 @@ export default async function ErgebnissePage({
               Unter „{RESULT_TABS.find((t) => t.key === tab)?.label}“ ist nichts eingetragen.
             </Empty>
           )}
+
+          {/* The two facts that decide what to do next, under every empty
+              state: where we looked, and the smallest change that would
+              actually produce flats. */}
+          {why && tab === 'zu-kontaktieren' ? (
+            <WhyEmpty
+              candidateId={id}
+              searched={why.searched}
+              suggestions={why.suggestions}
+              setAside={setAside}
+            />
+          ) : null}
         </div>
       ) : (
         <div className={`results-grid ${selected ? 'with-pane' : ''}`}>

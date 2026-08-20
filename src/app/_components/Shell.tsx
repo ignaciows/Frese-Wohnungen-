@@ -32,7 +32,7 @@ export async function AppBar({
           <span className="brand-dot" aria-hidden>
             F
           </span>
-          Frese Wohnung
+          Wohnungssucher
         </Link>
         <nav className="appbar-nav" aria-label="Hauptnavigation">
           <Link href="/" aria-current={active === 'kandidaten' ? 'page' : undefined}>

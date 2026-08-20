@@ -45,7 +45,7 @@ export default async function LoginPage({
           <span className="brand-dot" style={{ width: 30, height: 30, fontSize: 15 }} aria-hidden>
             F
           </span>
-          <h1>Frese Wohnung</h1>
+          <h1>Wohnungssucher</h1>
         </div>
         <p className="muted small" style={{ textAlign: 'center', marginBottom: 22 }}>
           Interne Wohnungssuche — Anmeldung erforderlich

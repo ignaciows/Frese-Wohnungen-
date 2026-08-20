@@ -58,6 +58,19 @@ const optionalDate = z
   .nullable()
   .transform((v) => (v && v.trim() ? new Date(v) : null));
 
+/**
+ * Looks an address up so it can be *picked* rather than typed.
+ *
+ * The postcode entered on the candidate form decides which regional sources are
+ * asked and which adverts count as nearby, so a typo does not look like an
+ * error — it looks like a search quietly returning the wrong town's flats.
+ */
+export async function lookupAddressAction(query: string) {
+  await requireUser();
+  const { lookupAddress } = await import('@/server/geocode');
+  return lookupAddress(query);
+}
+
 const CandidateInput = z.object({
   reference: z.string().min(2).max(64),
   displayName: z.string().min(2).max(128),
@@ -65,12 +78,20 @@ const CandidateInput = z.object({
   workplaceAddress: z.string().min(2).max(256),
   workplaceCity: z.string().max(128).optional().nullable(),
   workplacePostalCode: z.string().max(16).optional().nullable(),
+  workplaceLat: z.coerce.number().optional().nullable(),
+  workplaceLon: z.coerce.number().optional().nullable(),
   maxWarmmieteEuros: z.coerce.number().int().min(100).max(10000).default(900),
   minRooms: z.coerce.number().min(0.5).max(20).default(1),
   preferredRooms: z.coerce.number().min(0.5).max(20).default(2),
   adults: z.coerce.number().int().min(1).max(10).default(1),
   children: z.coerce.number().int().min(0).max(10).default(0),
-  maxCommuteMinutes: z.coerce.number().int().min(1).max(240).default(35),
+  /**
+   * How far from work a flat may be. Replaces the commute estimate: nobody
+   * knows what "35 minutes" means before they know whether the person drives
+   * or takes a bus, and the app cannot know either — so the number was guessed
+   * on one side and estimated on the other. Every portal filter is a radius.
+   */
+  radiusKm: z.coerce.number().int().min(1).max(100).default(10),
   furnished: z.enum(['REQUIRED', 'PREFERRED', 'EITHER']).default('PREFERRED'),
   wbsStatus: z.enum(['AVAILABLE', 'NOT_AVAILABLE', 'UNKNOWN']).default('UNKNOWN'),
   temporaryMode: z.coerce.boolean().default(false),
@@ -91,13 +112,19 @@ export async function createCandidateAction(formData: FormData) {
       address: parsed.workplaceAddress,
       city: parsed.workplaceCity || null,
       postalCode: parsed.workplacePostalCode || null,
+      // Present when the address was picked from the lookup rather than typed.
+      lat: parsed.workplaceLat ?? null,
+      lon: parsed.workplaceLon ?? null,
     },
     maxWarmmieteCents: parsed.maxWarmmieteEuros * 100,
     minRooms: parsed.minRooms,
     preferredRooms: parsed.preferredRooms,
     adults: parsed.adults,
     children: parsed.children,
-    maxCommuteMinutes: parsed.maxCommuteMinutes,
+    radiusKm: parsed.radiusKm,
+    // Null beside a chosen radius: with both set the ranking judges on an
+    // invented travel time instead of the distance somebody actually picked.
+    maxCommuteMinutes: null,
     furnished: parsed.furnished,
     wbsStatus: parsed.wbsStatus,
     temporaryMode: parsed.temporaryMode,
@@ -1216,7 +1243,7 @@ export async function saveTelegramSettingsAction(formData: FormData) {
 export async function sendTelegramTestAction() {
   await requireAdmin();
   const { sendTelegramMessage } = await import('@/server/telegram');
-  await sendTelegramMessage('✅ Frese Wohnung ist mit diesem Chat verbunden.');
+  await sendTelegramMessage('✅ Wohnungssucher ist mit diesem Chat verbunden.');
   revalidatePath('/', 'layout');
 }
 

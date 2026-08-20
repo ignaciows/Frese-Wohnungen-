@@ -1,4 +1,4 @@
-# Product Brief — Frese Wohnung
+# Product Brief — Wohnungssucher
 
 ## Wer nutzt es
 
