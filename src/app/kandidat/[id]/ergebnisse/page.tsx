@@ -27,7 +27,7 @@ import {
 } from '@/server/settings';
 import { listingAge, passesAgeFilter, describeAgeFilter } from '@/domain/timing/age';
 import { assessRent } from '@/domain/rent';
-import { MAX_SCORE } from '@/domain/ranking';
+import { MAX_SCORE, scoreBand } from '@/domain/ranking';
 import {
   bandOf,
   describeBand,
@@ -278,6 +278,18 @@ export default async function ErgebnissePage({
         </nav>
       ) : null}
 
+      {/* Ohne PLZ des Arbeitsorts kann die Lage keiner einzigen Anzeige
+          geprüft werden — und dann steht hier alles, was irgendeine Quelle
+          gefunden hat, ohne dass irgendetwas darauf hinweist. Der eine Fall,
+          in dem eine Warnung über der Liste stehen muss. */}
+      {!profile?.workplacePostalCode ? (
+        <Callout tone="danger">
+          <strong>Kein Arbeitsort hinterlegt.</strong> Ohne PLZ lässt sich für keine Anzeige prüfen, ob
+          sie in der Nähe liegt — diese Liste kann Wohnungen aus ganz Deutschland enthalten.{' '}
+          <Link href={`/kandidat/${id}/profil`}>Arbeitsort eintragen</Link>
+        </Callout>
+      ) : null}
+
       {tab === 'zu-kontaktieren' && setAside > 0 ? (
         <p className="listing-note">
           {setAside} weitere Anzeige(n) sind ausgeblendet, weil sie nicht zum Profil passen — falscher
@@ -361,30 +373,15 @@ export default async function ErgebnissePage({
               const l = m.listing;
               const comp = COMPATIBILITY[m.compatibility] ?? COMPATIBILITY.INSUFFICIENT_DATA;
               const st = MATCH_STATUS[m.status] ?? MATCH_STATUS.NEW;
-              // Colour follows the number on the box.
-              //
-              // It used to follow the compatibility verdict instead, so a 67
-              // was green and a 74 amber on the same screen — the one thing a
-              // colour-coded number must never do. Bands, not verdicts: 80 and
-              // up is worth writing to today, 60 to 79 is worth a look, below
-              // that is the bottom of the list.
+              // Colour follows the number, in the same bands that decide the
+              // word beside it: 75 and up is green and reads "Passend", 50 to
+              // 74 is amber, and below 50 the box stays plain. It used to be
+              // wired to the verdict on one line and to different cut-offs on
+              // another, so an 82 could sit green next to a badge reading
+              // "Fast passend" — the same flat described two ways at once.
+              // One rule now, in `scoreBand`, and both ends read from it.
               const shown = Math.round(effectiveScore(m, liveness));
-              // The colour follows the verdict, not the number. They were two
-              // independent axes, so an 82 could be green while the badge
-              // beside it read "Fast passend" — the same flat described two
-              // ways on one line, with nothing to say which was right. The
-              // number stays the number; the colour now means exactly what the
-              // label means.
-              const scoreCls =
-                m.compatibility === 'COMPATIBLE'
-                  ? 'good'
-                  : m.compatibility === 'NEAR_MATCH'
-                    ? 'mid'
-                    : m.compatibility === 'INCOMPATIBLE'
-                      ? 'bad'
-                      // Nothing to be confident about either way: the base
-                      // style is grey, which is the honest colour for it.
-                      : '';
+              const scoreCls = scoreBand(shown);
               // The date the ad prints about itself beats the date we happened
               // to import it: an ad found this morning can already be three
               // weeks old, and that is exactly what decides whether it is worth

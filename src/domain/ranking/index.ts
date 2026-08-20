@@ -135,9 +135,20 @@ export const DEFAULT_WEIGHTS: RankingWeights = {
 };
 
 // Bumped whenever the meaning of a score changes, so the app knows which
-// matches were scored under older rules and re-scores them. This revision
-// added the move-in date as a scored dimension and re-weighted the rest.
-export const RANK_VERSION = 'rank-2026-08-12c';
+// matches were scored under older rules and re-scores them.
+//
+// This must be bumped in the same commit as the rule change, every time.
+// Scores are stored: a rule that is fixed but not versioned reaches only the
+// adverts found *after* it, which is worth nothing once there are twenty
+// candidates with a pool each. It was missed once already — the metropolitan
+// postcode fix and the estimated Nebenkosten landed without it, so every match
+// already in the database kept the verdict the broken rules had given it.
+//
+// This revision: cities that span several postcode prefixes count as one
+// region (Hamburg 20/21/22, Berlin, München, Köln, the Ruhr), and a
+// Kaltmiete-only advert is judged on its estimated total instead of being
+// downgraded for the missing figure.
+export const RANK_VERSION = 'rank-2026-08-20-passend-75';
 
 const APARTMENT_TYPES = new Set<PropertyType>(['APARTMENT']);
 const HARD_INCOMPATIBLE_TYPES = new Set<PropertyType>([
@@ -334,11 +345,28 @@ export function classify(listing: RankingListing, profile: RankingProfile): {
     } else if (postal.proximity === 'NEARBY_ZONE') {
       softFlags.push(postal.label!);
     } else if (postal.proximity === 'UNKNOWN') {
-      infoFlags.push(
-        cityMismatch(profile.workplaceCity, listing.locationCity)
-          ? `Anderer Ort (${listing.locationCity}) — Entfernung unbekannt`
-          : 'Entfernung unbekannt',
-      );
+      // Nothing to compare. Which of two very different things that is depends
+      // on whether the *advert* said where it is.
+      const placeable = !!listing.locationPostal || !!listing.locationCity;
+
+      if (!placeable && profile.workplacePostalCode) {
+        // We know where the job is and the advert says nothing about where it
+        // is. That is not "distance unknown", it is "place unknown", and it
+        // cannot be checked at all — a Berlin flat sat in a Heide candidate's
+        // working list on exactly this, indistinguishable from a verified one.
+        //
+        // A soft flag rather than a blocker: it stays visible, because hiding
+        // a flat on missing data is how a good one disappears for good. But it
+        // can no longer call itself passend, so nothing on that list claims a
+        // location it never had.
+        softFlags.push('Ort der Anzeige unbekannt — Lage nicht überprüfbar');
+      } else {
+        infoFlags.push(
+          cityMismatch(profile.workplaceCity, listing.locationCity)
+            ? `Anderer Ort (${listing.locationCity}) — Entfernung unbekannt`
+            : 'Entfernung unbekannt',
+        );
+      }
     }
   }
 
@@ -637,11 +665,49 @@ export function rank(
   }
   const s = score(listing, profile, weights);
   return {
-    compatibility: cls.compatibility,
+    // Once nothing blocks the flat outright, the verdict follows the score.
+    //
+    // These were two independent axes, and they contradicted each other on
+    // screen: an 85 sat in amber under the words "Fast passend", because a
+    // single soft flag capped the verdict there for good however well the flat
+    // scored. But the score already *contains* that weakness — a longer
+    // journey or a missing figure has cost it points on its way to 85. Capping
+    // the verdict on top charges the flat twice and leaves the reader with two
+    // answers and no way to choose.
+    //
+    // The soft flags stay: they are printed as chips on the row, which is
+    // where a reservation belongs — beside the flat, not in place of the
+    // verdict.
+    compatibility: verdictFor(s.score),
     score: s.score,
     breakdown: s.breakdown,
     reasons: [...s.reasons, ...cls.softFlags.map((f) => `! ${f}`)],
     blockers: [],
     rankVersion: RANK_VERSION,
   };
+}
+
+/**
+ * Score to verdict, and the colour bands that go with it. The one place the
+ * three are tied together.
+ *
+ * 75 is where "worth writing to today" begins — green, and labelled "Passend".
+ * From 50 up it is worth a look: amber, "Fast passend". Below 50 the number
+ * carries no colour at all, because a screen where everything is coloured says
+ * nothing. INSUFFICIENT_DATA keeps its own meaning — it is returned earlier,
+ * by `classify`, when there is genuinely nothing to judge — so it is never
+ * used here as a stand-in for "low score".
+ */
+export const PASSEND_AT = 75;
+export const ANSEHEN_AT = 50;
+
+/** `good` | `mid` | `''` — the class the score box wears. */
+export function scoreBand(score: number): 'good' | 'mid' | '' {
+  if (score >= PASSEND_AT) return 'good';
+  if (score >= ANSEHEN_AT) return 'mid';
+  return '';
+}
+
+function verdictFor(score: number): Compatibility {
+  return score >= PASSEND_AT ? 'COMPATIBLE' : 'NEAR_MATCH';
 }

@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   rank,
+  scoreBand,
   suggestedMinRooms,
   suggestedPreferredRooms,
+  PASSEND_AT,
+  ANSEHEN_AT,
   type RankingListing,
   type RankingProfile,
 } from '@/domain/ranking';
@@ -354,5 +357,64 @@ describe('telling a far-away flat from a nearby one without a geocoder', () => {
       koeln,
     );
     expect(r.compatibility).toBe('COMPATIBLE');
+  });
+});
+
+/* ------------------------------------------------ colour, word, number --- */
+
+/**
+ * Three ways of saying the same thing must not disagree.
+ *
+ * On the live screen an 85, an 82 and a 77 all sat in amber boxes labelled
+ * "Fast passend": the colour came from one set of cut-offs, the word from a
+ * separate count of soft flags, and the number from the scorer. Whoever reads
+ * that row has to guess which of the three to believe. These pin the single
+ * rule both ends now read from.
+ */
+describe('score, colour and verdict say the same thing', () => {
+  it('75 and up is green', () => {
+    expect(scoreBand(PASSEND_AT)).toBe('good');
+    expect(scoreBand(88)).toBe('good');
+  });
+
+  it('50 to 74 is amber', () => {
+    expect(scoreBand(ANSEHEN_AT)).toBe('mid');
+    expect(scoreBand(74)).toBe('mid');
+  });
+
+  it('below 50 wears no colour at all', () => {
+    expect(scoreBand(49)).toBe('');
+    expect(scoreBand(0)).toBe('');
+  });
+
+  it('a green score is labelled "Passend", never "Fast passend"', () => {
+    // The exact complaint: a flat good enough to be green, carrying one soft
+    // flag, still read "Fast passend". A soft flag is worth showing; it is not
+    // worth contradicting the number over.
+    const r = rank(
+      {
+        ...baseListing,
+        furnishing: 'FULLY_FURNISHED',
+        fittedKitchen: 'YES',
+        rooms: 2,
+        livingSpaceSqm: 60,
+        effectiveMonthlyCents: 62000,
+        monthlyTotalComplete: true,
+        distanceKm: 4,
+      },
+      { ...baseProfile, workplaceLat: 49.2, workplaceLon: 9.1 },
+    );
+    expect(r.score).toBeGreaterThanOrEqual(PASSEND_AT);
+    expect(scoreBand(r.score)).toBe('good');
+    expect(r.compatibility).toBe('COMPATIBLE');
+  });
+
+  it('a score below the line is never labelled "Passend"', () => {
+    const r = rank(
+      { ...baseListing, furnishing: 'UNFURNISHED', fittedKitchen: 'NO', distanceKm: null, commuteMinutes: null },
+      baseProfile,
+    );
+    expect(r.score).toBeLessThan(PASSEND_AT);
+    expect(r.compatibility).not.toBe('COMPATIBLE');
   });
 });
