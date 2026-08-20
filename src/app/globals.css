@@ -86,7 +86,7 @@ body {
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto,
+  font-family: var(--font-ui), ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     Helvetica, Arial, sans-serif;
   /* 16px, not 14. The people using this are not all twenty-five, and the
      app is read all day; every label below was scaled with it. */
@@ -764,11 +764,6 @@ label {
   background: var(--warning-soft);
   color: var(--warning);
   border-color: var(--warning-border);
-}
-.listing-score.bad {
-  background: var(--danger-soft);
-  color: var(--danger);
-  border-color: var(--danger-border);
 }
 .listing-main {
   min-width: 0;
@@ -2917,10 +2912,14 @@ label {
 }
 
 /* ============================================ scores you can read across ===
-   The verdict was a pale tint with quiet text — at arm's length a "passend"
-   and a "nicht passend" row looked the same. The score box is now a filled
-   chip in the verdict's colour, big enough to be the first thing the eye
-   lands on. */
+   Der Kasten war ein blasser Ton mit leiser Schrift — auf Armlänge sah eine
+   „passend"-Zeile aus wie eine „nicht passend"-Zeile. Jetzt eine gefüllte
+   Fläche, groß genug, dass das Auge zuerst dort landet.
+
+   Nur zwei Farben, und beide bedeuten etwas: ab 75 grün („passend"), ab 50
+   bernstein. Darunter trägt die Zahl gar nichts — ein Bildschirm, auf dem
+   alles farbig ist, sagt nichts. Die Klassen kommen aus `scoreBand()`, damit
+   Farbe und Wort nicht auseinanderlaufen können. */
 .listing-photo,
 .live-thumb,
 .tl-thumb {
@@ -2951,12 +2950,7 @@ label {
   color: #3a2600;
   box-shadow: 0 2px 8px rgba(217, 139, 14, 0.3);
 }
-.listing-score.bad {
-  background: var(--danger-soft);
-  color: var(--danger);
-  box-shadow: inset 0 0 0 1px var(--danger-border);
-}
-/* The verdict badge beside it, in the same three colours and no longer pastel. */
+/* Das Urteil daneben, in denselben Farben und nicht mehr pastellig. */
 .badge.success {
   background: #e2f4ec;
   color: #0c6247;
@@ -3077,14 +3071,6 @@ label {
   color: var(--text-subtle);
   font-weight: 700;
   margin-right: 8px;
-}
-
-/* Below 60: not rubbish, just the bottom of the list. Grey, not red — red is
-   for something wrong, and these are simply worse. */
-.listing-score.low {
-  background: var(--surface-3);
-  color: var(--text-muted);
-  box-shadow: inset 0 0 0 1px rgba(15, 36, 41, 0.08);
 }
 
 /* What a flat is missing, said in the row. */
@@ -3536,7 +3522,7 @@ label {
   color: var(--warning);
   border-color: var(--warning-border);
 }
-[data-theme='dark'] .listing-score.low {
+[data-theme='dark'] .listing-score {
   box-shadow: inset 0 0 0 1px var(--hairline);
 }
 [data-theme='dark'] .listing-score.good,
@@ -4258,4 +4244,111 @@ label {
   border-radius: var(--radius-sm, 8px);
   /* Its own background while loading, so the card does not flash white. */
   background: var(--surface-3);
+}
+
+/* ============================================ Ein Schritt größer, überall ===
+   „Eine Oma könnte das nicht bedienen." Der Maßstab war für Leute gebaut, die
+   die App den ganzen Tag kennen — nicht für jemanden, der sie zweimal die
+   Woche aufmacht und die Zahl über den Tisch hinweg lesen will. Alles hier
+   geht eine Stufe hoch; die Palette bleibt. */
+
+body {
+  font-size: 18px;
+  /* Inter läuft etwas enger als die Systemschriften, für die diese Größen
+     ursprünglich gewählt wurden — das gleicht es aus. */
+  letter-spacing: -0.005em;
+}
+
+h1 { font-size: 34px; letter-spacing: -0.02em; }
+h2 { font-size: 23px; letter-spacing: -0.015em; }
+h3 { font-size: 19px; }
+h4 { font-size: 17px; }
+
+.small { font-size: 15px; }
+.field-hint,
+.switch-hint,
+.step-desc { font-size: 15px; }
+label { font-size: 16px; }
+
+.input,
+.input:is(select, textarea) {
+  min-height: 52px;
+  font-size: 17.5px;
+}
+
+.btn { min-height: 52px; font-size: 17px; padding: 12px 22px; }
+.btn.sm { min-height: 44px; font-size: 15.5px; }
+.btn.lg { min-height: 60px; font-size: 19px; }
+
+.badge { font-size: 14.5px; padding: 3px 10px; }
+.chip { font-size: 15px; }
+.listing-title { font-size: 16.5px; }
+.fact-price { font-size: 18px; }
+.fact { font-size: 15.5px; }
+
+/* --- Reiter: wohin man geht, nicht was man liest ---------------------------
+   Eine 15px-Zeile mit 2px Unterstrich darunter ist keine Schaltfläche, sie
+   ist eine Zeile. Groß genug zum Treffen, und der aktive trägt Fläche statt
+   eines Haarstrichs. */
+.tabs {
+  gap: 6px;
+  border-bottom: 2px solid var(--border);
+}
+.tab {
+  padding: 12px 18px;
+  font-size: 17px;
+  font-weight: 600;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  border-radius: var(--radius-sm, 8px) var(--radius-sm, 8px) 0 0;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.tab:hover {
+  background: var(--surface-3);
+}
+.tab[aria-current='page'] {
+  background: var(--brand-soft, var(--surface-3));
+  border-bottom-color: var(--brand);
+}
+.tab-count {
+  font-size: 14.5px;
+  font-weight: 700;
+  padding: 1px 8px;
+}
+
+/* --- Datum: ein eigenes Feld, kein Windows-Kästchen ------------------------
+   Der native Datumswähler bringt das Aussehen des Betriebssystems mit — auf
+   jedem Rechner ein anderes, und keines davon passt zu den Größen hier. Das
+   Feld selbst wird geformt und das Kalendersymbol angefasst; der Wähler, der
+   aufgeht, bleibt der des Systems, weil ein selbstgebauter Kalender eine
+   Tastaturbedienung mitbringen müsste, die er nie so gut kann. */
+input[type='date'] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  padding-right: 46px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+}
+input[type='date']::-webkit-calendar-picker-indicator {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0.75;
+  /* Ein eigenes Symbol statt des grauen Windows-Kalenders. */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230e7c86' stroke-width='2' stroke-linecap='round'><rect x='3' y='5' width='18' height='16' rx='3'/><path d='M8 3v4M16 3v4M3 10h18'/></svg>");
+  background-repeat: no-repeat;
+  background-size: 22px 22px;
+}
+input[type='date']::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+input[type='date']:focus-within {
+  border-color: var(--brand);
 }

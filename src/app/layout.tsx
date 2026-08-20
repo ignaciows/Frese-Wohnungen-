@@ -1,5 +1,22 @@
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
+
+/**
+ * One real typeface instead of whatever the machine happens to have.
+ *
+ * The stack fell back to Segoe UI on Windows and Roboto on Android, so the
+ * same screen was a different shape on every desk — and both are noticeably
+ * tighter than the sizes here were tuned for. Inter is drawn for interfaces:
+ * open apertures, unambiguous digits, and it holds together at the larger
+ * sizes this app needs. Self-hosted by next/font, so there is no request to
+ * Google at page load and nothing to block.
+ */
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-ui',
+});
 
 export const metadata: Metadata = {
   title: 'Wohnungssucher',
@@ -19,7 +36,7 @@ const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem('theme');if(!t)
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="de">
+    <html lang="de" className={inter.variable}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
