@@ -15,6 +15,12 @@
   --brand-soft-hover: #d9eef0;
   --brand-border: #b3dcdf;
   --brand-text-on: #ffffff;
+  /* Schrift auf gefüllter Markenfläche (Reiter). Im Dunkeln ist der
+     Markenton hell — dort trägt er dunkle Schrift, sonst steht Weiß auf
+     Türkis bei 3,4:1. */
+  --tab-ink: #ffffff;
+  --tab-count-bg: rgba(255, 255, 255, 0.92);
+  --tab-count-ink: #084e56;
 
   /* Surfaces — mostly white */
   --bg: #f5f8f9;
@@ -280,7 +286,10 @@ a:hover {
 }
 .appbar-nav a[aria-current='page'] {
   background: var(--brand-soft);
-  color: var(--brand);
+  /* Der Markenton auf seiner eigenen hellen Fläche ergibt 4,5:1 — genau auf
+     der Schwelle. Der dunklere Ton derselben Familie ergibt 8:1 und sieht
+     gleich aus, nur lesbar. */
+  color: var(--brand-active);
 }
 
 /* ------------------------------------------------------------- breadcrumbs */
@@ -3434,6 +3443,9 @@ label {
   --brand-hover: #14b0bd;
   --brand-active: #0c8791;
   --brand-soft: rgba(16, 154, 166, 0.18);
+  --tab-ink: #06232a;
+  --tab-count-bg: rgba(4, 26, 30, 0.28);
+  --tab-count-ink: #06232a;
   --brand-soft-hover: rgba(16, 154, 166, 0.26);
   --brand-border: rgba(16, 154, 166, 0.45);
   --brand-text-on: #ffffff;
@@ -3501,7 +3513,8 @@ label {
    instead: still the only filled pill in the row, and the badge works again. */
 [data-theme='dark'] .tab[aria-current='page'] {
   background: var(--brand);
-  color: var(--brand-text-on);
+  /* Dunkle Schrift auf dem hellen Markenton: Weiß darauf sind 3,4:1. */
+  color: var(--tab-ink);
   box-shadow: var(--neon-soft);
 }
 
@@ -3719,7 +3732,7 @@ label {
 }
 .advanced > summary::before {
   content: '▸';
-  color: var(--muted);
+  color: var(--text-muted);
   margin-right: 4px;
 }
 .advanced[open] > summary::before {
@@ -3742,7 +3755,7 @@ label {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--muted);
+  color: var(--text-muted);
   font-size: 13px;
 }
 .or-divider::before,
@@ -3883,7 +3896,7 @@ label {
   font-size: 13px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--text-muted);
 }
 .worklist-head.call {
   color: var(--success);
@@ -3908,7 +3921,7 @@ label {
   text-decoration: none;
 }
 .worklist-row:hover {
-  border-color: var(--accent);
+  border-color: var(--brand);
 }
 
 .worklist-row.has-phone {
@@ -3933,7 +3946,7 @@ label {
   background: var(--surface-2, var(--bg));
   font-variant-numeric: tabular-nums;
   font-size: 13px;
-  color: var(--muted);
+  color: var(--text-muted);
 }
 .worklist-row.has-phone .worklist-rank {
   background: var(--success);
@@ -3956,11 +3969,11 @@ label {
 .worklist-employer {
   font-weight: 400;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--text-muted);
 }
 .worklist-action {
   font-size: 13px;
-  color: var(--text-2, var(--muted));
+  color: var(--text-muted);
 }
 
 .worklist-side {
@@ -4059,7 +4072,7 @@ label {
 }
 .btn.quiet {
   border-color: transparent;
-  color: var(--muted);
+  color: var(--text-muted);
 }
 .btn.quiet:hover {
   color: var(--danger);
@@ -4081,7 +4094,7 @@ label {
   font-size: 13px;
 }
 .tab-quiet {
-  color: var(--muted);
+  color: var(--text-muted);
   text-decoration: none;
   padding: 2px 0;
   border-bottom: 1px solid transparent;
@@ -4093,7 +4106,7 @@ label {
 .tab-quiet.is-active {
   color: var(--text);
   font-weight: 600;
-  border-bottom-color: var(--accent);
+  border-bottom-color: var(--brand);
 }
 
 /* „Weitere anzeigen" am Fuß der Ergebnisliste. */
@@ -4306,14 +4319,66 @@ label { font-size: 16px; }
 .tab:hover {
   background: var(--surface-3);
 }
+/* Der aktive Reiter trug weiße Schrift auf hellem Grund.
+   Zwei Regeln aus zwei Umbauten trafen sich: die eine färbte die Schrift
+   weiß (aus der Zeit, als der aktive Reiter dunkel gefüllt war), die andere
+   legte später eine blasse Fläche darunter und ließ die Farbe stehen. Auf dem
+   Bildschirm stand „Ergebnisse" dann als Weiß auf Fast-Weiß — lesbar nur, wenn
+   man schon wusste, was da steht. Deshalb hier Fläche *und* Schrift in einer
+   Regel: wer eins ändert, sieht das andere daneben. */
 .tab[aria-current='page'] {
-  background: var(--brand-soft, var(--surface-3));
-  border-bottom-color: var(--brand);
+  background: var(--brand);
+  color: var(--tab-ink);
+  border-bottom-color: var(--brand-active);
+}
+.tab[aria-current='page']:hover {
+  background: var(--brand-hover);
+}
+/* Die Zahl im aktiven Reiter: eigene helle Fläche statt eines Schleiers.
+   Weiß auf aufgehelltem Markenton war rechnerisch 3:1 — die 18 war ein Fleck. */
+.tab[aria-current='page'] .tab-count {
+  background: var(--tab-count-bg);
+  color: var(--tab-count-ink);
+}
+/* Die ruhigen Reiter dürfen ruhig sein, aber nicht blass: der aktive hebt
+   sich jetzt durch seine Fläche ab, nicht dadurch, dass die anderen
+   verschwinden. */
+.tab {
+  color: var(--text);
 }
 .tab-count {
   font-size: 14.5px;
   font-weight: 700;
   padding: 1px 8px;
+  background: var(--neutral-soft);
+  color: var(--text-muted);
+}
+
+/* --- „Zum Fall: …" — die zweite Zeile ------------------------------------
+   13px in Hellgrau auf Weiß sind rechnerisch 2,6:1; die Schwelle für Text
+   liegt bei 4,5:1. Es waren echte Ziele in einer Schrift, die aussah wie eine
+   Fußnote. */
+.subnav {
+  gap: 6px 18px;
+  padding-top: 4px;
+}
+.subnav-label {
+  font-size: 15px;
+  color: var(--text-muted);
+}
+.subnav-link {
+  font-size: 15.5px;
+  font-weight: 550;
+  color: var(--text);
+  padding: 4px 0;
+  border-bottom-width: 2px;
+}
+.subnav-link:hover {
+  border-bottom-color: var(--brand);
+}
+.subnav-link[aria-current='page'] {
+  color: var(--brand-active);
+  border-bottom-color: var(--brand-active);
 }
 
 /* --- Datum: ein eigenes Feld, kein Windows-Kästchen ------------------------
