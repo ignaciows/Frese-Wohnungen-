@@ -25,6 +25,7 @@ export interface CreateCandidateInput {
   adults?: number;
   children?: number;
   furnished?: 'REQUIRED' | 'PREFERRED' | 'EITHER';
+  employerName?: string | null;
   maxCommuteMinutes?: number | null;
   radiusKm?: number | null;
   wbsStatus?: 'AVAILABLE' | 'NOT_AVAILABLE' | 'UNKNOWN';
@@ -48,6 +49,7 @@ export async function createCandidateCase(input: CreateCandidateInput) {
         searchProfile: {
           create: {
             workplaceAddress: input.workplace.address,
+            employerName: input.employerName ?? null,
             workplaceCity: input.workplace.city ?? null,
             workplacePostalCode: input.workplace.postalCode ?? null,
             workplaceLat: input.workplace.lat ?? null,
@@ -59,7 +61,13 @@ export async function createCandidateCase(input: CreateCandidateInput) {
             adults: input.adults ?? 1,
             children: input.children ?? 0,
             furnished: input.furnished ?? 'PREFERRED',
-            maxCommuteMinutes: input.maxCommuteMinutes ?? 35,
+            // Null when a radius was given: keeping both lets the ranking
+            // judge on an invented travel time instead of the distance the
+            // colleague actually chose.
+            maxCommuteMinutes:
+              input.maxCommuteMinutes === null
+                ? null
+                : (input.maxCommuteMinutes ?? (input.radiusKm != null ? null : 35)),
             radiusKm: input.radiusKm ?? null,
             wbsStatus: input.wbsStatus ?? 'UNKNOWN',
             temporaryMode: input.temporaryMode ?? false,

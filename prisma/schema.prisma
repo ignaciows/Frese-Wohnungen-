@@ -148,6 +148,10 @@ model SearchProfile {
   candidateCaseId String @unique
 
   workplaceAddress    String
+  /// Klinik, Pflegeheim oder Träger. Purely descriptive — it is the address
+  /// below that drives the search, but "SLK-Kliniken" is how a colleague
+  /// recognises the case at a glance.
+  employerName        String?
   workplaceCity       String?
   workplacePostalCode String?
   workplaceLat        Float?

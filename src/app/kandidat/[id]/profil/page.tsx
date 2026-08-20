@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { RadiusPicker } from '@/app/_components/RadiusPicker';
 import { saveProfileAction, saveSharingProfileAction } from '@/app/actions';
 import { Callout } from '@/app/_components/Shell';
 import { suggestedMinRooms, suggestedPreferredRooms } from '@/domain/ranking';
@@ -78,18 +79,10 @@ export default async function ProfilPage({ params }: { params: Promise<{ id: str
               />
               <p className="field-hint">Echte Gesamtkosten, nicht Kaltmiete.</p>
             </div>
-            <div>
-              <label htmlFor="maxCommuteMinutes">Maximale Anfahrt (Minuten)</label>
-              <input
-                id="maxCommuteMinutes"
-                name="maxCommuteMinutes"
-                type="number"
-                min={1}
-                max={240}
-                className="input"
-                defaultValue={p.maxCommuteMinutes ?? 35}
-              />
-            </div>
+            {/* Distance in kilometres, not an estimated travel time: the app
+                cannot know whether this person drives or takes a bus, and
+                every portal filter is a radius anyway. */}
+            <RadiusPicker defaultKm={p.radiusKm ?? 10} />
           </div>
 
           <div>

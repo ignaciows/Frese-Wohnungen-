@@ -135,35 +135,29 @@ export function WhatIfPanel({ candidateCaseId, current, startOpen = false }: Pro
               style={{ width: '100%', accentColor: 'var(--brand)' }}
             />
           </div>
-          <div>
-            <label htmlFor="wi-commute">
-              Max. Anfahrt: <strong>{values.maxCommuteMinutes} min</strong>
+          {/* Distance, once, as a radius. There used to be a commute slider
+              beside this one, which asked the same question in a unit neither
+              side of the app can honour: nobody knows what "35 minutes" means
+              before they know the transport. Widening the circle is also the
+              lever that actually produces more flats, so it is the one that
+              looks like a control rather than a hairline. */}
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label>
+              Umkreis um den Arbeitsort: <strong>{values.radiusKm} km</strong>
             </label>
-            <input
-              id="wi-commute"
-              type="range"
-              min={10}
-              max={120}
-              step={5}
-              value={values.maxCommuteMinutes}
-              onChange={(e) => setValues((v) => ({ ...v, maxCommuteMinutes: Number(e.target.value) }))}
-              style={{ width: '100%', accentColor: 'var(--brand)' }}
-            />
-          </div>
-          <div>
-            <label htmlFor="wi-radius">
-              Umkreis: <strong>{values.radiusKm} km</strong>
-            </label>
-            <input
-              id="wi-radius"
-              type="range"
-              min={5}
-              max={100}
-              step={5}
-              value={values.radiusKm}
-              onChange={(e) => setValues((v) => ({ ...v, radiusKm: Number(e.target.value) }))}
-              style={{ width: '100%', accentColor: 'var(--brand)' }}
-            />
+            <div className="choice-row" role="group" aria-label="Umkreis">
+              {[1, 3, 5, 10, 20, 40].map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  className={`choice ${values.radiusKm === v ? 'is-on' : ''}`}
+                  aria-pressed={values.radiusKm === v}
+                  onClick={() => setValues((prev) => ({ ...prev, radiusKm: v }))}
+                >
+                  {v} km
+                </button>
+              ))}
+            </div>
           </div>
           <div>
             <label htmlFor="wi-rooms">

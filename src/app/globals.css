@@ -1664,3 +1664,103 @@ label {
 .switch-hint {
   font-size: 14px;
 }
+
+/* ------------------------------------------------- pick-one button rows ---
+   A short list of real options beats a number field: the difference between
+   7 and 8 km is not a decision anybody is making, and a row of buttons is one
+   tap rather than select-clear-retype. The chosen one has to be obvious from
+   across a desk, so it inverts rather than merely tinting. */
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.choice {
+  min-height: 44px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: 1.5px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 15.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.1s ease;
+}
+.choice:hover {
+  border-color: var(--brand);
+}
+.choice:active {
+  transform: scale(0.97);
+}
+.choice.is-on {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+
+/* --------------------------------------------------------- address pick ---
+   Typed-and-hoped-over is how a candidate gets searched for in the wrong town.
+   The confirmation has to be visible enough to be believed. */
+.addr-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.addr-row .input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.addr-results {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  overflow: hidden;
+}
+.addr-results li + li {
+  border-top: 1px solid var(--border);
+}
+.addr-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border: 0;
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 15.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+.addr-option:hover {
+  background: var(--surface-3);
+}
+.addr-sub {
+  display: block;
+  font-size: 13px;
+  color: var(--text-subtle);
+  /* The geocoder's full display_name is long; one line of it is plenty. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.addr-confirmed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm, 8px);
+  background: var(--success-soft);
+  border: 1px solid var(--success-border);
+  color: var(--success);
+  font-size: 15px;
+}
+.addr-tick {
+  font-weight: 700;
+  font-size: 17px;
+}

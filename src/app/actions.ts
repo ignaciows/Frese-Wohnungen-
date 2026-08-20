@@ -25,18 +25,35 @@ const optionalDate = z
   .nullable()
   .transform((v) => (v && v.trim() ? new Date(v) : null));
 
+/**
+ * Looks an address up so it can be *picked* rather than typed.
+ *
+ * A wrong postcode is not a cosmetic mistake here: it decides which regional
+ * sources are asked and which adverts count as nearby, so a typo quietly
+ * searches the wrong part of the country.
+ */
+export async function lookupAddressAction(query: string) {
+  await requireUser();
+  const { lookupAddress } = await import('@/server/geocode');
+  return lookupAddress(query);
+}
+
 const CandidateInput = z.object({
   reference: z.string().min(2).max(64),
   displayName: z.string().min(2).max(128),
   workplaceAddress: z.string().min(2).max(256),
+  employerName: z.string().max(200).optional().nullable(),
   workplaceCity: z.string().max(128).optional().nullable(),
   workplacePostalCode: z.string().max(16).optional().nullable(),
+  workplaceLat: z.coerce.number().optional().nullable(),
+  workplaceLon: z.coerce.number().optional().nullable(),
   maxWarmmieteEuros: z.coerce.number().int().min(100).max(10000).default(900),
   minRooms: z.coerce.number().min(0.5).max(20).default(1),
   preferredRooms: z.coerce.number().min(0.5).max(20).default(2),
   adults: z.coerce.number().int().min(1).max(10).default(1),
   children: z.coerce.number().int().min(0).max(10).default(0),
-  maxCommuteMinutes: z.coerce.number().int().min(1).max(240).default(35),
+  /** How far from work a flat may be. Replaces the commute estimate. */
+  radiusKm: z.coerce.number().int().min(1).max(100).default(10),
   furnished: z.enum(['REQUIRED', 'PREFERRED', 'EITHER']).default('PREFERRED'),
   wbsStatus: z.enum(['AVAILABLE', 'NOT_AVAILABLE', 'UNKNOWN']).default('UNKNOWN'),
   temporaryMode: z.coerce.boolean().default(false),
@@ -56,13 +73,20 @@ export async function createCandidateAction(formData: FormData) {
       address: parsed.workplaceAddress,
       city: parsed.workplaceCity || null,
       postalCode: parsed.workplacePostalCode || null,
+      lat: parsed.workplaceLat ?? null,
+      lon: parsed.workplaceLon ?? null,
     },
+    employerName: parsed.employerName || null,
     maxWarmmieteCents: parsed.maxWarmmieteEuros * 100,
     minRooms: parsed.minRooms,
     preferredRooms: parsed.preferredRooms,
     adults: parsed.adults,
     children: parsed.children,
-    maxCommuteMinutes: parsed.maxCommuteMinutes,
+    // A distance in kilometres, not an estimated travel time. Nobody knows
+    // what "35 minutes" means before they know the transport, and the search
+    // filters the portals expose are all radii.
+    radiusKm: parsed.radiusKm,
+    maxCommuteMinutes: null,
     furnished: parsed.furnished,
     wbsStatus: parsed.wbsStatus,
     temporaryMode: parsed.temporaryMode,
@@ -98,7 +122,7 @@ const ProfileInput = z.object({
   maxWarmmieteEuros: z.coerce.number().int().min(100).max(10000),
   minRooms: z.coerce.number().min(0.5).max(20),
   preferredRooms: z.coerce.number().min(0.5).max(20),
-  maxCommuteMinutes: z.coerce.number().int().min(1).max(240),
+  radiusKm: z.coerce.number().int().min(1).max(100).optional(),
   furnished: z.enum(['REQUIRED', 'PREFERRED', 'EITHER']),
   wbsStatus: z.enum(['AVAILABLE', 'NOT_AVAILABLE', 'UNKNOWN']),
   temporaryMode: z.coerce.boolean().default(false),
@@ -117,7 +141,7 @@ export async function saveProfileAction(formData: FormData) {
       maxWarmmieteCents: parsed.maxWarmmieteEuros * 100,
       minRooms: parsed.minRooms,
       preferredRooms: parsed.preferredRooms,
-      maxCommuteMinutes: parsed.maxCommuteMinutes,
+      ...(parsed.radiusKm != null ? { radiusKm: parsed.radiusKm, maxCommuteMinutes: null } : {}),
       furnished: parsed.furnished,
       wbsStatus: parsed.wbsStatus,
       temporaryMode: parsed.temporaryMode,
