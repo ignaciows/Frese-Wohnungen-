@@ -158,10 +158,12 @@ const ProfileInput = z.object({
   workplaceAddress: z.string().min(2).max(256),
   workplaceCity: z.string().max(128).optional().nullable(),
   workplacePostalCode: z.string().max(16).optional().nullable(),
+  workplaceLat: z.coerce.number().optional().nullable(),
+  workplaceLon: z.coerce.number().optional().nullable(),
   maxWarmmieteEuros: z.coerce.number().int().min(100).max(10000),
   minRooms: z.coerce.number().min(0.5).max(20),
   preferredRooms: z.coerce.number().min(0.5).max(20),
-  maxCommuteMinutes: z.coerce.number().int().min(1).max(240),
+  radiusKm: z.coerce.number().int().min(1).max(100).optional(),
   furnished: z.enum(['REQUIRED', 'PREFERRED', 'EITHER']),
   wbsStatus: z.enum(['AVAILABLE', 'NOT_AVAILABLE', 'UNKNOWN']),
   temporaryMode: z.coerce.boolean().default(false),
@@ -178,10 +180,21 @@ export async function saveProfileAction(formData: FormData) {
       workplaceAddress: parsed.workplaceAddress,
       workplaceCity: parsed.workplaceCity || null,
       workplacePostalCode: parsed.workplacePostalCode || null,
+      // Only overwritten when the form carried them — a save that did not
+      // touch the address must not blank the coordinates it never saw.
+      ...(parsed.workplaceLat != null && parsed.workplaceLon != null
+        ? {
+            workplaceLat: parsed.workplaceLat,
+            workplaceLon: parsed.workplaceLon,
+            geocodeStatus: 'RESOLVED',
+          }
+        : {}),
       maxWarmmieteCents: parsed.maxWarmmieteEuros * 100,
       minRooms: parsed.minRooms,
       preferredRooms: parsed.preferredRooms,
-      maxCommuteMinutes: parsed.maxCommuteMinutes,
+      // A chosen radius replaces the commute estimate outright: with both set
+      // the ranking judges on the minutes, the number nobody picked.
+      ...(parsed.radiusKm != null ? { radiusKm: parsed.radiusKm, maxCommuteMinutes: null } : {}),
       furnished: parsed.furnished,
       wbsStatus: parsed.wbsStatus,
       temporaryMode: parsed.temporaryMode,

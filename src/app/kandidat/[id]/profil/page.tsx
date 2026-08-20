@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { AddressPicker } from '@/app/_components/AddressPicker';
+import { RadiusPicker } from '@/app/_components/RadiusPicker';
 import { saveProfileAction, saveSharingProfileAction } from '@/app/actions';
 import { Callout } from '@/app/_components/Shell';
 import { suggestedMinRooms, suggestedPreferredRooms } from '@/domain/ranking';
@@ -44,66 +46,23 @@ export default async function ProfilPage({ params }: { params: Promise<{ id: str
           </div>
 
           <div>
-            <label htmlFor="workplaceAddress">Arbeitsort (Adresse)</label>
-            <input
-              id="workplaceAddress"
-              name="workplaceAddress"
-              className="input"
-              defaultValue={p.workplaceAddress}
-              required
+            {/* Dieselbe Suche wie beim Anlegen. Eine Adresse, die einmal
+                falsch gespeichert wurde, muss hier zu korrigieren sein — und
+                die Karte zeigt in einem Blick, ob der Ort stimmt, ohne dass
+                jemand die PLZ einer fremden Stadt kennen muss. */}
+            <AddressPicker
+              defaultAddress={p.workplaceAddress}
+              defaultCity={p.workplaceCity ?? ''}
+              defaultPostalCode={p.workplacePostalCode ?? ''}
+              defaultLat={p.workplaceLat}
+              defaultLon={p.workplaceLon}
             />
-            <p className="field-hint">
-              <strong>Um diese Adresse herum wird gesucht.</strong> Ohne Geokodierung rechnet die App keine
-              Entfernung aus und zeigt „Entfernung unbekannt“ — die Suche funktioniert trotzdem.
-            </p>
-          </div>
 
-          <div className="grid-2">
-            <div>
-              <label htmlFor="workplaceCity">Stadt</label>
-              <input id="workplaceCity" name="workplaceCity" className="input" defaultValue={p.workplaceCity ?? ''} />
-            </div>
-            <div>
-              <label htmlFor="workplacePostalCode">PLZ</label>
-              <input
-                id="workplacePostalCode"
-                name="workplacePostalCode"
-                className="input"
-                defaultValue={p.workplacePostalCode ?? ''}
-              />
-            </div>
-          </div>
-
-          <hr className="divider" />
-
-          <div className="grid-2">
-            <div>
-              <label htmlFor="maxWarmmieteEuros">Maximale Warmmiete (€)</label>
-              <input
-                id="maxWarmmieteEuros"
-                name="maxWarmmieteEuros"
-                type="number"
-                min={100}
-                max={10000}
-                className="input"
-                defaultValue={Math.round(p.maxWarmmieteCents / 100)}
-                required
-              />
-              <p className="field-hint">Echte Gesamtkosten, nicht Kaltmiete.</p>
-            </div>
-            <div>
-              <label htmlFor="maxCommuteMinutes">Maximale Anfahrt (Minuten)</label>
-              <input
-                id="maxCommuteMinutes"
-                name="maxCommuteMinutes"
-                type="number"
-                min={1}
-                max={240}
-                className="input"
-                defaultValue={p.maxCommuteMinutes ?? 35}
-              />
-            </div>
-          </div>
+            {/* Entfernung als Umkreis, nicht als geschätzte Fahrzeit: niemand
+                weiß, was „35 Minuten" heißt, bevor er weiß, ob jemand fährt
+                oder den Bus nimmt. */}
+            <RadiusPicker defaultKm={p.radiusKm ?? 10} />
+</div>
 
           <div>
             <label htmlFor="moveInDate">Gewünschter Einzug</label>

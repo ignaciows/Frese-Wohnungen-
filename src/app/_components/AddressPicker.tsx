@@ -33,10 +33,15 @@ export function AddressPicker({
   defaultAddress = '',
   defaultCity = '',
   defaultPostalCode = '',
+  defaultLat = null,
+  defaultLon = null,
 }: {
   defaultAddress?: string;
   defaultCity?: string;
   defaultPostalCode?: string;
+  /** Coordinates already stored, so an existing address shows its map too. */
+  defaultLat?: number | null;
+  defaultLon?: number | null;
 }) {
   const [query, setQuery] = useState(defaultAddress);
   const [results, setResults] = useState<Place[] | null>(null);
@@ -46,6 +51,21 @@ export function AddressPicker({
   const [manual, setManual] = useState(false);
   const [city, setCity] = useState(defaultCity);
   const [postalCode, setPostalCode] = useState(defaultPostalCode);
+
+  // What the map shows: the place just chosen, or the one already stored on the
+  // profile. An address saved last month deserves the same check as a new one —
+  // that is where a wrong one hides.
+  const shown =
+    picked ??
+    (defaultLat != null && defaultLon != null
+      ? ({ label: defaultAddress, street: null, postalCode: defaultPostalCode, city: defaultCity, lat: defaultLat, lon: defaultLon } as Place)
+      : null);
+
+  function startOver() {
+    setPicked(null);
+    setResults(null);
+    setManual(false);
+  }
 
   async function search() {
     setBusy(true);
@@ -84,10 +104,10 @@ export function AddressPicker({
       <input type="hidden" name="workplaceAddress" value={query} />
       <input type="hidden" name="workplaceCity" value={city} />
       <input type="hidden" name="workplacePostalCode" value={postalCode} />
-      {picked ? (
+      {shown ? (
         <>
-          <input type="hidden" name="workplaceLat" value={picked.lat} />
-          <input type="hidden" name="workplaceLon" value={picked.lon} />
+          <input type="hidden" name="workplaceLat" value={shown.lat} />
+          <input type="hidden" name="workplaceLon" value={shown.lon} />
         </>
       ) : null}
 
@@ -115,15 +135,34 @@ export function AddressPicker({
         </button>
       </div>
 
-      {picked ? (
+      {/* A picked address is still a guess until somebody looks at it. The
+          geocoder happily answers "Hamburg" for a clinic in Heide if the query
+          was loose, and nothing on a form of text fields would show that. A
+          map does, in one glance, without anyone having to know the postcode
+          of a town they have never been to. */}
+      {shown ? (
         <div className="addr-confirmed">
-          <span className="addr-tick" aria-hidden>
-            ✓
-          </span>
-          <span>
-            <strong>{[postalCode, city].filter(Boolean).join(' ') || 'Ort übernommen'}</strong>
-            <span className="addr-sub">Adresse bestätigt</span>
-          </span>
+          <div className="addr-confirmed-head">
+            <span className="addr-tick" aria-hidden>
+              ✓
+            </span>
+            <span className="addr-confirmed-text">
+              <strong>{[postalCode, city].filter(Boolean).join(' ') || 'Ort übernommen'}</strong>
+              <span className="addr-sub">{picked ? 'Adresse bestätigt' : 'Gespeicherte Adresse'}</span>
+            </span>
+            <button type="button" className="btn sm" onClick={startOver}>
+              Ändern
+            </button>
+          </div>
+          {shown.lat != null && shown.lon != null ? (
+            <iframe
+              className="addr-map"
+              title="Karte des Arbeitsorts"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              src={mapUrl(shown.lat, shown.lon)}
+            />
+          ) : null}
         </div>
       ) : null}
 
@@ -175,4 +214,17 @@ export function AddressPicker({
       ) : null}
     </div>
   );
+}
+
+/**
+ * An OpenStreetMap frame centred on the point, with a marker.
+ *
+ * Deliberately their plain embed rather than a mapping library: it is one
+ * iframe, needs no key and no script, and this is a glance-and-confirm, not a
+ * map anybody works in.
+ */
+function mapUrl(lat: number, lon: number): string {
+  const d = 0.004; // roughly a few streets either way
+  const bbox = [lon - d, lat - d / 2, lon + d, lat + d / 2].join('%2C');
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat}%2C${lon}`;
 }

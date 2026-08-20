@@ -153,14 +153,15 @@ function statusFilter(tab: string): {
  * from it. `tests/resultTabs.test.ts` holds them to that.
  */
 export function matchWhere(args: {
-  candidateCaseId: string;
+  /** Omit to count the same rule across every candidate at once. */
+  candidateCaseId?: string;
   tab: string;
   liveness?: LivenessPolicy;
   /** Ads retired before this stay out of "Abgelaufen"; the graveyard is short. */
 }): Prisma.CandidateListingMatchWhereInput {
   const { candidateCaseId, tab, liveness = DEFAULT_LIVENESS } = args;
   return {
-    candidateCaseId,
+    ...(candidateCaseId ? { candidateCaseId } : {}),
     ...statusFilter(tab),
     ...(tab === 'wiedervorlage' ? { followUpAt: { not: null } } : {}),
     // Dead ads only show in their own tab, so the working list stays

@@ -123,6 +123,8 @@ export async function updateSearchProfile(input: {
     workplacePostalCode: string | null;
     workplaceLat: number | null;
     workplaceLon: number | null;
+    /** RESOLVED once the address came from the lookup rather than a keyboard. */
+    geocodeStatus: string;
     maxWarmmieteCents: number;
     minRooms: number;
     preferredRooms: number;

@@ -4229,3 +4229,33 @@ label {
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------------------------------------------------------- address map ---
+   A picked address is still a guess until somebody looks at it: the geocoder
+   will answer "Hamburg" for a clinic in Heide if the query was loose, and no
+   arrangement of text fields would show that. One glance at a map does, without
+   anyone needing to know the postcode of a town they have never visited. */
+.addr-confirmed {
+  display: block;
+  padding: 12px 14px;
+}
+.addr-confirmed-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.addr-confirmed-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.addr-map {
+  width: 100%;
+  height: 200px;
+  margin-top: 10px;
+  border: 1px solid var(--success-border);
+  border-radius: var(--radius-sm, 8px);
+  /* Its own background while loading, so the card does not flash white. */
+  background: var(--surface-3);
+}

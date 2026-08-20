@@ -6,6 +6,8 @@ import { currentUser } from '@/lib/auth';
 import { loadCandidatePriorities } from '@/server/priority';
 import { AppBar, Empty, Stat, Callout } from './_components/Shell';
 import { formatDate, PRIORITY_TIER, difficultyLabel } from '@/lib/labels';
+import { matchWhere } from '@/server/listingFilters';
+import { getLivenessSettings } from '@/server/settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +27,14 @@ export default async function DashboardPage({
   if (!user) redirect('/login');
   const pending = await inboxCounts();
 
-  const [cases, priorities, archivedCount] = await Promise.all([
+  // Counted through the very same filter the "Zu kontaktieren" tab uses, so
+  // the number on the button is a promise the page behind it keeps. It used to
+  // count every match with status NEW — dead adverts and flats in the wrong
+  // city included — and offered "754 zu kontaktieren" on a case whose own line
+  // said "16 passende Anzeigen".
+  const liveness = await getLivenessSettings();
+
+  const [cases, priorities, archivedCount, contactable] = await Promise.all([
     prisma.candidateCase.findMany({
       where: { status: 'ACTIVE' },
       include: {
@@ -38,7 +47,13 @@ export default async function DashboardPage({
     }),
     loadCandidatePriorities(),
     prisma.candidateCase.count({ where: { status: 'ARCHIVED' } }),
+    prisma.candidateListingMatch.groupBy({
+      by: ['candidateCaseId'],
+      where: matchWhere({ tab: 'zu-kontaktieren', liveness }),
+      _count: true,
+    }),
   ]);
+  const contactableBy = new Map(contactable.map((r) => [r.candidateCaseId, r._count]));
 
   const byId = new Map(cases.map((c) => [c.id, c]));
   // Priority order decides the work queue.
@@ -124,7 +139,7 @@ export default async function DashboardPage({
               const good = c.matches.filter(
                 (m) => m.compatibility === 'COMPATIBLE' || m.compatibility === 'NEAR_MATCH',
               ).length;
-              const toContact = c.matches.filter((m) => m.status === 'NEW' || m.status === 'FAVORITE').length;
+              const toContact = contactableBy.get(c.id) ?? 0;
               const hasMessage = (c.applicationMessage?.body ?? '').trim().length > 0;
               const tier = PRIORITY_TIER[p.tier];
               const pct = p.targetContacts
