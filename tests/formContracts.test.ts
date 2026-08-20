@@ -86,3 +86,48 @@ describe('forms carry what their action demands', () => {
     expect(requiredKeys(actions, 'CandidateInput')).toContain('displayName');
   });
 });
+
+/* ------------------------------------------- keine Namen im Browserspeicher --- */
+
+/**
+ * Die Felder mit Personendaten dürfen keinen Formularverlauf anlegen.
+ *
+ * Beim Anlegen des nächsten Kandidaten klappte unter dem Namensfeld ein Menü
+ * des Browsers auf und bot die zuletzt getippten Namen an — echte Namen aus
+ * anderen Fällen, sichtbar für jeden, der in dem Moment auf den Bildschirm
+ * schaut. Gespeichert hat das der Browser, nicht die App, aber verhindern kann
+ * es nur die App: ein Feld ohne `autoComplete="off"` wird gemerkt.
+ *
+ * Und in den Beispieltexten steht kein echter Mensch. Ein Platzhalter ist
+ * sichtbar, kopierbar und landet in Screenshots.
+ */
+describe('Felder mit Personendaten', () => {
+  const FILES = [
+    'src/app/kandidat/neu/page.tsx',
+    'src/app/kandidat/[id]/stammdaten/page.tsx',
+    'src/app/kandidat/[id]/profil/page.tsx',
+  ];
+  const PERSONAL = ['displayName', 'employer'];
+
+  for (const rel of FILES) {
+    const src = readFileSync(join(ROOT, rel), 'utf8');
+
+    it(`${rel}: merkt sich nichts`, () => {
+      for (const field of PERSONAL) {
+        const at = src.indexOf(`name="${field}"`);
+        if (at === -1) continue;
+        // Das Attribut steht im selben <input …> wie der Name.
+        const tag = src.slice(src.lastIndexOf('<input', at), src.indexOf('/>', at));
+        expect(`${field}: ${tag}`).toContain('autoComplete="off"');
+      }
+    });
+
+    it(`${rel}: kein echter Name im Platzhalter`, () => {
+      for (const m of src.matchAll(/placeholder="([^"]+)"/g)) {
+        // „Vor- und Nachname" ja, „Tanvi Gupta" nein: zwei großgeschriebene
+        // Wörter hintereinander sind hier immer ein Mensch oder eine Firma.
+        expect(m[1]).not.toMatch(/^\p{Lu}\p{Ll}+ \p{Lu}\p{Ll}+$/u);
+      }
+    });
+  }
+});

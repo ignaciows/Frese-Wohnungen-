@@ -84,7 +84,7 @@ export function SourceBoard({ tasks }: { tasks: SourceTaskData[] }) {
             <div className="grid-3">
               <div>
                 <label htmlFor="locationRaw">Ort (wie angegeben)</label>
-                <input id="locationRaw" name="locationRaw" className="input" placeholder="74906 Bad Rappenau" />
+                <input id="locationRaw" name="locationRaw" className="input" placeholder="PLZ und Ort" />
               </div>
               <div>
                 <label htmlFor="locationCity">Stadt</label>

@@ -47,7 +47,7 @@ export default async function StammdatenPage({
         </Callout>
       ) : null}
 
-      <form action={updateCandidateAction} className="card">
+      <form action={updateCandidateAction} className="card" autoComplete="off">
         <input type="hidden" name="candidateCaseId" value={c.id} />
         <div className="card-head">
           <h2>Stammdaten</h2>
@@ -70,6 +70,9 @@ export default async function StammdatenPage({
                 required
                 defaultValue={c.displayName}
                 placeholder="Vor- und Nachname"
+                autoComplete="off"
+                data-1p-ignore
+                data-lpignore="true"
               />
             </div>
             <div>
@@ -79,7 +82,10 @@ export default async function StammdatenPage({
                 name="employer"
                 className="input"
                 defaultValue={c.searchProfile?.employer ?? ''}
-                placeholder="Praxis, Klinik oder Träger"
+                placeholder="Klinik, Praxis oder Träger"
+                autoComplete="off"
+                data-1p-ignore
+                data-lpignore="true"
               />
               <p className="field-hint">Für wen die Person arbeitet — steht in der Kopfzeile des Falls.</p>
             </div>

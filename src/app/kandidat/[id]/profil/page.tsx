@@ -26,7 +26,7 @@ export default async function ProfilPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="stack-lg" style={{ maxWidth: 820 }}>
-      <form action={saveProfileAction} className="card">
+      <form action={saveProfileAction} className="card" autoComplete="off">
         <input type="hidden" name="candidateCaseId" value={id} />
         <div className="card-head">
           <h2>Suchprofil</h2>
@@ -40,7 +40,10 @@ export default async function ProfilPage({ params }: { params: Promise<{ id: str
               name="employer"
               className="input"
               defaultValue={p.employer ?? ''}
-              placeholder="SLK-Kliniken Heilbronn"
+              placeholder="Klinik, Praxis oder Träger"
+              autoComplete="off"
+              data-1p-ignore
+              data-lpignore="true"
             />
             <p className="field-hint">Klinik, Pflegeheim oder Träger — wo die Kandidatin arbeitet.</p>
           </div>

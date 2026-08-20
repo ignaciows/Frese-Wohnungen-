@@ -127,7 +127,7 @@ export function AddressPicker({
               void search();
             }
           }}
-          placeholder="Salinenstraße 2, Bad Rappenau"
+          placeholder="Straße, Hausnummer, Ort"
           autoComplete="off"
         />
         <button type="button" className="btn" onClick={() => void search()} disabled={busy || query.trim().length < 4}>
@@ -196,7 +196,8 @@ export function AddressPicker({
               className="input"
               value={city}
               onChange={(e) => setCity(e.target.value)}
-              placeholder="Bad Rappenau"
+              placeholder="Ort"
+              autoComplete="off"
             />
           </div>
           <div className="field">
@@ -206,7 +207,8 @@ export function AddressPicker({
               className="input"
               value={postalCode}
               onChange={(e) => setPostalCode(e.target.value)}
-              placeholder="74906"
+              placeholder="PLZ"
+              autoComplete="off"
               inputMode="numeric"
             />
           </div>

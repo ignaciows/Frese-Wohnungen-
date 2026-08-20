@@ -34,7 +34,11 @@ export default async function NewCandidatePage() {
           </span>
         </div>
 
-        <form action={createCandidateAction} className="card">
+        {/* Kein Formularverlauf: der Browser hat sonst die zuletzt getippten
+              Namen gespeichert und sie beim nächsten Kandidaten wieder
+              angeboten — echte Namen aus anderen Fällen, in einem Menü über
+              dem Feld, für jeden sichtbar, der hier gerade danebensteht. */}
+        <form action={createCandidateAction} className="card" autoComplete="off">
           <div className="card-body stack">
             {/* Wer, und für wen sie arbeitet. Zusammen sind das die beiden
                 Angaben, an denen ein Fall auf jedem Bildschirm erkannt wird —
@@ -47,7 +51,10 @@ export default async function NewCandidatePage() {
                   name="displayName"
                   className="input"
                   required
-                  placeholder="Tanvi Gupta"
+                  placeholder="Vor- und Nachname"
+                  autoComplete="off"
+                  data-1p-ignore
+                  data-lpignore="true"
                 />
               </div>
               <div>
@@ -56,7 +63,10 @@ export default async function NewCandidatePage() {
                   id="employer"
                   name="employer"
                   className="input"
-                  placeholder="SLK-Kliniken Heilbronn"
+                  placeholder="Klinik, Praxis oder Träger"
+                  autoComplete="off"
+                  data-1p-ignore
+                  data-lpignore="true"
                 />
               </div>
             </div>
