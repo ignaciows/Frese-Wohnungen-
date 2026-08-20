@@ -51,3 +51,38 @@ export function SubmitButton({
     </button>
   );
 }
+
+/**
+ * Ein Absende-Knopf, der vorher fragt.
+ *
+ * Für Handlungen, die sich nicht rückgängig machen lassen. Bewusst *eine*
+ * Rückfrage und kein abzutippender Name: eine Hürde soll die richtige Frage
+ * stellen („willst du das wirklich"), nicht eine andere („kennst du das
+ * genaue Feld, das wir vergleichen"). Die zweite hat hier monatelang
+ * niemanden geschützt und alle aufgehalten.
+ *
+ * Die echte Absicherung ist ohnehin serverseitig — beim Löschen eines Falls
+ * das Admin-Recht. `confirm` ist die Höflichkeit davor.
+ */
+export function ConfirmSubmit({
+  children,
+  question,
+  className = 'btn danger',
+  ...rest
+}: {
+  children: React.ReactNode;
+  question: string;
+  className?: string;
+} & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'children' | 'onClick'>) {
+  return (
+    <SubmitButton
+      className={className}
+      onClick={(e) => {
+        if (!window.confirm(question)) e.preventDefault();
+      }}
+      {...rest}
+    >
+      {children}
+    </SubmitButton>
+  );
+}

@@ -8,7 +8,7 @@ import { SentAnfragen } from '@/app/_components/SentAnfragen';
 import { loadCandidatePriority } from '@/server/priority';
 import { loadCandidateTimeline } from '@/server/timeline';
 import { featureOn, getLivenessSettings } from '@/server/settings';
-import { USABLE_COMPATIBILITY, liveListingFilter, openWorkWhere } from '@/server/listingFilters';
+import { openWorkWhere } from '@/server/listingFilters';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,25 +51,16 @@ export default async function CandidateOverview({ params }: { params: Promise<{ 
     : 0;
   const checksTotal = runs.length ? runs[0]._count.sourceChecks : 0;
 
-  // Beide Zahlen aus der Datenbank und mit derselben Bedingung wie der Reiter
-  // „Zu kontaktieren".
+  // Genau die Zahl, die auch am Reiter „Zu kontaktieren" steht.
   //
-  // Vorher wurden sie aus den geladenen Treffern gezählt, ohne zu prüfen, ob
-  // die Anzeige überhaupt noch online ist und ob sie zum Profil passt. Ergebnis
-  // war ein grüner Balken „350 Anzeigen zu kontaktieren" über einer Kachel
-  // „0 Passende Anzeigen" — auf demselben Bildschirm. Wer dem Balken folgte,
-  // landete auf einer leeren Liste.
+  // Vorher wurde aus den geladenen Treffern gezählt, ohne zu prüfen, ob die
+  // Anzeige noch online ist und ob sie zum Profil passt. Ergebnis war ein
+  // grüner Balken „350 Anzeigen zu kontaktieren" über einer Kachel „0
+  // Passende Anzeigen" — auf demselben Bildschirm.
   const liveness = await getLivenessSettings();
-  const [good, toContact] = await Promise.all([
-    prisma.candidateListingMatch.count({
-      where: {
-        candidateCaseId: id,
-        compatibility: USABLE_COMPATIBILITY,
-        listing: liveListingFilter(liveness),
-      },
-    }),
-    prisma.candidateListingMatch.count({ where: openWorkWhere(id, liveness) }),
-  ]);
+  const toContact = await prisma.candidateListingMatch.count({
+    where: openWorkWhere(id, liveness),
+  });
   const contacted = candidate.contactAttempts.length;
   const positive = candidate.contactAttempts.filter((a) => a.outcome === 'POSITIVE').length;
   const awaiting = candidate.contactAttempts.filter((a) => a.outcome === 'AWAITING').length;
@@ -100,21 +91,18 @@ export default async function CandidateOverview({ params }: { params: Promise<{ 
     {
       n: 3,
       title: 'Quellen durchgehen',
-      desc:
-        checksTotal > 0
-          ? `${checksDone} von ${checksTotal} Quellen erledigt`
-          : 'Suchlauf starten — die App plant eine Aufgabe pro relevanter Quelle.',
+      desc: 'Welche Portale für diesen Ort gesucht werden.',
       href: `/kandidat/${id}/quellen`,
       done: checksTotal > 0 && checksDone === checksTotal,
-      cta: checksTotal > 0 ? 'Weitermachen' : 'Suchlauf starten',
+      cta: 'Öffnen',
     },
     {
       n: 4,
       title: 'Ergebnisse bewerten & kontaktieren',
       desc:
-        candidate.matches.length > 0
-          ? `${good} passende Anzeigen · ${toContact} noch zu kontaktieren`
-          : 'Noch keine Anzeigen importiert.',
+        toContact > 0
+          ? `${toContact} Wohnung${toContact === 1 ? '' : 'en'} warten auf eine Anfrage`
+          : 'Gerade nichts Offenes.',
       href: `/kandidat/${id}/ergebnisse`,
       done: contacted > 0,
       cta: 'Öffnen',
@@ -168,7 +156,14 @@ export default async function CandidateOverview({ params }: { params: Promise<{ 
       {timeline ? <Timeline view={timeline} candidateId={id} /> : null}
 
       <div className="grid-4">
-        <Stat value={good} label="Passende Anzeigen" />
+        {/* Drei Zahlen über den Fall, und alle drei über *Anfragen* — was
+            rausgegangen ist, was noch offen ist, was etwas gebracht hat.
+            „Passende Anzeigen" stand hier auch einmal und zählte, was die
+            Suche importiert hat. Das ist eine Zahl über die Maschine, nicht
+            über den Fall: sie steigt, ohne dass jemand etwas getan hat, und
+            sinkt, ohne dass etwas schiefging. Wie viele Wohnungen offen sind,
+            steht am Reiter „Ergebnisse", wo man auch etwas damit anfangen
+            kann. */}
         <Stat value={contacted} label={contacted === 1 ? 'Anfrage gesendet' : 'Anfragen gesendet'} />
         <Stat value={awaiting} label="Wartet auf Antwort" />
         <Stat value={positive} label="Positive Antworten" accent />

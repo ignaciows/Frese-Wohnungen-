@@ -438,9 +438,6 @@ export async function archiveCandidateAction(formData: FormData) {
 export async function deleteCandidateAction(formData: FormData) {
   const user = await requireAdmin();
   const candidateCaseId = String(formData.get('candidateCaseId'));
-  // Der Name des Falls, ausgeschrieben — dieselbe Hürde wie beim Löschen eines
-  // Repositories, und aus demselben Grund: ein Klick reicht hier nicht.
-  const confirmation = String(formData.get('confirmName') ?? '').trim();
 
   const candidate = await prisma.candidateCase.findUnique({
     where: { id: candidateCaseId },
@@ -451,9 +448,14 @@ export async function deleteCandidateAction(formData: FormData) {
   // kann jedem per Link eine amtlich aussehende Meldung unterschieben.
   if (!candidate) redirect('/?fehler=fall-weg');
 
-  if (confirmation !== candidate!.displayName) {
-    redirect(`/kandidat/${candidateCaseId}/stammdaten?fehler=name-stimmt-nicht`);
-  }
+  // Keine abzutippende Bestätigung mehr.
+  //
+  // Die Hürde verglich mit `displayName`. In der Praxis stand dort der
+  // Arbeitgeber und der Name der Person in der Referenz — wer also den Namen
+  // der Kandidatin eintippte, bekam „stimmt nicht" und kam nie durch. Eine
+  // Hürde, die die falsche Frage stellt, schützt nichts. Gefragt wird jetzt im
+  // Browser; was wirklich schützt, ist `requireAdmin()` eine Zeile weiter oben,
+  // und das gilt unverändert.
 
   // Beides zusammen oder gar nicht — sonst bleibt im Fehlerfall entweder ein
   // Protokolleintrag über eine Löschung, die nie stattfand, oder ein gelöschter
@@ -942,6 +944,8 @@ const CandidateEditInput = z.object({
   candidateCaseId: z.string(),
   reference: z.string().min(2).max(64),
   displayName: z.string().min(2).max(128),
+  /** Praxis, Klinik oder Träger. Liegt am Suchprofil, wird aber hier gepflegt. */
+  employer: z.string().max(160).optional(),
   notes: z.string().max(4000).optional(),
   contractSignedAt: optionalDate,
   housingSecuredAt: optionalDate,
@@ -978,6 +982,14 @@ export async function updateCandidateAction(formData: FormData) {
         contractSignedAt: parsed.contractSignedAt,
         housingSecuredAt: parsed.housingSecuredAt,
       },
+    }),
+    // Der Arbeitgeber gehört zum Suchprofil, wird aber bei den Stammdaten
+    // gepflegt — dort fragt jemand danach, wenn er den Fall anlegt.
+    // `updateMany` statt `update`: ein Fall ohne Suchprofil ist ein normaler
+    // Zwischenzustand und darf das Speichern nicht sprengen.
+    prisma.searchProfile.updateMany({
+      where: { candidateCaseId: parsed.candidateCaseId },
+      data: { employer: parsed.employer?.trim() || null },
     }),
     prisma.auditEvent.create({
       data: {

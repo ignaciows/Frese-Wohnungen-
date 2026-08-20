@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { updateCandidateAction, archiveCandidateAction, deleteCandidateAction } from '@/app/actions';
 import { currentUser } from '@/lib/auth';
 import { Callout } from '@/app/_components/Shell';
-import { SubmitButton } from '@/app/_components/SubmitButton';
+import { ConfirmSubmit, SubmitButton } from '@/app/_components/SubmitButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +25,7 @@ export default async function StammdatenPage({
       id: true,
       reference: true,
       displayName: true,
+      searchProfile: { select: { employer: true } },
       notes: true,
       status: true,
       contractSignedAt: true,
@@ -53,26 +54,52 @@ export default async function StammdatenPage({
           <span className="small subtle">Angelegt am {c.createdAt.toLocaleDateString('de-DE')}</span>
         </div>
         <div className="card-body stack">
+          {/* Zwei Felder, und beide sagen, was drinsteht.
+              Vorher hießen sie „Interne Referenz" und „Anzeigename", und
+              genau das ging schief: in der Referenz stand der Name der
+              Kandidatin, im Anzeigenamen die Praxis. Wer zwei Kästchen ohne
+              erkennbaren Unterschied vor sich hat, füllt sie so aus, wie es
+              für ihn Sinn ergibt — und hat recht damit. */}
           <div className="grid-2">
             <div>
-              <label htmlFor="reference">Interne Referenz *</label>
-              <input id="reference" name="reference" className="input" required defaultValue={c.reference} />
-              <p className="field-hint">
-                Wird für die Zuordnung von Suchagent-Mails benutzt
-                (<span className="mono">postfach+{c.reference}@…</span>). Beim Ändern die Alerts anpassen.
-              </p>
-            </div>
-            <div>
-              <label htmlFor="displayName">Anzeigename *</label>
+              <label htmlFor="displayName">Name der Kandidatin / des Kandidaten *</label>
               <input
                 id="displayName"
                 name="displayName"
                 className="input"
                 required
                 defaultValue={c.displayName}
+                placeholder="Vor- und Nachname"
               />
             </div>
+            <div>
+              <label htmlFor="employer">Arbeitgeber</label>
+              <input
+                id="employer"
+                name="employer"
+                className="input"
+                defaultValue={c.searchProfile?.employer ?? ''}
+                placeholder="Praxis, Klinik oder Träger"
+              />
+              <p className="field-hint">Für wen die Person arbeitet — steht in der Kopfzeile des Falls.</p>
+            </div>
           </div>
+
+          {/* Die Referenz bleibt, weil Suchagent-Mails darüber zugeordnet
+              werden. Sie ist aber nichts, was jemand ausdenken muss — deshalb
+              steht sie klein und zugeklappt statt als erstes Pflichtfeld. */}
+          <details>
+            <summary className="small muted" style={{ cursor: 'pointer' }}>
+              Kennung für Suchagent-Mails: <span className="mono">{c.reference}</span>
+            </summary>
+            <div style={{ marginTop: 8 }}>
+              <input id="reference" name="reference" className="input" required defaultValue={c.reference} />
+              <p className="field-hint">
+                Portale schicken ihre Treffer an <span className="mono">postfach+{c.reference}@…</span>.
+                Wer das hier ändert, muss die Alerts im Portal anpassen.
+              </p>
+            </div>
+          </details>
 
           <div className="grid-2">
             <div>
@@ -153,35 +180,33 @@ export default async function StammdatenPage({
             <span className="small muted"> — kann nicht rückgängig gemacht werden</span>
           </summary>
           <div className="card-body stack">
-            {/* Aufgeklappt, wenn hier etwas schiefging — eine Fehlermeldung in
-                einem zugeklappten Abschnitt liest niemand, und der Versuch
-                sähe aus, als wäre einfach nichts passiert. */}
-            {sp.fehler === 'name-stimmt-nicht' ? (
-              <Callout tone="danger">Zum Löschen den Namen exakt eingeben.</Callout>
+            {sp.fehler === 'nicht-erlaubt' ? (
+              <Callout tone="danger">Nur Admins können einen Fall löschen.</Callout>
             ) : null}
             <p className="small muted">
-              Gelöscht werden Suchprofil, Treffer, Anfragen, Termine und Nachrichten dieses Falls. Der
-              Eintrag im Protokoll bleibt — dass gelöscht wurde, ist selbst eine Tatsache, die nachlesbar
-              bleiben muss.
+              Gelöscht werden Suchprofil, Treffer, Anfragen, Termine und Nachrichten von{' '}
+              <strong>{c.displayName}</strong>. Der Eintrag im Protokoll bleibt — dass gelöscht wurde,
+              ist selbst eine Tatsache, die nachlesbar bleiben muss.
             </p>
-            <form action={deleteCandidateAction} className="stack-sm">
+            {/* Eine Rückfrage, kein Diktat.
+                Vorher musste der Anzeigename abgetippt werden. Das ist die
+                Hürde, die GitHub vor das Löschen eines Repositories stellt —
+                nur steht dort auch der Name, den man erwartet. Hier stand im
+                Anzeigenamen die Praxis und in der Referenz die Person, und wer
+                den Namen der Kandidatin eintippte, bekam „stimmt nicht" und
+                kam nie durch. Eine Hürde, die die falsche Frage stellt,
+                schützt nichts — sie blockiert nur.
+                `confirm` läuft im Browser und hält niemanden auf, der es
+                ernst meint; die eigentliche Absicherung ist das Admin-Recht
+                auf dem Server, und das bleibt. */}
+            <form action={deleteCandidateAction} className="row" style={{ justifyContent: 'flex-end' }}>
               <input type="hidden" name="candidateCaseId" value={c.id} />
-              <label htmlFor="confirmName">
-                Zum Bestätigen den Namen eingeben: <strong>{c.displayName}</strong>
-              </label>
-              <input
-                id="confirmName"
-                name="confirmName"
-                className="input"
-                autoComplete="off"
-                placeholder={c.displayName}
-                required
-              />
-              <div className="row" style={{ justifyContent: 'flex-end' }}>
-                <SubmitButton className="btn danger">
-                  Endgültig löschen
-                </SubmitButton>
-              </div>
+              <ConfirmSubmit
+                className="btn danger"
+                question={`„${c.displayName}" wirklich endgültig löschen?`}
+              >
+                Fall löschen
+              </ConfirmSubmit>
             </form>
           </div>
         </details>

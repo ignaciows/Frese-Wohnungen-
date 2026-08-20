@@ -7,6 +7,8 @@
  * Fall gelöscht" nicht das Erste ist, was eine Löschung mitnimmt.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ensureMigrated, truncateAll } from './setup';
 
@@ -85,6 +87,25 @@ async function seedCase() {
 
   return { user, candidate, listing };
 }
+
+describe('die Hürde vor dem Löschen', () => {
+  it('verlangt keinen abgetippten Namen mehr', () => {
+    // Der Fehler, der das Löschen monatelang unmöglich machte: verglichen
+    // wurde mit `displayName`, und in der Praxis stand dort der Arbeitgeber,
+    // während der Name der Person in der Referenz stand. Wer den Namen der
+    // Kandidatin eintippte, bekam „stimmt nicht" und kam nie durch.
+    //
+    // Gelesen statt ausgeführt: eine Server Action außerhalb von Next
+    // aufzurufen gibt einen Proxy zurück (siehe serverActions.test.ts).
+    const actions = readFileSync(join(process.cwd(), 'src', 'app', 'actions.ts'), 'utf8');
+    const fn = actions.slice(actions.indexOf('export async function deleteCandidateAction'));
+    const body = fn.slice(0, fn.indexOf('\nexport '));
+
+    expect(body).not.toMatch(/confirmName/);
+    // Was wirklich schützt, steht weiterhin drin.
+    expect(body).toMatch(/requireAdmin\(\)/);
+  });
+});
 
 describe('einen Fall löschen', () => {
   it('nimmt Profil und Treffer mit', async () => {
