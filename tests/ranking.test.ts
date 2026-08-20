@@ -76,10 +76,35 @@ describe('ranking: compatibility', () => {
       expect(r.reasons.join(' ')).toMatch(/Kaltmiete/);
     });
 
-    it('a cold rent under the cap stays usable but flags the unknown total', () => {
+    it('a cold rent well under the cap is simply passend, and says the total is estimated', () => {
+      // It used to come back NEAR_MATCH. Two thirds of adverts state only a
+      // Kaltmiete, so two thirds of the pool could never be "Passend" however
+      // well they fitted — on the live screen a 700 € flat against a 900 €
+      // budget scored 82, showed green, and was labelled "Fast passend".
+      // The Nebenkosten are estimated, not unknown; an estimate that lands
+      // comfortably under budget is a fact to print, not a decision to make.
       const r = rank(kaltOnly(70000), baseProfile);
-      expect(['COMPATIBLE', 'NEAR_MATCH']).toContain(r.compatibility);
-      expect(r.reasons.join(' ')).toMatch(/unbekannt|unvollständig/);
+      expect(r.compatibility).toBe('COMPATIBLE');
+      expect(r.reasons.join(' ')).toMatch(/geschätzt/);
+    });
+
+    it('but an estimate that lands over the cap is still a reservation', () => {
+      // 800 € cold with no size given: the fallback adds a quarter, so about
+      // 1.000 € warm against a 900 € cap. Over budget, but not so far that it
+      // stops being worth a look.
+      const r = rank(kaltOnly(80000), baseProfile);
+      expect(r.compatibility).toBe('NEAR_MATCH');
+      expect(r.reasons.join(' ')).toMatch(/über Budget/);
+    });
+
+    it('the estimate is only consulted once the cold rent itself fits', () => {
+      // 950 € cold against a 900 € cap is caught by the earlier rule and stays
+      // a soft flag — deliberately, because erring towards showing a flat
+      // costs a click and erring the other way costs the flat. The estimate
+      // decides only where the cold rent leaves the question open.
+      const r = rank(kaltOnly(95000), baseProfile);
+      expect(r.compatibility).toBe('NEAR_MATCH');
+      expect(r.reasons.join(' ')).toMatch(/Kaltmiete/);
     });
 
     it('raising the budget actually changes the verdict', () => {
@@ -118,7 +143,7 @@ describe('ranking: compatibility', () => {
     expect(r.compatibility).not.toBe('INCOMPATIBLE');
   });
 
-  it('unknown total monthly cost produces near-match warning', () => {
+  it('an incomplete total is estimated and said so, not held against the flat', () => {
     const r = rank(
       {
         ...baseListing,
@@ -127,8 +152,10 @@ describe('ranking: compatibility', () => {
       },
       baseProfile,
     );
-    expect(r.compatibility).toBe('NEAR_MATCH');
-    expect(r.reasons.some((r) => r.includes('unbekannt') || r.includes('unvoll'))).toBe(true);
+    expect(r.compatibility).toBe('COMPATIBLE');
+    // Still surfaced — the reader must know which number is a measurement and
+    // which is arithmetic.
+    expect(r.reasons.some((x) => x.includes('geschätzt'))).toBe(true);
   });
 
   it('required-furnished blocks unfurnished', () => {
@@ -208,18 +235,63 @@ describe('ranking: unresolvable-but-harmless data', () => {
     expect(r.reasons.some((x) => x.includes('Entfernung unbekannt'))).toBe(true);
   });
 
+  /**
+   * The two-digit postcode rule breaks exactly where the flats are.
+   *
+   * Hamburg runs 20095–22769. A job in Altona (22765) and a flat in Rotherbaum
+   * (20146) are six kilometres and one S-Bahn ride apart, and came out as
+   * "Andere PLZ-Region" — a soft flag, which downgrades the listing to "Fast
+   * passend" permanently. On the live screen an 82-point Hamburg flat sat
+   * under a green score with a label saying it did not quite fit.
+   */
+  it('does not treat one Hamburg district as another region from another', () => {
+    const hamburg = { ...baseProfile, workplacePostalCode: '22765' };
+    const rotherbaum = {
+      ...baseListing,
+      distanceKm: null,
+      commuteMinutes: null,
+      locationPostal: '20146',
+    };
+
+    const r = rank(rotherbaum, hamburg);
+
+    expect(r.compatibility).toBe('COMPATIBLE');
+    expect(r.reasons.join(' ')).not.toMatch(/PLZ-Region|andere Gegend/);
+  });
+
+  it('still catches a flat that really is in another part of the country', () => {
+    // The guard must not cost us the error it exists to find.
+    const hamburg = { ...baseProfile, workplacePostalCode: '22765' };
+    const koeln = {
+      ...baseListing,
+      distanceKm: null,
+      commuteMinutes: null,
+      locationPostal: '50667',
+    };
+
+    const r = rank(koeln, hamburg);
+
+    expect(r.compatibility).toBe('INCOMPATIBLE');
+    expect(r.blockers.join(' ')).toMatch(/andere Gegend/);
+  });
+
   it('a real review flag still downgrades to NEAR_MATCH', () => {
+    // An unknown distance and an estimated total are both information. A rent
+    // that actually exceeds the budget is a decision, and that is what must
+    // still cost the listing its "Passend".
     const r = rank(
       {
         ...baseListing,
         furnishing: 'FULLY_FURNISHED',
         distanceKm: null,
         commuteMinutes: null,
-        monthlyTotalComplete: false,
+        effectiveMonthlyCents: 95000,
+        monthlyTotalComplete: true,
       },
       geoProfile,
     );
     expect(r.compatibility).toBe('NEAR_MATCH');
+    expect(r.reasons.join(' ')).toMatch(/über Budget/);
   });
 });
 

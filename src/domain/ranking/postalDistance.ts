@@ -38,6 +38,46 @@ export interface PostalDistanceResult {
   label: string | null;
 }
 
+/**
+ * Cities that span more than one two-digit prefix.
+ *
+ * The two-digit rule breaks exactly where it matters most: on the big cities,
+ * which is where the flats are. Hamburg runs from 20095 to 22769, so a job in
+ * Altona (22765) and a flat in Rotherbaum (20146) — six kilometres apart, one
+ * S-Bahn ride — came out as "Andere PLZ-Region". That is a soft flag, and a
+ * soft flag permanently downgrades a listing to "Fast passend": on the live
+ * screen an 82-point Hamburg flat sat under a green score with a label saying
+ * it did not quite fit. Nothing was wrong with the flat.
+ *
+ * Each set is one contiguous metropolitan area whose prefixes are neighbours
+ * on the ground. Sources: the Deutsche Post postcode ranges for each city.
+ * Kept deliberately small — only cities that genuinely straddle a boundary —
+ * because every entry here is a claim that two prefixes are commutable, and a
+ * wrong one hides the very error this file exists to catch.
+ */
+const METRO_PREFIXES: ReadonlyArray<ReadonlySet<string>> = [
+  new Set(['20', '21', '22']), // Hamburg
+  new Set(['10', '12', '13', '14']), // Berlin
+  new Set(['80', '81']), // München
+  new Set(['50', '51']), // Köln
+  new Set(['40', '41']), // Düsseldorf
+  new Set(['60', '65']), // Frankfurt am Main / Offenbach
+  new Set(['70', '71']), // Stuttgart
+  new Set(['04']), // Leipzig — single prefix, listed for completeness
+  new Set(['30', '31']), // Hannover
+  new Set(['28']), // Bremen
+  new Set(['90', '91']), // Nürnberg / Fürth
+  new Set(['44', '45']), // Dortmund / Essen / Bochum — the Ruhr runs together
+  new Set(['01']), // Dresden
+];
+
+/** True when both codes sit inside one metropolitan area. */
+function sameMetro(a: string, b: string): boolean {
+  const pa = a.slice(0, 2);
+  const pb = b.slice(0, 2);
+  return METRO_PREFIXES.some((set) => set.has(pa) && set.has(pb));
+}
+
 const GERMAN_POSTCODE = /^\d{5}$/;
 
 function clean(code: string | null | undefined): string | null {
@@ -59,7 +99,7 @@ export function postalProximity(
   const listing = clean(listingPostal);
   if (!work || !listing) return { proximity: 'UNKNOWN', label: null };
 
-  if (work.slice(0, 2) === listing.slice(0, 2)) {
+  if (work.slice(0, 2) === listing.slice(0, 2) || sameMetro(work, listing)) {
     return { proximity: 'SAME_REGION', label: null };
   }
 

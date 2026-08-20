@@ -369,7 +369,22 @@ export default async function ErgebnissePage({
               // up is worth writing to today, 60 to 79 is worth a look, below
               // that is the bottom of the list.
               const shown = Math.round(effectiveScore(m, liveness));
-              const scoreCls = shown >= 80 ? 'good' : shown >= 60 ? 'mid' : 'low';
+              // The colour follows the verdict, not the number. They were two
+              // independent axes, so an 82 could be green while the badge
+              // beside it read "Fast passend" — the same flat described two
+              // ways on one line, with nothing to say which was right. The
+              // number stays the number; the colour now means exactly what the
+              // label means.
+              const scoreCls =
+                m.compatibility === 'COMPATIBLE'
+                  ? 'good'
+                  : m.compatibility === 'NEAR_MATCH'
+                    ? 'mid'
+                    : m.compatibility === 'INCOMPATIBLE'
+                      ? 'bad'
+                      // Nothing to be confident about either way: the base
+                      // style is grey, which is the honest colour for it.
+                      : '';
               // The date the ad prints about itself beats the date we happened
               // to import it: an ad found this morning can already be three
               // weeks old, and that is exactly what decides whether it is worth

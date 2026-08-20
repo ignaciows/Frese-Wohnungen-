@@ -276,7 +276,33 @@ export function classify(listing: RankingListing, profile: RankingProfile): {
     } else if (listing.kaltMieteCents > cap) {
       softFlags.push('Kaltmiete allein liegt schon über Budget');
     } else {
-      softFlags.push('Gesamtkosten unbekannt — Warmmiete muss geprüft werden');
+      // The cold rent fits. What is left is the Nebenkosten, and those are
+      // estimated rather than unknown — 2,50 €/m², the German average, erring
+      // high on purpose.
+      //
+      // This used to be a soft flag, and a soft flag downgrades a listing to
+      // "Fast passend" for good. Two thirds of all adverts state only a
+      // Kaltmiete, so two thirds of the pool could never be "Passend" however
+      // well they fitted: on the live screen a 700 € flat against a 900 €
+      // budget scored 82, showed green, and was labelled "Fast passend". The
+      // score and the label were describing different things, and the reader
+      // had no way to tell which to believe.
+      //
+      // Judge the estimate. Over budget once the Nebenkosten are added is a
+      // real reservation; comfortably under is a fact worth printing, not a
+      // decision anybody has to make.
+      const estimated = assessRent({
+        kaltMieteCents: listing.kaltMieteCents,
+        livingSpaceSqm: listing.livingSpaceSqm,
+      }).basisCents;
+
+      if (estimated != null && estimated > cap * 1.15) {
+        blockers.push('Deutlich über Budget (mit geschätzten Nebenkosten)');
+      } else if (estimated != null && estimated > cap) {
+        softFlags.push('Mit geschätzten Nebenkosten über Budget');
+      } else {
+        infoFlags.push('Warmmiete geschätzt — Nebenkosten stehen nicht in der Anzeige');
+      }
     }
   } else {
     softFlags.push('Mietkosten unbekannt');
