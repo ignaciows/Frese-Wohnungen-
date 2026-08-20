@@ -117,6 +117,14 @@ export function parseCardTitle(title: string): CardFacts | null {
   };
 }
 
+function decodeEntities(value: string): string {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_m, code: string) => String.fromCharCode(Number(code)));
+}
+
 /** Sichtbarer Text hinter einem `data-testid`, ohne Auszeichnung. */
 function textAfter(block: string, testId: string, span = 700): string | null {
   const at = block.indexOf(`data-testid="${testId}"`);
@@ -145,13 +153,85 @@ function priceKind(block: string): 'warm' | 'kalt' {
   return /warmmiete|gesamtmiete|warm/i.test(label) ? 'warm' : 'kalt';
 }
 
-/** „Sinsheimer Straße, Böckingen, Heilbronn (74080)" → Adresse und PLZ. */
-function addressFrom(block: string): { raw: string | null; postal: string | null } {
-  const raw = textAfter(block, 'cardmfe-description-box-address', 400);
-  if (!raw) return { raw: null, postal: null };
-  const cut = raw.split(/\s{2,}/)[0].trim();
+/**
+ * „Sinsheimer Straße, Böckingen, Heilbronn (74080)" auseinandernehmen.
+ *
+ * `where` ist das, was diese Anzeige von der nächsten unterscheidet — die
+ * Straße, sonst der Stadtteil.
+ */
+function addressFrom(
+  block: string,
+  searchedCity: string | null,
+): {
+  raw: string | null;
+  postal: string | null;
+  city: string | null;
+  where: string | null;
+} {
+  // Bis zum nächsten `<`, nicht über eine feste Zeichenzahl.
+  //
+  // Ein fester Ausschnitt endet irgendwann mitten in einem Tag, und ein
+  // angeschnittenes `<path d="M3.76 8.225C…` überlebt jedes Entfernen von
+  // Auszeichnung — es *ist* keine mehr. In der Stadt stand dann der halbe
+  // Pfad eines Symbols.
+  const at = block.indexOf('cardmfe-description-box-address');
+  if (at === -1) return { raw: null, postal: null, city: null, where: null };
+  const start = block.indexOf('>', at);
+  const end = block.indexOf('<', start + 1);
+  if (start === -1 || end === -1) return { raw: null, postal: null, city: null, where: null };
+  const cut = decodeEntities(block.slice(start + 1, end)).replace(/\s+/g, ' ').trim();
+  if (!cut) return { raw: null, postal: null, city: null, where: null };
   const postal = cut.match(/\((\d{5})\)|\b(\d{5})\b/);
-  return { raw: cut || null, postal: postal ? (postal[1] ?? postal[2]) : null };
+
+  // Aufbau der Zeile: `[Straße, ]Stadtteil, Stadt (PLZ)`.
+  //
+  // Die Stadt steht **hier** und nicht im Kartentitel: dort steht der
+  // Stadtteil, und „Mitte" als Ort einer Wohnung in Hagen ist für jede
+  // Umkreisrechnung wertlos — und auf dem Bildschirm sah es aus, als lägen
+  // die Wohnungen in einer Stadt namens Mitte.
+  const parts = cut
+    .replace(/\s*\(\d{5}\)\s*$/, '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  // Die Reihenfolge der Zeile ist nicht verlässlich. Beobachtet wurden:
+  //
+  //   „Tscherningstraße 19, Böckingen, Heilbronn (74076)"  Straße, Teil, Stadt
+  //   „Hochstraße 66, Hagen, Mitte (58095)"                Straße, Stadt, Teil
+  //   „Hochstraße 66, Mitte (58095)"                       Straße, Teil
+  //
+  // Nach Position lässt sich Stadt und Stadtteil deshalb nicht trennen. Was es
+  // erlaubt, ist der Ort, für den gesucht wurde: steht er in der Zeile, ist er
+  // die Stadt, und der Rest ist Lage. Ohne diese Regel stand als Ort einer
+  // Wohnung in Hagen „Mitte".
+  //
+  // Fürs Rechnen ist ohnehin die Postleitzahl maßgeblich; der Ortsname steht
+  // auf dem Bildschirm.
+  const known = searchedCity
+    ? parts.findIndex((p) => p.toLowerCase() === searchedCity.toLowerCase())
+    : -1;
+  const rest = parts.filter((_, i) => i !== known);
+  //  - Der gesuchte Ort steht in der Zeile → das ist die Stadt.
+  //  - Drei oder mehr Teile → der letzte ist eine echte Stadt (Nachbarort).
+  //  - Sonst **null**. „Hochstraße 66, Mitte (58095)" nennt keine Stadt, und
+  //    „Mitte" hinzuschreiben wäre erfunden — die Regel dieser Schnittstelle
+  //    ist, dass Fehlendes null bleibt (siehe domain/discovery/types). Die
+  //    Postleitzahl trägt den Ort ohnehin, und die volle Zeile steht in
+  //    `locationRaw`.
+  const city = known >= 0 ? parts[known] : parts.length > 2 ? parts[parts.length - 1] : null;
+  // Die Lage: bevorzugt die Straße (die mit der Hausnummer), sonst der Teil,
+  // der nicht die Stadt ist.
+  const street = rest.find((p) => /\d/.test(p)) ?? null;
+  const district = rest.find((p) => p !== street) ?? null;
+
+  return {
+    raw: cut || null,
+    postal: postal ? (postal[1] ?? postal[2]) : null,
+    city,
+    // Was diese Anzeige von der nächsten unterscheidet: die Straße, sonst der
+    // Stadtteil. Steht dort dasselbe wie die Stadt, sagt es nichts.
+    where: street ?? (district && district !== city ? district : null),
+  };
 }
 
 export const immoweltAdapter: DiscoveryAdapter = {
@@ -171,7 +251,9 @@ export const immoweltAdapter: DiscoveryAdapter = {
     if (cfgString(config, 'searchUrl')) return config;
     if (!query.city) return null;
     const url = await lookupSearchUrl(query.city, fetchPage);
-    return url ? { ...config, searchUrl: url } : null;
+    // Der Ort wandert mit in die Konfiguration: `parse` bekommt die Anfrage
+    // nicht zu sehen, braucht aber den Ort für die kurzen Adresszeilen.
+    return url ? { ...config, searchUrl: url, searchCity: query.city } : null;
   },
 
   buildUrls(_query: DiscoveryQuery, config: AdapterConfig): string[] {
@@ -179,8 +261,9 @@ export const immoweltAdapter: DiscoveryAdapter = {
     return url ? [url] : [];
   },
 
-  parse(page: FetchedPage, _config: AdapterConfig): DiscoveredListing[] {
+  parse(page: FetchedPage, config: AdapterConfig): DiscoveredListing[] {
     if (!page.body) return [];
+    const searchedCity = cfgString(config, 'searchCity');
     const out: DiscoveredListing[] = [];
     const seen = new Set<string>();
 
@@ -214,19 +297,26 @@ export const immoweltAdapter: DiscoveryAdapter = {
       if (NOT_A_FLAT.test(facts.propertyLabel)) continue;
 
       seen.add(url);
-      const address = addressFrom(block);
+      const address = addressFrom(block, searchedCity);
       const teaser = textAfter(block, 'cardmfe-description-text-test-id', 900);
       const warm = priceKind(block) === 'warm';
 
       out.push({
         url,
-        title,
+        // Kurz und unterscheidend. Der volle Kartentitel wiederholt Preis,
+        // Zimmer und Fläche, die in der Zeile ohnehin daneben stehen — und
+        // was auf jeder Zeile dasselbe sagt, sagt nichts (docs/OBERFLAECHE.md,
+        // 1.1). Der ganze Text bleibt in `description`, damit der Leser
+        // „frei ab 01.09.2026" weiterhin findet.
+        title: [facts.propertyLabel.replace(/\s+zur\s+Miete\b/i, '').trim() || 'Wohnung', address.where]
+          .filter(Boolean)
+          .join(' · '),
         // Was die Liste zeigt, mehr nicht. Die Angaben aus dem Titel kommen
         // mit hinein, damit der Textleser „frei ab 01.09.2026" findet — auf
         // der Liste steht kein anderes Einzugsdatum.
-        description: [facts.details, teaser].filter(Boolean).join('\n'),
+        description: [title, facts.details, teaser].filter(Boolean).join('\n'),
         locationRaw: address.raw ?? [address.postal, facts.city].filter(Boolean).join(' ') ?? undefined,
-        locationCity: facts.city,
+        locationCity: address.city ?? searchedCity ?? facts.city,
         locationPostal: address.postal,
         structured: {
           ...(facts.rentCents != null

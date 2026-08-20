@@ -28,6 +28,34 @@ const page = (body: string | null): FetchedPage => ({
   blocked: false,
 });
 
+describe('Ort und Titel', () => {
+  it('nimmt die Stadt aus der Adresszeile, nicht den Stadtteil aus dem Titel', () => {
+    // „Mitte" als Ort einer Wohnung in Hagen ist für jede Umkreisrechnung
+    // wertlos — und auf dem Bildschirm sah es aus, als gäbe es eine Stadt
+    // namens Mitte.
+    const [first] = immoweltAdapter.parse(page(html), {});
+    expect(first.locationCity).toBe('Heilbronn');
+    expect(first.locationPostal).toBe('74072');
+  });
+
+  it('macht aus dem Kartentitel eine kurze, unterscheidende Zeile', () => {
+    // Der volle Titel wiederholt Preis, Zimmer und Fläche, die in der Zeile
+    // ohnehin daneben stehen.
+    const rows = immoweltAdapter.parse(page(html), {});
+    for (const r of rows) {
+      expect(r.title).not.toMatch(/€/);
+      expect(r.title).not.toMatch(/m²/);
+      expect(r.title.length).toBeLessThan(60);
+    }
+  });
+
+  it('behält den vollen Text für den Leser', () => {
+    // „frei ab 01.09.2026" steht nur im Kartentitel — der Textleser braucht ihn.
+    const rows = immoweltAdapter.parse(page(html), {});
+    expect(rows.some((r) => /frei ab/i.test(r.description))).toBe(true);
+  });
+});
+
 describe('den Kartentitel lesen', () => {
   it('nimmt Typ, Ort, Preis, Zimmer und Fläche auseinander', () => {
     const f = parseCardTitle(
@@ -68,7 +96,8 @@ describe('die Trefferliste lesen', () => {
     expect(found.length).toBeGreaterThanOrEqual(4);
     for (const l of found) {
       expect(l.url).toMatch(/^https:\/\/www\.immowelt\.de\/expose\/[0-9a-f-]{36}$/);
-      expect(l.title.length).toBeGreaterThan(10);
+      // Kurz ist hier Absicht (siehe „Ort und Titel"), aber nie leer.
+      expect(l.title.trim().length).toBeGreaterThan(3);
     }
   });
 
@@ -133,7 +162,9 @@ describe('die Suchadresse finden', () => {
       {},
       async () => fetched(target),
     );
-    expect(config).toEqual({ searchUrl: target });
+    // Der Ort wandert mit: `parse` sieht die Anfrage nicht und braucht ihn für
+    // die kurzen Adresszeilen, in denen die Stadt fehlt.
+    expect(config).toEqual({ searchUrl: target, searchCity: 'Heilbronn' });
     expect(immoweltAdapter.buildUrls(DEFAULT_QUERY, config!)).toEqual([target]);
   });
 
