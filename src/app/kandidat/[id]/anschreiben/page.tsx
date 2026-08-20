@@ -8,8 +8,20 @@ export const dynamic = 'force-dynamic';
 
 export default async function AnschreibenPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const message = await prisma.applicationMessage.findUnique({ where: { candidateCaseId: id } });
-  if (!message) notFound();
+  // Gefragt wird nach dem Fall, nicht nach dem Anschreiben.
+  //
+  // Vorher hing die Seite am Anschreiben-Datensatz und zeigte „404", wenn es
+  // ihn nicht gab. Angelegt wird er zwar beim Anlegen des Falls mit — aber ein
+  // Fall, der auf einem anderen Weg entstanden ist, hat keinen, und dann
+  // antwortet ausgerechnet der Bildschirm mit „Seite nicht gefunden", auf den
+  // das Anlegen direkt weiterleitet. Ein fehlendes Anschreiben ist kein
+  // fehlender Fall, sondern ein leeres Feld.
+  const fall = await prisma.candidateCase.findUnique({
+    where: { id },
+    select: { applicationMessage: { select: { body: true } } },
+  });
+  if (!fall) notFound();
+  const body = fall.applicationMessage?.body ?? '';
 
   return (
     <div className="stack-lg" style={{ maxWidth: 820 }}>
@@ -18,7 +30,7 @@ export default async function AnschreibenPage({ params }: { params: Promise<{ id
         keine Texte und verschickt nichts automatisch.
       </Callout>
 
-      <MessageEditor candidateCaseId={id} initialBody={message.body} />
+      <MessageEditor candidateCaseId={id} initialBody={body} />
 
       <div className="row-between">
         <Link href={`/kandidat/${id}`} className="btn">

@@ -43,7 +43,12 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireUser, requireAdmin } from '@/lib/auth';
-import { createCandidateCase, updateApplicationMessage, updateSearchProfile } from '@/server/candidates';
+import {
+  createCandidateCase,
+  nextFreeReference,
+  updateApplicationMessage,
+  updateSearchProfile,
+} from '@/server/candidates';
 import { ingestListing } from '@/server/listingIngest';
 import { createSearchRun, updateSourceCheckStatus } from '@/server/searchRuns';
 import { claimListing, confirmContact } from '@/server/contact';
@@ -99,41 +104,81 @@ const CandidateInput = z.object({
   moveInDate: optionalDate,
 });
 
+/**
+ * Warum das Anlegen abgebrochen ist, als Kürzel für die Meldung auf der Seite.
+ *
+ * Die Texte stehen in `kandidat/neu/messages.ts` — aus einer `'use server'`-
+ * Datei dürfen nur asynchrone Funktionen heraus.
+ */
+function anlegenFehler(e: unknown): string {
+  if (e instanceof z.ZodError) return 'unvollstaendig';
+  if (typeof e === 'object' && e !== null && 'code' in e && (e as { code?: string }).code === 'P2002') {
+    return 'kennung-doppelt';
+  }
+  return 'unbekannt';
+}
+
 export async function createCandidateAction(formData: FormData) {
   const user = await requireUser();
-  const raw = Object.fromEntries(formData);
-  const parsed = CandidateInput.parse(raw);
-  const candidate = await createCandidateCase({
-    reference: parsed.reference,
-    displayName: parsed.displayName,
-    createdById: user.id,
-    employer: parsed.employer || null,
-    workplace: {
-      address: parsed.workplaceAddress,
-      city: parsed.workplaceCity || null,
-      postalCode: parsed.workplacePostalCode || null,
-      // Present when the address was picked from the lookup rather than typed.
-      lat: parsed.workplaceLat ?? null,
-      lon: parsed.workplaceLon ?? null,
-    },
-    maxWarmmieteCents: parsed.maxWarmmieteEuros * 100,
-    minRooms: parsed.minRooms,
-    preferredRooms: parsed.preferredRooms,
-    adults: parsed.adults,
-    children: parsed.children,
-    radiusKm: parsed.radiusKm,
-    // Null beside a chosen radius: with both set the ranking judges on an
-    // invented travel time instead of the distance somebody actually picked.
-    maxCommuteMinutes: null,
-    furnished: parsed.furnished,
-    wbsStatus: parsed.wbsStatus,
-    temporaryMode: parsed.temporaryMode,
-    contractSignedAt: parsed.contractSignedAt,
-    moveInDate: parsed.moveInDate,
-  });
-  await createSearchRun(candidate.id, user.id, 'Erster Suchlauf');
+
+  // Angelegt wird außerhalb von try/catch weitergeleitet: `redirect()` wirft
+  // selbst eine Ausnahme, die Next.js braucht — fängt man sie mit, landet der
+  // Erfolgsfall in der Fehlerbehandlung.
+  let candidateId: string | null = null;
+  let fehler: string | null = null;
+
+  try {
+    const parsed = CandidateInput.parse(Object.fromEntries(formData));
+    // Die Kennung ist eine interne Nummer, kein Formularfeld, an dem jemand
+    // scheitern soll: ist sie vergeben, wird die nächste genommen.
+    const reference = await nextFreeReference(parsed.reference);
+    const candidate = await createCandidateCase({
+      reference,
+      displayName: parsed.displayName,
+      createdById: user.id,
+      employer: parsed.employer || null,
+      workplace: {
+        address: parsed.workplaceAddress,
+        city: parsed.workplaceCity || null,
+        postalCode: parsed.workplacePostalCode || null,
+        // Present when the address was picked from the lookup rather than typed.
+        lat: parsed.workplaceLat ?? null,
+        lon: parsed.workplaceLon ?? null,
+      },
+      maxWarmmieteCents: parsed.maxWarmmieteEuros * 100,
+      minRooms: parsed.minRooms,
+      preferredRooms: parsed.preferredRooms,
+      adults: parsed.adults,
+      children: parsed.children,
+      radiusKm: parsed.radiusKm,
+      // Null beside a chosen radius: with both set the ranking judges on an
+      // invented travel time instead of the distance somebody actually picked.
+      maxCommuteMinutes: null,
+      furnished: parsed.furnished,
+      wbsStatus: parsed.wbsStatus,
+      temporaryMode: parsed.temporaryMode,
+      contractSignedAt: parsed.contractSignedAt,
+      moveInDate: parsed.moveInDate,
+    });
+    candidateId = candidate.id;
+  } catch (e) {
+    console.error('[kandidat anlegen]', e);
+    fehler = anlegenFehler(e);
+  }
+
+  if (!candidateId) redirect(`/kandidat/neu?fehler=${fehler ?? 'unbekannt'}`);
+
+  // Der erste Suchlauf ist eine Beigabe. Scheitert die Planung — eine Quelle
+  // ohne Zuordnung, eine Datenbank, die gerade klemmt —, ist der Fall trotzdem
+  // angelegt; ein Suchlauf lässt sich jederzeit unter „Quellen" starten.
+  try {
+    await createSearchRun(candidateId, user.id, 'Erster Suchlauf');
+  } catch (e) {
+    console.error('[erster suchlauf]', e);
+  }
+
   // Send the colleague straight to the next step rather than back to a list.
-  redirect(`/kandidat/${candidate.id}/anschreiben`);
+  redirect(`/kandidat/${candidateId}/anschreiben`);
 }
 
 const MessageInput = z.object({

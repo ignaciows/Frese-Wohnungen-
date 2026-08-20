@@ -2,30 +2,44 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { currentUser } from '@/lib/auth';
 import { createCandidateAction } from '@/app/actions';
+import { ANLEGEN_FEHLER } from './messages';
 import { AppBar, Crumbs, Callout } from '@/app/_components/Shell';
 import { SubmitButton } from '@/app/_components/SubmitButton';
 import { AddressPicker } from '@/app/_components/AddressPicker';
+import { nextFreeReference } from '@/server/candidates';
 import { RadiusPicker } from '@/app/_components/RadiusPicker';
 
 export const dynamic = 'force-dynamic';
 
-export default async function NewCandidatePage() {
+export default async function NewCandidatePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ fehler?: string }>;
+}) {
+  const sp = await searchParams;
   const user = await currentUser();
   if (!user) redirect('/login');
 
   const year = new Date().getFullYear();
-  // Pre-filled so nobody has to invent one. Counting what already exists keeps
-  // it unique without a round trip on every keystroke; a clash is still caught
-  // on save and reported, because two people can create a case at once.
-  const { prisma } = await import('@/lib/prisma');
-  const soFar = await prisma.candidateCase.count();
-  const suggestedReference = `CAND-${year}-${String(soFar + 1).padStart(3, '0')}`;
+  // Vorbelegt, damit sich niemand eine ausdenken muss. Gezählt wurde früher,
+  // wie viele Fälle es gibt — nach dem ersten gelöschten Fall zeigte das auf
+  // eine Nummer, die es schon gab, und das Anlegen brach ab. Jetzt wird die
+  // nächste freie gesucht, und beim Speichern noch einmal.
+  const suggestedReference = await nextFreeReference(`CAND-${year}-001`);
 
   return (
     <>
       <AppBar user={user} active="kandidaten" />
       <main className="container page" style={{ maxWidth: 780 }}>
         <Crumbs items={[{ label: 'Kandidaten', href: '/' }, { label: 'Neuer Kandidat' }]} />
+        {/* Was beim letzten Versuch schiefging — an der Stelle, an der es
+            passiert ist, in einem Satz, statt als leerer Bildschirm mit einer
+            Prüfziffer. Feste Kürzel, keine freien Texte aus der Adresszeile. */}
+        {ANLEGEN_FEHLER[sp.fehler ?? ''] ? (
+          <div style={{ marginBottom: 16 }}>
+            <Callout tone="danger">{ANLEGEN_FEHLER[sp.fehler!]}</Callout>
+          </div>
+        ) : null}
         <div className="page-title" style={{ marginBottom: 20 }}>
           <h1>Neuer Kandidat</h1>
           <span className="sub">

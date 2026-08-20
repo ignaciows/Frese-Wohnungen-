@@ -37,6 +37,42 @@ export interface CreateCandidateInput {
   contractSignedAt?: Date | null;
 }
 
+/**
+ * Eine freie Kennung, ausgehend von der gewünschten.
+ *
+ * Die Kennung ist eindeutig, weil Suchagent-Mails darüber dem richtigen Fall
+ * zugeordnet werden. Vorgeschlagen wurde sie aus der Anzahl der Fälle — und
+ * nach dem ersten gelöschten Fall zeigt eine Zählung auf eine Nummer, die es
+ * schon gibt. Das Anlegen brach dann mit einer Datenbankmeldung ab, die auf
+ * dem Bildschirm als „Application error" ankam: der Fall ließ sich nicht mehr
+ * anlegen, und nichts sagte, woran es lag.
+ *
+ * Die Kennung ist eine interne Nummer. Ist sie vergeben, wird die nächste
+ * genommen, statt jemanden raten zu lassen.
+ */
+const NUMBERED = /^(.*?)(\d+)$/;
+
+export async function nextFreeReference(wanted: string): Promise<string> {
+  const trimmed = wanted.trim();
+  const taken = await prisma.candidateCase.count({ where: { reference: trimmed } });
+  if (taken === 0) return trimmed;
+
+  const m = NUMBERED.exec(trimmed);
+  const prefix = m ? m[1] : `${trimmed}-`;
+  const width = m ? m[2].length : 2;
+
+  const siblings = await prisma.candidateCase.findMany({
+    where: { reference: { startsWith: prefix } },
+    select: { reference: true },
+  });
+  let highest = 0;
+  for (const s of siblings) {
+    const n = NUMBERED.exec(s.reference);
+    if (n && n[1] === prefix) highest = Math.max(highest, Number(n[2]));
+  }
+  return `${prefix}${String(highest + 1).padStart(width, '0')}`;
+}
+
 export async function createCandidateCase(input: CreateCandidateInput) {
   return prisma.$transaction(async (tx) => {
     const candidate = await tx.candidateCase.create({
