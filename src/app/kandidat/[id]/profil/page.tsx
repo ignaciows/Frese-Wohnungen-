@@ -62,7 +62,22 @@ export default async function ProfilPage({ params }: { params: Promise<{ id: str
                 weiß, was „35 Minuten" heißt, bevor er weiß, ob jemand fährt
                 oder den Bus nimmt. */}
             <RadiusPicker defaultKm={p.radiusKm ?? 10} />
-</div>
+          </div>
+
+          <div>
+            <label htmlFor="maxWarmmieteEuros">Maximale Warmmiete (€)</label>
+            <input
+              id="maxWarmmieteEuros"
+              name="maxWarmmieteEuros"
+              type="number"
+              min={100}
+              max={10000}
+              className="input"
+              defaultValue={Math.round(p.maxWarmmieteCents / 100)}
+              required
+            />
+            <p className="field-hint">Echte Gesamtkosten, nicht Kaltmiete.</p>
+          </div>
 
           <div>
             <label htmlFor="moveInDate">Gewünschter Einzug</label>
